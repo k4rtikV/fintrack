@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import accountRoutes from "./routes/account.routes.js";
 
 import {
   errorHandler,
@@ -47,6 +48,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/accounts", accountRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
