@@ -4,6 +4,8 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import accountRoutes from "./routes/account.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
+import transactionRoutes from "./routes/transaction.routes.js";
 
 import {
   errorHandler,
@@ -49,6 +51,8 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/accounts", accountRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/transactions", transactionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

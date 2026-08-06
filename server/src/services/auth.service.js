@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
+import { seedDefaultCategoriesForUser } from "./category.service.js";
 
 const createUser = async ({
   fullName,
@@ -19,6 +20,8 @@ const createUser = async ({
     password,
     preferredCurrency,
   });
+
+  await seedDefaultCategoriesForUser(user._id);
 
   return user;
 };
