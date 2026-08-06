@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import Button from "../ui/Button";
 
@@ -249,6 +250,24 @@ const TransactionModal = ({
             </label>
           </div>
 
+          {accounts.length === 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+              <p className="font-semibold text-amber-800 dark:text-amber-200">
+                Create an account first
+              </p>
+              <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+                Every transaction must update an account balance.
+              </p>
+              <Link
+                to="/accounts"
+                onClick={onClose}
+                className="mt-3 inline-flex text-sm font-bold text-amber-800 underline underline-offset-4 dark:text-amber-200"
+              >
+                Go to Accounts
+              </Link>
+            </div>
+          )}
+
           {error && (
             <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
               {error}
@@ -259,7 +278,7 @@ const TransactionModal = ({
             <Button variant="secondary" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || accounts.length === 0}>
               {isSaving
                 ? "Saving..."
                 : transaction
