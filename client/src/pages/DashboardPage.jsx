@@ -71,11 +71,20 @@ const DashboardPage = () => {
     },
     {
       label: "Savings rate",
-      value: `${Number(overview?.savingsRate || 0).toFixed(1)}%`,
-      note: `${formatCurrency(overview?.netSavings, currency)} net savings`,
+      value:
+        overview?.totalIncome > 0
+          ? `${Number(overview?.savingsRate || 0).toFixed(1)}%`
+          : "—",
+      note:
+        overview?.totalIncome > 0
+          ? `${formatCurrency(overview?.netSavings, currency)} net savings`
+          : "No income recorded",
       icon: PiggyBank,
       tone: "violet",
-      trend: Number(overview?.savingsRate || 0),
+      trend:
+        overview?.totalIncome > 0
+          ? Number(overview?.savingsRate || 0)
+          : undefined,
     },
   ];
 

@@ -3,6 +3,7 @@ import {
   createCategoryForUser,
   getCategoriesForUser,
   getCategoryByIdForUser,
+  syncDefaultCategoriesForUser,
   updateCategoryForUser,
 } from "../services/category.service.js";
 
@@ -23,6 +24,8 @@ const createCategory = async (req, res) => {
 
 const getCategories = async (req, res) => {
   const type = req.query.type?.toUpperCase();
+
+  await syncDefaultCategoriesForUser(req.user._id);
 
   const categories = await getCategoriesForUser({
     userId: req.user._id,

@@ -9,18 +9,18 @@ const fieldClassName =
 
 const getToday = () => new Date().toISOString().slice(0, 10);
 
-const createInitialForm = (transaction) => ({
-  type: transaction?.type || "EXPENSE",
-  title: transaction?.title || "",
-  amount: transaction?.amount ? String(transaction.amount) : "",
-  accountId: transaction?.account?._id || transaction?.account || "",
-  categoryId: transaction?.category?._id || transaction?.category || "",
+const createInitialForm = (transaction, template) => ({
+  type: transaction?.type || template?.type || "EXPENSE",
+  title: transaction?.title || template?.title || "",
+  amount: transaction?.amount ? String(transaction.amount) : template?.amount ? String(template.amount) : "",
+  accountId: transaction?.account?._id || transaction?.account || template?.accountId || "",
+  categoryId: transaction?.category?._id || transaction?.category || template?.categoryId || "",
   transactionDate: transaction?.transactionDate
     ? new Date(transaction.transactionDate).toISOString().slice(0, 10)
     : getToday(),
-  paymentMethod: transaction?.paymentMethod || "OTHER",
-  note: transaction?.note || "",
-  tags: transaction?.tags?.join(", ") || "",
+  paymentMethod: transaction?.paymentMethod || template?.paymentMethod || "OTHER",
+  note: transaction?.note || template?.note || "",
+  tags: transaction?.tags?.join(", ") || template?.tags?.join(", ") || "",
 });
 
 const TransactionModal = ({
@@ -31,16 +31,17 @@ const TransactionModal = ({
   onClose,
   onSubmit,
   transaction,
+  template,
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(transaction));
+  const [form, setForm] = useState(() => createInitialForm(transaction, template));
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createInitialForm(transaction));
+      setForm(createInitialForm(transaction, template));
       setError("");
     }
-  }, [isOpen, transaction]);
+  }, [isOpen, transaction, template]);
 
   const matchingCategories = useMemo(
     () => categories.filter((category) => category.type === form.type),

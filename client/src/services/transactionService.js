@@ -2,50 +2,18 @@ import api from "../api/axios";
 
 const getTransactions = async (params = {}) => {
   const response = await api.get("/transactions", { params });
-
-  return {
-    transactions: response.data.data.transactions,
-    pagination: response.data.pagination,
-  };
+  return { transactions: response.data.data.transactions, pagination: response.data.pagination };
 };
 
-const createTransaction = async (payload) => {
-  const response = await api.post("/transactions", payload);
-  return response.data;
+const getTransactionsForExport = async (params = {}) => {
+  const response = await api.get("/transactions", { params: { ...params, page: 1, limit: 100 } });
+  return response.data.data.transactions;
 };
 
-const updateTransaction = async ({ transactionId, payload }) => {
-  const response = await api.patch(
-    `/transactions/${transactionId}`,
-    payload,
-  );
+const createTransaction = async (payload) => (await api.post("/transactions", payload)).data;
+const updateTransaction = async ({ transactionId, payload }) => (await api.patch(`/transactions/${transactionId}`, payload)).data;
+const deleteTransaction = async (transactionId) => (await api.delete(`/transactions/${transactionId}`)).data;
+const getAccounts = async () => (await api.get("/accounts")).data.data.accounts;
+const getCategories = async (type) => (await api.get("/categories", { params: type ? { type } : {} })).data.data.categories;
 
-  return response.data;
-};
-
-const deleteTransaction = async (transactionId) => {
-  const response = await api.delete(`/transactions/${transactionId}`);
-  return response.data;
-};
-
-const getAccounts = async () => {
-  const response = await api.get("/accounts");
-  return response.data.data.accounts;
-};
-
-const getCategories = async (type) => {
-  const response = await api.get("/categories", {
-    params: type ? { type } : {},
-  });
-
-  return response.data.data.categories;
-};
-
-export {
-  createTransaction,
-  deleteTransaction,
-  getAccounts,
-  getCategories,
-  getTransactions,
-  updateTransaction,
-};
+export { createTransaction, deleteTransaction, getAccounts, getCategories, getTransactions, getTransactionsForExport, updateTransaction };

@@ -125,6 +125,9 @@ const getTransactionsForUser = async ({
   type,
   startDate,
   endDate,
+  search,
+  sortBy = "transactionDate",
+  sortOrder = "desc",
   page = 1,
   limit = 20,
 }) => {
@@ -144,6 +147,18 @@ const getTransactionsForUser = async ({
     filter.type = type;
   }
 
+  if (search?.trim()) {
+    const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchPattern = new RegExp(escapedSearch, "i");
+
+    filter.$or = [
+      { title: searchPattern },
+      { note: searchPattern },
+      { tags: searchPattern },
+      { paymentMethod: searchPattern },
+    ];
+  }
+
   if (startDate || endDate) {
     filter.transactionDate = {};
 
@@ -160,14 +175,21 @@ const getTransactionsForUser = async ({
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const skip = (safePage - 1) * safeLimit;
 
+  const allowedSortFields = new Set(["transactionDate", "amount", "title", "createdAt"]);
+  const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "transactionDate";
+  const safeSortOrder = sortOrder === "asc" ? 1 : -1;
+
+  const sort = { [safeSortBy]: safeSortOrder };
+
+  if (safeSortBy !== "createdAt") {
+    sort.createdAt = -1;
+  }
+
   const [transactions, total] = await Promise.all([
     Transaction.find(filter)
       .populate("account", "name type currency")
       .populate("category", "name type icon color")
-      .sort({
-        transactionDate: -1,
-        createdAt: -1,
-      })
+      .sort(sort)
       .skip(skip)
       .limit(safeLimit),
 

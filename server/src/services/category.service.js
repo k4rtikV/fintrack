@@ -10,23 +10,37 @@ const ensureValidObjectId = (id) => {
   }
 };
 
-const seedDefaultCategoriesForUser = async (userId) => {
-  const existingCount = await Category.countDocuments({
+const syncDefaultCategoriesForUser = async (userId) => {
+  const existingCategories = await Category.find({
     user: userId,
-  });
+  }).select("name type");
 
-  if (existingCount > 0) {
-    return;
-  }
+  const existingKeys = new Set(
+    existingCategories.map(
+      (category) =>
+        `${category.type}:${category.name.trim().toLowerCase()}`,
+    ),
+  );
 
-  const categories = DEFAULT_CATEGORIES.map((category) => ({
+  const missingCategories = DEFAULT_CATEGORIES.filter((category) => {
+    const key = `${category.type}:${category.name.trim().toLowerCase()}`;
+    return !existingKeys.has(key);
+  }).map((category) => ({
     ...category,
     user: userId,
     isDefault: true,
   }));
 
-  await Category.insertMany(categories);
+  if (missingCategories.length > 0) {
+    await Category.insertMany(missingCategories, {
+      ordered: false,
+    });
+  }
+
+  return missingCategories.length;
 };
+
+const seedDefaultCategoriesForUser = syncDefaultCategoriesForUser;
 
 const createCategoryForUser = async ({
   userId,
@@ -172,5 +186,6 @@ export {
   getCategoriesForUser,
   getCategoryByIdForUser,
   seedDefaultCategoriesForUser,
+  syncDefaultCategoriesForUser,
   updateCategoryForUser,
 };

@@ -85,10 +85,17 @@ export const DEFAULT_CATEGORIES = [
     displayOrder: 17,
   },
   {
+    name: "Investment",
+    type: "EXPENSE",
+    icon: "trending-up",
+    color: "teal",
+    displayOrder: 18,
+  },
+  {
     name: "Other",
     type: "EXPENSE",
     icon: "circle",
     color: "gray",
-    displayOrder: 18,
+    displayOrder: 19,
   },
 ];

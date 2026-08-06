@@ -2,16 +2,14 @@ import { ReceiptText } from "lucide-react";
 
 import { formatCurrency, formatDate } from "../../utils/formatters";
 import DashboardCard from "../layout/DashboardCard";
+import CategoryIcon from "../ui/CategoryIcon";
 import EmptyState from "../ui/EmptyState";
 
 const TopExpensesList = ({ expenses = [], currency = "INR" }) => {
   return (
     <DashboardCard>
       <div>
-        <h2 className="font-bold text-slate-900 dark:text-white">
-          Top expenses
-        </h2>
-
+        <h2 className="font-bold text-slate-900 dark:text-white">Top expenses</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Your largest expenses this month.
         </p>
@@ -31,14 +29,10 @@ const TopExpensesList = ({ expenses = [], currency = "INR" }) => {
               className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
             >
               <div className="flex min-w-0 items-center gap-3">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
-                  style={{
-                    backgroundColor: `${expense.category?.color || "#64748b"}20`,
-                  }}
-                >
-                  {expense.category?.icon || "₹"}
-                </span>
+                <CategoryIcon
+                  icon={expense.category?.icon}
+                  color={expense.category?.color}
+                />
 
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -46,6 +40,9 @@ const TopExpensesList = ({ expenses = [], currency = "INR" }) => {
                   </p>
                   <p className="truncate text-xs text-slate-400">
                     {expense.category?.name || "Uncategorised"} · {formatDate(expense.transactionDate)}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-slate-400">
+                    {expense.account?.name || "Account"}
                   </p>
                 </div>
               </div>

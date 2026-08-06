@@ -29,6 +29,9 @@ const getTransactions = async (req, res) => {
     type: req.query.type?.toUpperCase(),
     startDate: req.query.startDate,
     endDate: req.query.endDate,
+    search: req.query.search,
+    sortBy: req.query.sortBy,
+    sortOrder: req.query.sortOrder,
     page: req.query.page,
     limit: req.query.limit,
   });
