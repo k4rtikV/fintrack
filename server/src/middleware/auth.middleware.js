@@ -23,6 +23,11 @@ const protect = async (req, res, next) => {
       throw new AppError("The account associated with this session was not found", 401);
     }
 
+    if (!user.emailVerified) {
+      throw new AppError(
+        "Email verification is required",403,);
+    }
+
     if (
       user.passwordChangedAt &&
       decoded.iat * 1000 < user.passwordChangedAt.getTime()

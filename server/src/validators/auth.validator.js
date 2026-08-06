@@ -59,3 +59,36 @@ export const loginSchema = z.object({
       .min(1, "Password is required"),
   }),
 });
+
+const otpSchema = z
+  .string({
+    required_error: "OTP is required",
+  })
+  .trim()
+  .regex(/^\d{6}$/, "OTP must contain exactly 6 digits");
+
+export const verifyRegistrationOtpSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+    otp: otpSchema,
+  }),
+});
+
+export const resendRegistrationOtpSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});
+
+export const verifyLoginOtpSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+    otp: otpSchema,
+  }),
+});
+
+export const resendLoginOtpSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});

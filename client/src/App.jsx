@@ -1,28 +1,73 @@
-function App() {
+import {
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
+
+import AuthLayout from "./layouts/AuthLayout";
+import DashboardPage from "./pages/DashboardPage";
+import LoginOtpPage from "./pages/LoginOtpPage";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import RegistrationOtpPage from "./pages/RegistrationOtpPage";
+import ProtectedRoute from "./routes/ProtectedRoute";
+import PublicOnlyRoute from "./routes/PublicOnlyRoute";
+
+const App = () => {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-      <section className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-        <p className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
-          FinTrack
-        </p>
+    <Routes>
+      <Route element={<PublicOnlyRoute />}>
+        <Route element={<AuthLayout />}>
+          <Route
+            path="/register"
+            element={<RegisterPage />}
+          />
 
-        <h1 className="mt-2 text-3xl font-bold text-slate-900">
-          Personal finance, clearly organized.
-        </h1>
+          <Route
+            path="/verify-registration"
+            element={<RegistrationOtpPage />}
+          />
 
-        <p className="mt-3 text-slate-600">
-          The frontend is working and Tailwind CSS is configured.
-        </p>
+          <Route
+            path="/login"
+            element={<LoginPage />}
+          />
 
-        <button
-          type="button"
-          className="mt-6 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-700"
-        >
-          Foundation complete
-        </button>
-      </section>
-    </main>
+          <Route
+            path="/verify-login"
+            element={<LoginOtpPage />}
+          />
+        </Route>
+      </Route>
+
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/dashboard"
+          element={<DashboardPage />}
+        />
+      </Route>
+
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
+      />
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
+      />
+    </Routes>
   );
-}
+};
 
 export default App;

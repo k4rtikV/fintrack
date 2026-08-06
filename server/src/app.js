@@ -6,6 +6,7 @@ import morgan from "morgan";
 import accountRoutes from "./routes/account.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import transactionRoutes from "./routes/transaction.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 
 import {
   errorHandler,
@@ -53,6 +54,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/accounts", accountRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/transactions", transactionRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

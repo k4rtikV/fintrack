@@ -56,6 +56,54 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    registrationOtpHash: {
+      type: String,
+      select: false,
+      default: null,
+    },
+
+    registrationOtpExpiresAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+
+    registrationOtpLastSentAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+
+    registrationOtpAttempts: {
+      type: Number,
+      select: false,
+      default: 0,
+    },
+
+    loginOtpHash: {
+      type: String,
+      select: false,
+      default: null,
+    },
+
+    loginOtpExpiresAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+
+    loginOtpLastSentAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+
+    loginOtpAttempts: {
+      type: Number,
+      select: false,
+      default: 0,
+    },
+
     isActive: {
       type: Boolean,
       default: true,

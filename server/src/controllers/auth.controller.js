@@ -1,7 +1,11 @@
 import {
-  authenticateUser,
-  createUser,
   findUserById,
+  registerUser,
+  requestLoginOtp,
+  resendLoginOtp,
+  resendRegistrationOtp,
+  verifyLoginOtp,
+  verifyRegistrationOtp,
 } from "../services/auth.service.js";
 
 import {
@@ -12,51 +16,85 @@ import {
 import { generateAccessToken } from "../utils/jwt.js";
 
 const register = async (req, res) => {
-  const {
-    fullName,
-    email,
-    password,
-    preferredCurrency,
-  } = req.validatedData.body;
-
-  const user = await createUser({
-    fullName,
-    email,
-    password,
-    preferredCurrency,
-  });
-
-  const token = generateAccessToken(user._id);
-
-  setAuthCookie(res, token);
+  const result = await registerUser(
+    req.validatedData.body,
+  );
 
   res.status(201).json({
     success: true,
-    message: "Account created successfully",
+    message:
+      "Registration OTP sent. Verify your email to activate your account.",
+    data: result,
+  });
+};
+
+const verifyRegistration = async (req, res) => {
+  const user = await verifyRegistrationOtp(
+    req.validatedData.body,
+  );
+
+  const token = generateAccessToken(user._id);
+  setAuthCookie(res, token);
+
+  res.status(200).json({
+    success: true,
+    message: "Email verified and account activated successfully",
     data: {
       user,
     },
   });
 };
 
-const login = async (req, res) => {
-  const { email, password } = req.validatedData.body;
+const resendRegistration = async (req, res) => {
+  const result = await resendRegistrationOtp(
+    req.validatedData.body,
+  );
 
-  const user = await authenticateUser({
-    email,
-    password,
+  res.status(200).json({
+    success: true,
+    message: "A new registration OTP has been sent",
+    data: result,
   });
+};
+
+const login = async (req, res) => {
+  const result = await requestLoginOtp(
+    req.validatedData.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Login OTP sent to your email address",
+    data: result,
+  });
+};
+
+const verifyLogin = async (req, res) => {
+  const user = await verifyLoginOtp(
+    req.validatedData.body,
+  );
 
   const token = generateAccessToken(user._id);
-
   setAuthCookie(res, token);
 
   res.status(200).json({
     success: true,
-    message: "Logged in successfully",
+    message: "Login completed successfully",
     data: {
       user,
     },
+  });
+};
+
+const resendLogin = async (req, res) => {
+  const result = await resendLoginOtp(
+    req.validatedData.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "A new login OTP has been sent",
+    data: result,
   });
 };
 
@@ -80,4 +118,13 @@ const getCurrentUser = async (req, res) => {
   });
 };
 
-export { getCurrentUser, login, logout, register };
+export {
+  getCurrentUser,
+  login,
+  logout,
+  register,
+  resendLogin,
+  resendRegistration,
+  verifyLogin,
+  verifyRegistration,
+};
