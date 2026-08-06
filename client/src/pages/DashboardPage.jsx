@@ -1,61 +1,88 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   Landmark,
   PiggyBank,
   ReceiptText,
+  RefreshCw,
   TrendingUp,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import DashboardCard from "../components/layout/DashboardCard";
+import AccountSummary from "../components/dashboard/AccountSummary";
+import CashFlowChart from "../components/dashboard/CashFlowChart";
+import CategoryBreakdown from "../components/dashboard/CategoryBreakdown";
+import DashboardSkeleton from "../components/dashboard/DashboardSkeleton";
+import DashboardStatCard from "../components/dashboard/DashboardStatCard";
+import TopExpensesList from "../components/dashboard/TopExpensesList";
 import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
-import EmptyState from "../components/ui/EmptyState";
 import useAuth from "../hooks/useAuth";
-
-const stats = [
-  {
-    label: "Total balance",
-    value: "₹0.00",
-    note: "Across all accounts",
-    icon: Landmark,
-  },
-  {
-    label: "Monthly income",
-    value: "₹0.00",
-    note: "No income recorded",
-    icon: TrendingUp,
-  },
-  {
-    label: "Monthly expenses",
-    value: "₹0.00",
-    note: "No expenses recorded",
-    icon: ReceiptText,
-  },
-  {
-    label: "Savings rate",
-    value: "0%",
-    note: "Add transactions to calculate",
-    icon: PiggyBank,
-  },
-];
-
-const gettingStartedSteps = [
-  "Add your first account",
-  "Create income and expense categories",
-  "Record your first transaction",
-];
+import { getDashboardAnalytics } from "../services/analyticsService";
+import { formatCurrency } from "../utils/formatters";
 
 const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ["dashboard-analytics"],
+    queryFn: getDashboardAnalytics,
+  });
+
   const firstName = user?.fullName?.split(" ")[0] || "there";
+  const currency = user?.preferredCurrency || "INR";
+  const overview = data?.overview;
+
+  const stats = [
+    {
+      label: "Total balance",
+      value: formatCurrency(overview?.totalBalance, currency),
+      note: `${overview?.accountCount || 0} active account${
+        overview?.accountCount === 1 ? "" : "s"
+      }`,
+      icon: Landmark,
+      tone: "blue",
+    },
+    {
+      label: "Monthly income",
+      value: formatCurrency(overview?.totalIncome, currency),
+      note: `${overview?.incomeTransactionCount || 0} income transaction${
+        overview?.incomeTransactionCount === 1 ? "" : "s"
+      }`,
+      icon: TrendingUp,
+      tone: "emerald",
+    },
+    {
+      label: "Monthly expenses",
+      value: formatCurrency(overview?.totalExpense, currency),
+      note: `${overview?.expenseTransactionCount || 0} expense transaction${
+        overview?.expenseTransactionCount === 1 ? "" : "s"
+      }`,
+      icon: ReceiptText,
+      tone: "rose",
+    },
+    {
+      label: "Savings rate",
+      value: `${Number(overview?.savingsRate || 0).toFixed(1)}%`,
+      note: `${formatCurrency(overview?.netSavings, currency)} net savings`,
+      icon: PiggyBank,
+      tone: "violet",
+      trend: Number(overview?.savingsRate || 0),
+    },
+  ];
 
   return (
     <PageContainer
       title={`Welcome back, ${firstName} 👋`}
-      description="Here is your financial overview. Your real analytics will populate as you add accounts and transactions."
+      description="Track your balances, spending, and monthly cash flow from one place."
       action={
         <Button onClick={() => navigate("/transactions")}>
           <ArrowUpRight size={17} />
@@ -63,90 +90,51 @@ const DashboardPage = () => {
         </Button>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ label, value, note, icon: Icon }) => (
-          <DashboardCard key={label}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                  {label}
-                </p>
-
-                <p className="mt-3 text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
-                  {value}
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                <Icon size={19} />
-              </span>
-            </div>
-
-            <p className="mt-3 text-xs text-slate-400">{note}</p>
-          </DashboardCard>
-        ))}
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
-        <DashboardCard className="min-h-96">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="font-bold text-slate-900 dark:text-white">
-                Cash flow overview
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Income and expense trends will appear here.
-              </p>
-            </div>
-
-            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-              This month
-            </span>
-          </div>
-
-          <EmptyState
-            icon={TrendingUp}
-            title="No financial activity yet"
-            description="Add your first transaction to begin tracking cash flow."
-          />
-        </DashboardCard>
-
-        <DashboardCard>
-          <h2 className="font-bold text-slate-900 dark:text-white">
-            Getting started
+      {isLoading ? (
+        <DashboardSkeleton />
+      ) : isError ? (
+        <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-500/20 dark:bg-rose-500/10">
+          <h2 className="text-lg font-bold text-rose-700 dark:text-rose-200">
+            Unable to load dashboard analytics
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Complete these steps to unlock your dashboard.
+          <p className="mx-auto mt-2 max-w-xl text-sm text-rose-600 dark:text-rose-300">
+            {error?.response?.data?.message ||
+              "Something went wrong while loading your financial overview."}
           </p>
-
-          <div className="mt-5 space-y-3">
-            {gettingStartedSteps.map((item, index) => (
-              <div
-                key={item}
-                className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-                  {index + 1}
-                </span>
-
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  {item}
-                </span>
-              </div>
-            ))}
-          </div>
 
           <Button
             variant="secondary"
-            className="mt-5 w-full"
-            onClick={() => navigate("/accounts")}
+            className="mt-5"
+            disabled={isFetching}
+            onClick={() => refetch()}
           >
-            Set up FinTrack
+            <RefreshCw
+              size={17}
+              className={isFetching ? "animate-spin" : ""}
+            />
+            Try again
           </Button>
-        </DashboardCard>
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map((stat) => (
+              <DashboardStatCard key={stat.label} {...stat} />
+            ))}
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_0.55fr]">
+            <CashFlowChart data={data?.trend} currency={currency} />
+            <CategoryBreakdown data={data?.categories} currency={currency} />
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-2">
+            <AccountSummary accounts={data?.accounts} currency={currency} />
+            <TopExpensesList expenses={data?.expenses} currency={currency} />
+          </div>
+        </>
+      )}
     </PageContainer>
   );
 };
