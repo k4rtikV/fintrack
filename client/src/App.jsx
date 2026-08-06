@@ -1,71 +1,58 @@
-import {
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import AuthLayout from "./layouts/AuthLayout";
+import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardPage from "./pages/DashboardPage";
 import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
+import PlaceholderPage from "./pages/PlaceholderPage";
 import RegisterPage from "./pages/RegisterPage";
 import RegistrationOtpPage from "./pages/RegistrationOtpPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute";
+
+const placeholderRoutes = [
+  "transactions",
+  "accounts",
+  "categories",
+  "budgets",
+  "goals",
+  "reports",
+  "assistant",
+  "settings",
+];
 
 const App = () => {
   return (
     <Routes>
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AuthLayout />}>
-          <Route
-            path="/register"
-            element={<RegisterPage />}
-          />
-
+          <Route path="/register" element={<RegisterPage />} />
           <Route
             path="/verify-registration"
             element={<RegistrationOtpPage />}
           />
-
-          <Route
-            path="/login"
-            element={<LoginPage />}
-          />
-
-          <Route
-            path="/verify-login"
-            element={<LoginOtpPage />}
-          />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/verify-login" element={<LoginOtpPage />} />
         </Route>
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route
-          path="/dashboard"
-          element={<DashboardPage />}
-        />
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+
+          {placeholderRoutes.map((path) => (
+            <Route
+              key={path}
+              path={`/${path}`}
+              element={<PlaceholderPage />}
+            />
+          ))}
+        </Route>
       </Route>
 
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
-        }
-      />
-
-      <Route
-        path="*"
-        element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
-        }
-      />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 };

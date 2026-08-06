@@ -1,97 +1,153 @@
-import { LogOut, WalletCards } from "lucide-react";
+import {
+  ArrowUpRight,
+  Landmark,
+  PiggyBank,
+  ReceiptText,
+  TrendingUp,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
 
+import DashboardCard from "../components/layout/DashboardCard";
+import PageContainer from "../components/layout/PageContainer";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
 import useAuth from "../hooks/useAuth";
 
-const DashboardPage = () => {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
+const stats = [
+  {
+    label: "Total balance",
+    value: "₹0.00",
+    note: "Across all accounts",
+    icon: Landmark,
+  },
+  {
+    label: "Monthly income",
+    value: "₹0.00",
+    note: "No income recorded",
+    icon: TrendingUp,
+  },
+  {
+    label: "Monthly expenses",
+    value: "₹0.00",
+    note: "No expenses recorded",
+    icon: ReceiptText,
+  },
+  {
+    label: "Savings rate",
+    value: "0%",
+    note: "Add transactions to calculate",
+    icon: PiggyBank,
+  },
+];
 
-  const handleLogout = async () => {
-    await logout();
-    toast.success("Logged out successfully");
-    navigate("/login", {
-      replace: true,
-    });
-  };
+const gettingStartedSteps = [
+  "Add your first account",
+  "Create income and expense categories",
+  "Record your first transaction",
+];
+
+const DashboardPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const firstName = user?.fullName?.split(" ")[0] || "there";
 
   return (
-    <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
-      <header className="mx-auto flex max-w-6xl items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white">
-            <WalletCards size={21} />
+    <PageContainer
+      title={`Welcome back, ${firstName} 👋`}
+      description="Here is your financial overview. Your real analytics will populate as you add accounts and transactions."
+      action={
+        <Button onClick={() => navigate("/transactions")}>
+          <ArrowUpRight size={17} />
+          Add transaction
+        </Button>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map(({ label, value, note, icon: Icon }) => (
+          <DashboardCard key={label}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  {label}
+                </p>
+
+                <p className="mt-3 text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+                  {value}
+                </p>
+              </div>
+
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                <Icon size={19} />
+              </span>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-400">{note}</p>
+          </DashboardCard>
+        ))}
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
+        <DashboardCard className="min-h-96">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-bold text-slate-900 dark:text-white">
+                Cash flow overview
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Income and expense trends will appear here.
+              </p>
+            </div>
+
+            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+              This month
+            </span>
           </div>
 
-          <div>
-            <p className="font-bold">
-              FinTrack
-            </p>
+          <EmptyState
+            icon={TrendingUp}
+            title="No financial activity yet"
+            description="Add your first transaction to begin tracking cash flow."
+          />
+        </DashboardCard>
 
-            <p className="text-xs text-slate-500">
-              Personal finance dashboard
-            </p>
+        <DashboardCard>
+          <h2 className="font-bold text-slate-900 dark:text-white">
+            Getting started
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Complete these steps to unlock your dashboard.
+          </p>
+
+          <div className="mt-5 space-y-3">
+            {gettingStartedSteps.map((item, index) => (
+              <div
+                key={item}
+                className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                  {index + 1}
+                </span>
+
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  {item}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-        >
-          <LogOut size={17} />
-          Log out
-        </button>
-      </header>
-
-      <section className="mx-auto mt-8 max-w-6xl rounded-3xl bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold text-emerald-600">
-          Authentication complete
-        </p>
-
-        <h1 className="mt-2 text-3xl font-bold">
-          Welcome, {user?.fullName}
-        </h1>
-
-        <p className="mt-3 text-slate-500">
-          Your verified account is connected successfully.
-          The full financial dashboard comes next.
-        </p>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <article className="rounded-2xl bg-slate-100 p-5">
-            <p className="text-sm text-slate-500">
-              Email
-            </p>
-
-            <p className="mt-2 font-semibold">
-              {user?.email}
-            </p>
-          </article>
-
-          <article className="rounded-2xl bg-slate-100 p-5">
-            <p className="text-sm text-slate-500">
-              Currency
-            </p>
-
-            <p className="mt-2 font-semibold">
-              {user?.preferredCurrency}
-            </p>
-          </article>
-
-          <article className="rounded-2xl bg-slate-100 p-5">
-            <p className="text-sm text-slate-500">
-              Email status
-            </p>
-
-            <p className="mt-2 font-semibold text-emerald-600">
-              Verified
-            </p>
-          </article>
-        </div>
-      </section>
-    </main>
+          <Button
+            variant="secondary"
+            className="mt-5 w-full"
+            onClick={() => navigate("/accounts")}
+          >
+            Set up FinTrack
+          </Button>
+        </DashboardCard>
+      </div>
+    </PageContainer>
   );
 };
 
