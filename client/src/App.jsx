@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AccountsPage from "./pages/AccountsPage";
+import BudgetsPage from "./pages/BudgetsPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
@@ -15,7 +16,6 @@ import PublicOnlyRoute from "./routes/PublicOnlyRoute";
 
 const placeholderRoutes = [
   "categories",
-  "budgets",
   "goals",
   "reports",
   "assistant",
@@ -42,6 +42,7 @@ const App = () => {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
+          <Route path="/budgets" element={<BudgetsPage />} />
 
           {placeholderRoutes.map((path) => (
             <Route
