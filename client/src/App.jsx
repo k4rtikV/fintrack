@@ -9,6 +9,7 @@ import GoalsPage from "./pages/GoalsPage";
 import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import RecurringPage from "./pages/RecurringPage";
 import RegisterPage from "./pages/RegisterPage";
 import RegistrationOtpPage from "./pages/RegistrationOtpPage";
 import TransactionsPage from "./pages/TransactionsPage";
@@ -42,6 +43,7 @@ const App = () => {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
+          <Route path="/recurring" element={<RecurringPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/goals" element={<GoalsPage />} />
 

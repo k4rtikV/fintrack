@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const transactionSchema = new mongoose.Schema(
+const recurringTransactionSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -51,13 +51,6 @@ const transactionSchema = new mongoose.Schema(
       default: "",
     },
 
-    transactionDate: {
-      type: Date,
-      required: true,
-      default: Date.now,
-      index: true,
-    },
-
     paymentMethod: {
       type: String,
       enum: [
@@ -76,16 +69,45 @@ const transactionSchema = new mongoose.Schema(
       default: [],
     },
 
-    recurringTransaction: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "RecurringTransaction",
-      default: null,
+    frequency: {
+      type: String,
+      enum: ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"],
+      required: true,
       index: true,
     },
 
-    recurringOccurrenceDate: {
+    interval: {
+      type: Number,
+      min: 1,
+      max: 365,
+      default: 1,
+    },
+
+    startDate: {
+      type: Date,
+      required: true,
+    },
+
+    endDate: {
       type: Date,
       default: null,
+    },
+
+    nextRunDate: {
+      type: Date,
+      required: true,
+      index: true,
+    },
+
+    lastRunDate: {
+      type: Date,
+      default: null,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
     },
   },
   {
@@ -94,38 +116,15 @@ const transactionSchema = new mongoose.Schema(
   },
 );
 
-transactionSchema.index({
+recurringTransactionSchema.index({
   user: 1,
-  transactionDate: -1,
+  isActive: 1,
+  nextRunDate: 1,
 });
 
-transactionSchema.index({
-  user: 1,
-  account: 1,
-  transactionDate: -1,
-});
-
-transactionSchema.index({
-  user: 1,
-  category: 1,
-  transactionDate: -1,
-});
-
-transactionSchema.index(
-  {
-    user: 1,
-    recurringTransaction: 1,
-    recurringOccurrenceDate: 1,
-  },
-  {
-    unique: true,
-    partialFilterExpression: {
-      recurringTransaction: { $type: "objectId" },
-      recurringOccurrenceDate: { $type: "date" },
-    },
-  },
+const RecurringTransaction = mongoose.model(
+  "RecurringTransaction",
+  recurringTransactionSchema,
 );
 
-const Transaction = mongoose.model("Transaction", transactionSchema);
-
-export default Transaction;
+export default RecurringTransaction;

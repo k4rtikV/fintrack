@@ -3,19 +3,20 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
-import accountRoutes from "./routes/account.routes.js";
-import analyticsRoutes from "./routes/analytics.routes.js";
-import budgetRoutes from "./routes/budget.routes.js";
-import goalRoutes from "./routes/goal.routes.js";
-import categoryRoutes from "./routes/category.routes.js";
-import transactionRoutes from "./routes/transaction.routes.js";
 
 import {
   errorHandler,
   notFound,
 } from "./middleware/error.middleware.js";
 
+import accountRoutes from "./routes/account.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import budgetRoutes from "./routes/budget.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
+import goalRoutes from "./routes/goal.routes.js";
+import recurringRoutes from "./routes/recurring.routes.js";
+import transactionRoutes from "./routes/transaction.routes.js";
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/budgets", budgetRoutes);
 app.use("/api/goals", goalRoutes);
+app.use("/api/recurring", recurringRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

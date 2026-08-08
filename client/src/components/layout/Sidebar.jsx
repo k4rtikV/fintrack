@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   ReceiptText,
+  Repeat2,
   Settings,
   WalletCards,
   X,
@@ -19,6 +20,7 @@ import useAuth from "../../hooks/useAuth";
 const links = [
   ["/dashboard", "Dashboard", LayoutDashboard],
   ["/transactions", "Transactions", ReceiptText],
+  ["/recurring", "Recurring", Repeat2],
   ["/accounts", "Accounts", WalletCards],
   ["/categories", "Categories", FolderTree],
   ["/budgets", "Budgets", CircleDollarSign],
