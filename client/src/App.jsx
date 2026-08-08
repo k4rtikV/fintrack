@@ -5,6 +5,7 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import AccountsPage from "./pages/AccountsPage";
 import BudgetsPage from "./pages/BudgetsPage";
 import DashboardPage from "./pages/DashboardPage";
+import GoalsPage from "./pages/GoalsPage";
 import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
@@ -16,7 +17,6 @@ import PublicOnlyRoute from "./routes/PublicOnlyRoute";
 
 const placeholderRoutes = [
   "categories",
-  "goals",
   "reports",
   "assistant",
   "settings",
@@ -43,6 +43,7 @@ const App = () => {
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
+          <Route path="/goals" element={<GoalsPage />} />
 
           {placeholderRoutes.map((path) => (
             <Route
