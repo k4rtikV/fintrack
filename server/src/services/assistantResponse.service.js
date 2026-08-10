@@ -643,11 +643,31 @@ const goalPresentation = ({ reply, data }) => {
         tone: "neutral",
       },
     ],
-    insights: [focus.assessmentBasis].filter(Boolean),
+    insights: [
+      focus.assessmentBasis,
+      data.portfolio?.activeGoalCount > 1
+        ? data.portfolio.collectivelyAffordable
+          ? `Across all ${data.portfolio.activeGoalCount} active goals, the combined required monthly contribution is ${formatMoney(
+              data.portfolio.totalRequiredMonthlyContribution,
+              currency,
+            )}, which is within the recent savings pool of ${formatMoney(
+              data.portfolio.recentAverageMonthlySavings,
+              currency,
+            )}.`
+          : `Across all ${data.portfolio.activeGoalCount} active goals, the combined required monthly contribution is ${formatMoney(
+              data.portfolio.totalRequiredMonthlyContribution,
+              currency,
+            )}, exceeding the recent savings pool by ${formatMoney(
+              data.portfolio.monthlyShortfall,
+              currency,
+            )}. Individual goal feasibility should not be read as if every goal can use the full savings amount independently.`
+        : null,
+    ].filter(Boolean),
     recommendations:
-      status === "warning"
+      status === "warning" ||
+      data.portfolio?.collectivelyAffordable === false
         ? [
-            "Consider adjusting the monthly contribution or target timeline if the required pace is not sustainable.",
+            "Consider adjusting goal priorities, monthly contributions, or target timelines if the combined required pace is not sustainable.",
           ]
         : [],
     confidence: lowerConfidence(focus.evidenceConfidence),
@@ -1326,6 +1346,9 @@ const simulationPresentation = ({ reply, data }) => {
     data.currentMonth?.after || {};
   const changes =
     data.currentMonth?.changes || {};
+  const isFutureReduction =
+    data.inputs?.reductionAppliesTo ===
+    "FUTURE_REMAINING_MONTH_SPENDING";
   const budgetImpact = data.budgetImpact || {};
   const forecastAfter =
     data.monthEndForecast?.after;
@@ -1340,43 +1363,55 @@ const simulationPresentation = ({ reply, data }) => {
           ? "positive"
           : "neutral";
 
-  const metrics = [
-    {
-      label: "Net savings after",
-      value: formatMoney(
-        after.netSavings,
-        currency,
-      ),
-      detail: `${formatMoney(
-        changes.netSavings,
-        currency,
-      )} change`,
-      tone:
-        Number(after.netSavings) >= 0
-          ? "positive"
-          : "critical",
-    },
-    {
-      label: "Savings rate after",
-      value:
-        after.savingsRate === null
-          ? "—"
-          : formatPercent(after.savingsRate),
-      detail:
-        changes.savingsRatePercentagePoints ===
-        null
-          ? ""
-          : `${round2(
+  const metrics = isFutureReduction
+    ? [
+        {
+          label: "Estimated future savings",
+          value: formatMoney(
+            data.inputs?.calculatedScenarioAmount,
+            currency,
+          ),
+          detail: `${data.inputs?.reductionPercent || 0}% reduction in remaining ${data.inputs?.category || "category"} spending`,
+          tone: "positive",
+        },
+      ]
+    : [
+        {
+          label: "Net savings after",
+          value: formatMoney(
+            after.netSavings,
+            currency,
+          ),
+          detail: `${formatMoney(
+            changes.netSavings,
+            currency,
+          )} change`,
+          tone:
+            Number(after.netSavings) >= 0
+              ? "positive"
+              : "critical",
+        },
+        {
+          label: "Savings rate after",
+          value:
+            after.savingsRate === null
+              ? "—"
+              : formatPercent(after.savingsRate),
+          detail:
+            changes.savingsRatePercentagePoints ===
+            null
+              ? ""
+              : `${round2(
+                  changes.savingsRatePercentagePoints,
+                )} percentage-point change`,
+          tone:
+            Number(
               changes.savingsRatePercentagePoints,
-            )} percentage-point change`,
-      tone:
-        Number(
-          changes.savingsRatePercentagePoints,
-        ) < -10
-          ? "warning"
-          : "neutral",
-    },
-  ];
+            ) < -10
+              ? "warning"
+              : "neutral",
+        },
+      ];
 
   if (forecastAfter) {
     metrics.push({
@@ -1415,13 +1450,22 @@ const simulationPresentation = ({ reply, data }) => {
   }
 
   const insights = [
-    `This scenario changes current-month net savings by ${formatMoney(
-      changes.netSavings,
-      currency,
-    )}.`,
+    isFutureReduction
+      ? `Already-recorded current-month spending is unchanged. FinTrack estimates ${formatMoney(
+          data.inputs?.calculatedScenarioAmount,
+          currency,
+        )} of savings from reducing only the remaining-month ${data.inputs?.category || "category"} spending.`
+      : `This scenario changes current-month net savings by ${formatMoney(
+          changes.netSavings,
+          currency,
+        )}.`,
   ];
 
-  if (budgetImpact.matchedBudget) {
+  if (
+    budgetImpact.matchedBudget &&
+    !isFutureReduction &&
+    budgetImpact.percentageUsedAfter !== undefined
+  ) {
     insights.push(
       `${budgetImpact.category} would move from ${formatPercent(
         budgetImpact.percentageUsedBefore,
@@ -1444,15 +1488,20 @@ const simulationPresentation = ({ reply, data }) => {
   return {
     answer: getFallbackAnswer(reply),
     summary:
-      data.scenario === "REDUCE_CATEGORY_SPENDING"
-        ? `Avoiding the simulated spending would improve current-month net savings by ${formatMoney(
-            Math.abs(changes.netSavings),
+      isFutureReduction
+        ? `Reducing only the estimated remaining-month ${data.inputs?.category || "category"} spending by ${data.inputs?.reductionPercent || 0}% would improve the month-end forecast by about ${formatMoney(
+            data.inputs?.calculatedScenarioAmount,
             currency,
-          )}.`
-        : `Under this hypothetical scenario, current-month net savings would be ${formatMoney(
-            after.netSavings,
-            currency,
-          )}.`,
+          )}, without rewriting spending that already happened.`
+        : data.scenario === "REDUCE_RECORDED_CATEGORY_SPENDING"
+          ? `In this retrospective hypothetical, current-month net savings would improve by ${formatMoney(
+              Math.abs(changes.netSavings),
+              currency,
+            )}.`
+          : `Under this hypothetical scenario, current-month net savings would be ${formatMoney(
+              after.netSavings,
+              currency,
+            )}.`,
     status,
     metrics: metrics.slice(0, 4),
     insights: insights.slice(0, 4),
@@ -1463,11 +1512,46 @@ const simulationPresentation = ({ reply, data }) => {
   };
 };
 
+const limitationPresentation = ({
+  reply,
+  data,
+}) => ({
+  answer: getFallbackAnswer(reply),
+  summary:
+    data?.note ||
+    data?.error ||
+    "FinTrack cannot safely combine this calculation with the currently available data.",
+  status: "warning",
+  metrics: [],
+  insights: [
+    data?.currencySafety?.note ||
+      data?.quality?.currencySafety?.note ||
+      data?.note ||
+      data?.error,
+  ].filter(Boolean),
+  recommendations: [
+    data?.currencySafety?.hasMixedCurrencies
+      ? "Review values separately by currency until FinTrack has an authoritative FX conversion layer."
+      : null,
+  ].filter(Boolean),
+  confidence: "low",
+});
+
 const buildDeterministicPresentation = ({
   reply,
   toolTrace = [],
 }) => {
   const toolResults = getSuccessfulToolResults(toolTrace);
+  const unsupportedResult = [...toolResults.values()].find(
+    (data) => data?.supported === false,
+  );
+
+  if (unsupportedResult) {
+    return limitationPresentation({
+      reply,
+      data: unsupportedResult,
+    });
+  }
 
   if (toolResults.has("simulate_financial_scenario")) {
     return simulationPresentation({

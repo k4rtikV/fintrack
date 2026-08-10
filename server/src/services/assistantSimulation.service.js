@@ -9,6 +9,8 @@ const SCENARIOS = [
   "ADD_EXPENSE",
   "ADD_INCOME",
   "REDUCE_CATEGORY_SPENDING",
+  "REDUCE_FUTURE_CATEGORY_SPENDING",
+  "REDUCE_RECORDED_CATEGORY_SPENDING",
 ];
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
@@ -183,7 +185,14 @@ const simulateFinancialScenario = ({
     );
   }
 
-  if (scenario === "REDUCE_CATEGORY_SPENDING") {
+  const isFutureReduction =
+    scenario === "REDUCE_CATEGORY_SPENDING" ||
+    scenario === "REDUCE_FUTURE_CATEGORY_SPENDING";
+
+  if (
+    isFutureReduction ||
+    scenario === "REDUCE_RECORDED_CATEGORY_SPENDING"
+  ) {
     const percentage = assertPercentage(
       reductionPercent,
       "reductionPercent",
@@ -197,7 +206,7 @@ const simulateFinancialScenario = ({
       return {
         supported: false,
         error:
-          "The requested category has no current-period spending to simulate.",
+          "The requested category has no current-period spending to anchor this simulation.",
       };
     }
 
@@ -207,13 +216,49 @@ const simulateFinancialScenario = ({
           matchedCategory.currentAmount,
       ) || 0;
 
-    appliedAmount = round2(
-      categorySpend * (percentage / 100),
-    );
-    expenseDelta = -appliedAmount;
-    assumptions.push(
-      `The simulation treats a ${percentage}% reduction in recorded current-period ${category} spending as potential savings; no historical transaction is edited.`,
-    );
+    if (isFutureReduction) {
+      const daysElapsed = Math.max(
+        Number(monthlyForecast?.monthProgress?.daysElapsed) || 1,
+        1,
+      );
+      const daysRemaining = Math.max(
+        Number(monthlyForecast?.monthProgress?.daysRemaining) || 0,
+        0,
+      );
+      const anomalyAdjustment =
+        monthlyForecast?.expensePaceAdjustment?.categories?.find(
+          (item) =>
+            String(item.category || "").toLowerCase() ===
+            String(category || "").toLowerCase(),
+        );
+      const anomalyExcluded = Math.min(
+        Number(anomalyAdjustment?.amount) || 0,
+        categorySpend,
+      );
+      const routineSpendSoFar = Math.max(
+        categorySpend - anomalyExcluded,
+        0,
+      );
+      const estimatedFutureCategorySpend = round2(
+        (routineSpendSoFar / daysElapsed) * daysRemaining,
+      );
+
+      appliedAmount = round2(
+        estimatedFutureCategorySpend * (percentage / 100),
+      );
+      expenseDelta = 0;
+      assumptions.push(
+        `The ${percentage}% reduction applies only to estimated future ${category} spending for the remaining days of the current month; already-recorded transactions are unchanged.`,
+      );
+    } else {
+      appliedAmount = round2(
+        categorySpend * (percentage / 100),
+      );
+      expenseDelta = -appliedAmount;
+      assumptions.push(
+        `This retrospective hypothetical asks what the current month would look like if recorded ${category} spending had been ${percentage}% lower. No saved transaction is edited.`,
+      );
+    }
   }
 
   const after = {
@@ -234,6 +279,8 @@ const simulateFinancialScenario = ({
 
   const baselineForecast =
     monthlyForecast?.forecast || null;
+  const forecastExpenseDelta =
+    isFutureReduction ? -appliedAmount : expenseDelta;
   const forecastAfter = baselineForecast
     ? {
         income: round2(
@@ -243,7 +290,7 @@ const simulateFinancialScenario = ({
         expense: round2(
           Math.max(
             Number(baselineForecast.expense || 0) +
-              expenseDelta,
+              forecastExpenseDelta,
             0,
           ),
         ),
@@ -262,12 +309,23 @@ const simulateFinancialScenario = ({
       );
   }
 
-  const budgetImpact = buildBudgetImpact({
-    scenario,
-    amount: appliedAmount,
-    category,
-    budgetAnalytics,
-  });
+  const budgetImpact = isFutureReduction
+    ? {
+        category: category || null,
+        matchedBudget: Boolean(
+          findBudgetItem(budgetAnalytics, category),
+        ),
+        currentRecordedSpendUnchanged: true,
+        estimatedFutureSavings: appliedAmount,
+        note:
+          "For a future-spending reduction, already-recorded budget usage is unchanged. The estimated savings apply only to the remaining-month projection.",
+      }
+    : buildBudgetImpact({
+        scenario,
+        amount: appliedAmount,
+        category,
+        budgetAnalytics,
+      });
 
   const savingsRateChange =
     before.savingsRate !== null &&
@@ -290,7 +348,8 @@ const simulateFinancialScenario = ({
   ) {
     assessment = "NOTICEABLE_IMPACT";
   } else if (
-    scenario === "REDUCE_CATEGORY_SPENDING" &&
+    (isFutureReduction ||
+      scenario === "REDUCE_RECORDED_CATEGORY_SPENDING") &&
     appliedAmount > 0
   ) {
     assessment = "POSITIVE_IMPACT";
@@ -302,14 +361,22 @@ const simulateFinancialScenario = ({
     preferredCurrency,
     inputs: {
       requestedAmount:
-        scenario === "REDUCE_CATEGORY_SPENDING"
+        isFutureReduction ||
+        scenario === "REDUCE_RECORDED_CATEGORY_SPENDING"
           ? null
           : appliedAmount,
       category: category || null,
       reductionPercent:
-        scenario === "REDUCE_CATEGORY_SPENDING"
+        isFutureReduction ||
+        scenario === "REDUCE_RECORDED_CATEGORY_SPENDING"
           ? Number(reductionPercent)
           : null,
+      reductionAppliesTo:
+        isFutureReduction
+          ? "FUTURE_REMAINING_MONTH_SPENDING"
+          : scenario === "REDUCE_RECORDED_CATEGORY_SPENDING"
+            ? "RECORDED_CURRENT_MONTH_SPENDING"
+            : null,
       calculatedScenarioAmount: appliedAmount,
     },
     currentMonth: {

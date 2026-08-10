@@ -79,59 +79,113 @@ const detectLargeTransactions = ({
   currentTransactions,
   baselineTransactions,
 }) => {
-  const baselineAmounts = baselineTransactions
-    .filter((item) => item.type === "EXPENSE")
-    .map((item) => Number(item.amount) || 0)
-    .filter((amount) => amount > 0);
+  const expenseBaseline = (baselineTransactions || []).filter(
+    (item) =>
+      item.type === "EXPENSE" &&
+      !item.isLinkedRecurring &&
+      Number(item.amount) > 0,
+  );
+  const globalAmounts = expenseBaseline.map(
+    (item) => Number(item.amount) || 0,
+  );
 
-  if (baselineAmounts.length < 5) {
+  if (globalAmounts.length < 5) {
     return [];
   }
 
-  const baselineMedian = median(baselineAmounts);
-  const mad = medianAbsoluteDeviation(baselineAmounts, baselineMedian);
-  const fallbackThreshold = baselineMedian * 2.5;
-  const robustThreshold =
-    mad > 0 ? baselineMedian + 3.5 * mad : fallbackThreshold;
-  const threshold = Math.max(fallbackThreshold, robustThreshold);
+  const getStats = (amounts) => {
+    const baselineMedian = median(amounts);
+    const mad = medianAbsoluteDeviation(
+      amounts,
+      baselineMedian,
+    );
+    const fallbackThreshold = baselineMedian * 2.5;
+    const robustThreshold =
+      mad > 0
+        ? baselineMedian + 3.5 * mad
+        : fallbackThreshold;
 
-  return currentTransactions
-    .filter((transaction) => transaction.type === "EXPENSE")
+    return {
+      baselineMedian,
+      mad,
+      threshold: Math.max(
+        fallbackThreshold,
+        robustThreshold,
+      ),
+    };
+  };
+
+  const globalStats = getStats(globalAmounts);
+
+  return (currentTransactions || [])
+    .filter(
+      (transaction) =>
+        transaction.type === "EXPENSE" &&
+        !transaction.isLinkedRecurring,
+    )
     .map((transaction) => {
+      const categoryAmounts = expenseBaseline
+        .filter(
+          (item) =>
+            String(item.category || "").toLowerCase() ===
+            String(transaction.category || "").toLowerCase(),
+        )
+        .map((item) => Number(item.amount) || 0);
+      const useCategoryBaseline =
+        categoryAmounts.length >= 5;
+      const stats = useCategoryBaseline
+        ? getStats(categoryAmounts)
+        : globalStats;
       const amount = Number(transaction.amount) || 0;
       const robustScore =
-        mad > 0
-          ? round2((0.6745 * (amount - baselineMedian)) / mad)
+        stats.mad > 0
+          ? round2(
+              (0.6745 *
+                (amount - stats.baselineMedian)) /
+                stats.mad,
+            )
           : null;
 
       return {
         transaction,
         amount,
         robustScore,
+        ...stats,
+        baselineScope: useCategoryBaseline
+          ? "CATEGORY"
+          : "GLOBAL_EXPENSE",
       };
     })
     .filter(
       (item) =>
-        item.amount >= threshold &&
-        (item.robustScore === null || item.robustScore >= 3),
+        item.amount >= item.threshold &&
+        (item.robustScore === null ||
+          item.robustScore >= 3),
     )
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5)
     .map((item) => ({
       type: "LARGE_TRANSACTION",
       severity:
-        item.amount >= Math.max(threshold * 1.75, baselineMedian * 5)
+        item.amount >=
+        Math.max(
+          item.threshold * 1.75,
+          item.baselineMedian * 5,
+        )
           ? "HIGH"
           : "MEDIUM",
       title: item.transaction.title,
       category: item.transaction.category,
       amount: round2(item.amount),
       date: item.transaction.date,
-      baselineMedian: round2(baselineMedian),
-      baselineMad: round2(mad),
+      baselineMedian: round2(item.baselineMedian),
+      baselineMad: round2(item.mad),
+      baselineScope: item.baselineScope,
       robustScore: item.robustScore,
       explanation:
-        "This expense is materially larger than the user's recent expense-transaction baseline. It is an outlier signal, not evidence of fraud.",
+        item.baselineScope === "CATEGORY"
+          ? "This expense is materially larger than recent non-recurring expenses in the same category. It is an outlier signal, not evidence of fraud."
+          : "This expense is materially larger than the recent non-recurring expense baseline. A category-specific baseline was unavailable, so FinTrack used the global expense baseline.",
     }));
 };
 
@@ -147,10 +201,24 @@ const detectCategorySpikes = ({
 
   return currentCategories
     .map((category) => {
-      const history = categoryHistory.get(category.category) || [];
+      const history = (historicalCategoryWindows || []).map(
+        (window) => {
+          const row = (window.categories || []).find(
+            (item) =>
+              item.category === category.category,
+          );
+
+          return {
+            period: window.period,
+            amount: Number(row?.amount) || 0,
+            transactionCount:
+              Number(row?.transactionCount) || 0,
+          };
+        },
+      );
       const historyAmounts = history.map((item) => item.amount);
       const activeHistory = historyAmounts.filter((amount) => amount > 0);
-      const baselineAverage = average(activeHistory);
+      const baselineAverage = average(historyAmounts);
       const currentAmount = Number(category.amount) || 0;
       const absoluteChange = round2(currentAmount - baselineAverage);
       const percentChange =
@@ -306,10 +374,20 @@ const detectPossibleRecurringPatterns = ({ transactions }) => {
           )
         : 0;
 
+    const intervalMad =
+      medianAbsoluteDeviation(
+        intervals,
+        medianInterval,
+      );
+    const maxAllowedIntervalMad = Math.max(
+      2,
+      medianInterval * 0.2,
+    );
     const looksPeriodic =
       medianInterval >= 5 &&
       medianInterval <= 45 &&
-      amountDeviation <= 15;
+      amountDeviation <= 15 &&
+      intervalMad <= maxAllowedIntervalMad;
 
     if (!looksPeriodic) {
       continue;
@@ -323,6 +401,7 @@ const detectPossibleRecurringPatterns = ({ transactions }) => {
       occurrences: sorted.length,
       averageAmount: avgAmount,
       medianIntervalDays: round2(medianInterval),
+      intervalMadDays: round2(intervalMad),
       averageAmountDeviationPercent: round2(amountDeviation),
       explanation:
         "A similar unlinked transaction has appeared repeatedly at a roughly regular interval and amount. FinTrack is only flagging a possible recurring pattern; it has not created a recurring transaction.",
@@ -334,11 +413,18 @@ const detectPossibleRecurringPatterns = ({ transactions }) => {
     .slice(0, 5);
 };
 
-const buildTrendPatterns = ({ monthlyTrend }) => {
+const buildTrendPatterns = ({
+  monthlyTrend,
+  asOf,
+}) => {
+  const currentMonthKey = new Date(asOf)
+    .toISOString()
+    .slice(0, 7);
   const active = (monthlyTrend || []).filter(
     (item) =>
-      (Number(item.income) || 0) !== 0 ||
-      (Number(item.expense) || 0) !== 0,
+      (item.key || item.month) !== currentMonthKey &&
+      ((Number(item.income) || 0) !== 0 ||
+        (Number(item.expense) || 0) !== 0),
   );
 
   if (active.length < 3) {
@@ -442,6 +528,7 @@ const buildSpendingInsights = ({
     }),
     ...buildTrendPatterns({
       monthlyTrend,
+      asOf,
     }),
   ];
 
@@ -493,11 +580,11 @@ const buildSpendingInsights = ({
     }),
     methodology: {
       largeTransactions:
-        "Large-transaction signals use a robust median/MAD baseline when at least five prior expense transactions are available.",
+        "Large-transaction signals prefer a same-category non-recurring median/MAD baseline when at least five comparable transactions exist, otherwise they fall back to the global non-recurring expense baseline.",
       categorySpikes:
-        "Category spikes compare the current elapsed-day window with equivalent elapsed-day windows from recent months.",
+        "Category spikes compare the current elapsed-day window with equivalent elapsed-day windows from recent months, including explicit zero-spend months in the baseline.",
       recurringPatterns:
-        "Possible recurring patterns require at least three similar unlinked expenses with roughly regular timing and amount.",
+        "Possible recurring patterns require at least three similar unlinked expenses with consistent amount and low interval variation; a median interval alone is not enough.",
       caveat:
         "An anomaly means unusual relative to recorded FinTrack history; it is not evidence of fraud, error, or a bad financial decision.",
     },

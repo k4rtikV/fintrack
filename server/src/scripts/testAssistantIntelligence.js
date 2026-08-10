@@ -14,6 +14,9 @@ import {
   simulateFinancialScenario,
 } from "../services/assistantSimulation.service.js";
 
+const roundForTest = (value) =>
+  Number(Number(value).toFixed(2));
+
 const asOf = "2026-08-10T12:00:00.000Z";
 const currencySafety = getCurrencySafety({
   accounts: [
@@ -183,6 +186,149 @@ assert.ok(
   ),
 );
 
+// Category spike baselines must include zero-spend historical windows.
+const zeroAwareCategoryInsights = buildSpendingInsights({
+  asOf,
+  currentRange: {
+    startDate: "2026-08-01",
+    endDate: "2026-08-10",
+    daysIncluded: 10,
+  },
+  historicalRanges: [
+    { period: "2026-07" },
+    { period: "2026-06" },
+    { period: "2026-05" },
+  ],
+  currentCategories: [
+    {
+      category: "Dining",
+      amount: 1200,
+      transactionCount: 3,
+    },
+  ],
+  historicalCategoryWindows: [
+    {
+      period: "2026-07",
+      categories: [
+        {
+          category: "Dining",
+          amount: 1200,
+          transactionCount: 2,
+        },
+      ],
+    },
+    {
+      period: "2026-06",
+      categories: [],
+    },
+    {
+      period: "2026-05",
+      categories: [],
+    },
+  ],
+  currentTransactions: [],
+  baselineTransactions,
+  patternTransactions: [],
+  monthlyTrend: [
+    {
+      key: "2026-05",
+      income: 100,
+      expense: 100,
+      netSavings: 0,
+    },
+    {
+      key: "2026-06",
+      income: 100,
+      expense: 300,
+      netSavings: -200,
+    },
+    {
+      key: "2026-07",
+      income: 100,
+      expense: 200,
+      netSavings: -100,
+    },
+    {
+      key: "2026-08",
+      income: 100,
+      expense: 100,
+      netSavings: 0,
+    },
+  ],
+  currencySafety,
+});
+
+assert.ok(
+  zeroAwareCategoryInsights.anomalies.some(
+    (item) =>
+      item.type === "CATEGORY_SPIKE" &&
+      item.category === "Dining" &&
+      item.baselineAverage === 400,
+  ),
+);
+
+// The current partial month must not be used to manufacture a three-month
+// completed-month trend.
+assert.equal(
+  zeroAwareCategoryInsights.patterns.some(
+    (item) =>
+      item.type === "THREE_MONTH_SAVINGS_DOWNTREND",
+  ),
+  false,
+);
+
+// Highly irregular intervals must not be flagged as recurring merely because
+// their median interval falls in the allowed range.
+const irregularRecurringInsights = buildSpendingInsights({
+  asOf,
+  currentRange: {
+    startDate: "2026-08-01",
+    endDate: "2026-08-10",
+    daysIncluded: 10,
+  },
+  historicalRanges: [{ period: "2026-07" }],
+  currentCategories: [],
+  historicalCategoryWindows: [],
+  currentTransactions: [],
+  baselineTransactions,
+  patternTransactions: [
+    {
+      title: "Streaming",
+      type: "EXPENSE",
+      amount: 500,
+      date: "2026-05-01T00:00:00.000Z",
+      category: "Entertainment",
+      isLinkedRecurring: false,
+    },
+    {
+      title: "Streaming",
+      type: "EXPENSE",
+      amount: 500,
+      date: "2026-05-06T00:00:00.000Z",
+      category: "Entertainment",
+      isLinkedRecurring: false,
+    },
+    {
+      title: "Streaming",
+      type: "EXPENSE",
+      amount: 500,
+      date: "2026-06-20T00:00:00.000Z",
+      category: "Entertainment",
+      isLinkedRecurring: false,
+    },
+  ],
+  monthlyTrend: [],
+  currencySafety,
+});
+
+assert.equal(
+  irregularRecurringInsights.patterns.some(
+    (item) =>
+      item.type === "POSSIBLE_RECURRING_PATTERN",
+  ),
+  false,
+);
+
 const forecast = buildMonthlyForecast({
   asOf,
   currentOverview: {
@@ -298,6 +444,69 @@ assert.ok(
   zeroExpenseHistoryForecast.forecast.netSavings > 0,
 );
 
+// Recurring items must be added as exact future cash flows rather than
+// replacing routine estimates via max(), and already-recorded recurring income
+// must not be projected a second time.
+const recurringAwareForecast = buildMonthlyForecast({
+  asOf,
+  currentOverview: {
+    totalIncome: 100000,
+    totalExpense: 20000,
+  },
+  monthlyTrend: [
+    {
+      key: "2026-06",
+      income: 100000,
+      expense: 30000,
+      netSavings: 70000,
+    },
+    {
+      key: "2026-07",
+      income: 100000,
+      expense: 30000,
+      netSavings: 70000,
+    },
+    {
+      key: "2026-08",
+      income: 100000,
+      expense: 20000,
+      netSavings: 80000,
+    },
+  ],
+  recurringDueBeforeMonthEnd: [
+    {
+      type: "EXPENSE",
+      amount: 10000,
+    },
+  ],
+  recurringContext: {
+    currentRecorded: {
+      income: 50000,
+      expense: 10000,
+    },
+    historicalAverage: {
+      income: 50000,
+      expense: 10000,
+    },
+  },
+  currentTransactionCount: 8,
+  anomalySignals: [],
+  highSeverityAnomalyCount: 0,
+  currencySafety,
+});
+
+assert.equal(
+  recurringAwareForecast.forecast.income,
+  100000,
+);
+assert.ok(
+  recurringAwareForecast.forecast.expense > 30000,
+);
+assert.equal(
+  recurringAwareForecast.scheduledRemainingThisMonth.expense,
+  10000,
+);
+
 const budgetAnalytics = {
   items: [
     {
@@ -357,10 +566,49 @@ const reduction = simulateFinancialScenario({
 assert.equal(reduction.supported, true);
 assert.equal(
   reduction.inputs.calculatedScenarioAmount,
-  300,
+  630,
+);
+assert.equal(
+  reduction.inputs.reductionAppliesTo,
+  "FUTURE_REMAINING_MONTH_SPENDING",
 );
 assert.equal(
   reduction.currentMonth.changes.netSavings,
+  0,
+);
+assert.equal(
+  roundForTest(
+    reduction.monthEndForecast.after.netSavings -
+      reduction.monthEndForecast.before.netSavings,
+  ),
+  630,
+);
+
+const retrospectiveReduction = simulateFinancialScenario({
+  scenario: "REDUCE_RECORDED_CATEGORY_SPENDING",
+  category: "Entertainment",
+  reductionPercent: 50,
+  currentOverview: {
+    totalIncome: 420000,
+    totalExpense: 400600,
+  },
+  currentCategories,
+  budgetAnalytics,
+  monthlyForecast: forecast,
+  currencySafety,
+  preferredCurrency: "INR",
+});
+
+assert.equal(
+  retrospectiveReduction.inputs.calculatedScenarioAmount,
+  300,
+);
+assert.equal(
+  retrospectiveReduction.inputs.reductionAppliesTo,
+  "RECORDED_CURRENT_MONTH_SPENDING",
+);
+assert.equal(
+  retrospectiveReduction.currentMonth.changes.netSavings,
   300,
 );
 

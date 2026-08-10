@@ -194,6 +194,7 @@ const buildMonthlyForecast = ({
   currentTransactionCount = 0,
   highSeverityAnomalyCount = 0,
   anomalySignals = [],
+  recurringContext = null,
   currencySafety,
 }) => {
   if (!currencySafety.supported) {
@@ -224,40 +225,85 @@ const buildMonthlyForecast = ({
   const historicalAverageExpense = average(
     activeCompleted.map((item) => item.expense),
   );
+
+  const recurringRecorded = recurringContext?.currentRecorded || {
+    income: 0,
+    expense: 0,
+  };
+  const historicalRecurringAverage =
+    recurringContext?.historicalAverage || {
+      income: 0,
+      expense: 0,
+    };
+
+  const historicalNonRecurringIncome = round2(
+    Math.max(
+      historicalAverageIncome -
+        (Number(historicalRecurringAverage.income) || 0),
+      0,
+    ),
+  );
+  const historicalNonRecurringExpense = round2(
+    Math.max(
+      historicalAverageExpense -
+        (Number(historicalRecurringAverage.expense) || 0),
+      0,
+    ),
+  );
+
   const hasHistoricalIncome = activeCompleted.some(
     (item) => (Number(item.income) || 0) > 0,
   );
   const hasHistoricalExpense = activeCompleted.some(
     (item) => (Number(item.expense) || 0) > 0,
   );
+  const hasHistoricalNonRecurringIncome =
+    historicalNonRecurringIncome > 0;
+  const hasHistoricalNonRecurringExpense =
+    historicalNonRecurringExpense > 0;
 
   const currentIncome = round2(currentOverview.totalIncome);
   const currentExpense = round2(currentOverview.totalExpense);
-  const remainingFraction =
-    monthProgress.daysInMonth > 0
-      ? monthProgress.daysRemaining / monthProgress.daysInMonth
-      : 0;
+  const currentRecurringIncome = round2(
+    Math.min(
+      Math.max(Number(recurringRecorded.income) || 0, 0),
+      currentIncome,
+    ),
+  );
+  const currentRecurringExpense = round2(
+    Math.min(
+      Math.max(Number(recurringRecorded.expense) || 0, 0),
+      currentExpense,
+    ),
+  );
+  const currentNonRecurringIncome = round2(
+    Math.max(currentIncome - currentRecurringIncome, 0),
+  );
+  const currentNonRecurringExpense = round2(
+    Math.max(currentExpense - currentRecurringExpense, 0),
+  );
 
   const expensePaceAdjustment =
     buildExpensePaceAdjustment({
-      currentExpense,
+      currentExpense: currentNonRecurringExpense,
       anomalySignals,
     });
 
   const currentRoutineExpense =
     expensePaceAdjustment.includedInPace;
 
-  const linearIncomeRemaining =
-    monthProgress.daysElapsed > 0
+  // Income is deliberately conservative. Recurring income still due this
+  // month is added exactly below. For non-recurring income, FinTrack only
+  // fills the gap up to the recent completed-month non-recurring baseline;
+  // it never repeats current one-off income simply because it arrived early.
+  const estimatedNonRecurringIncomeRemaining =
+    hasHistoricalNonRecurringIncome
       ? round2(
-          (currentIncome / monthProgress.daysElapsed) *
-            monthProgress.daysRemaining,
-        )
-      : 0;
-  const historicalIncomeRemaining =
-    hasHistoricalIncome
-      ? round2(
-          historicalAverageIncome * remainingFraction,
+          Math.max(
+            historicalNonRecurringIncome -
+              currentNonRecurringIncome,
+            0,
+          ),
         )
       : 0;
 
@@ -268,39 +314,33 @@ const buildMonthlyForecast = ({
             monthProgress.daysRemaining,
         )
       : 0;
-  const historicalExpenseRemaining =
-    hasHistoricalExpense
+
+  const historicalNonRecurringExpenseRemaining =
+    hasHistoricalNonRecurringExpense
       ? round2(
-          historicalAverageExpense * remainingFraction,
+          Math.max(
+            historicalNonRecurringExpense -
+              currentNonRecurringExpense,
+            0,
+          ),
         )
       : 0;
 
-  // Income is conservative when any completed income baseline exists:
-  // already-recorded income is kept, and only the historical remaining-month
-  // share is added. This avoids blindly repeating a large one-off income.
-  const estimatedIncomeRemaining =
-    hasHistoricalIncome
-      ? historicalIncomeRemaining
-      : linearIncomeRemaining;
-
-  // Expense forecasting is anomaly-aware. Already-incurred anomalous spend is
-  // always included once, but excluded from the current daily pace. The
-  // remaining routine pace is blended with historical remaining-month spend
-  // when a genuine expense baseline exists.
   const routinePaceWeight =
-    hasHistoricalExpense
+    hasHistoricalNonRecurringExpense
       ? clamp(
           monthProgress.daysElapsed / monthProgress.daysInMonth,
           0.25,
           0.75,
         )
       : 1;
-  const estimatedRoutineExpenseRemaining =
-    hasHistoricalExpense
+
+  const estimatedNonRecurringExpenseRemaining =
+    hasHistoricalNonRecurringExpense
       ? round2(
           routinePaceWeight * linearRoutineExpenseRemaining +
             (1 - routinePaceWeight) *
-              historicalExpenseRemaining,
+              historicalNonRecurringExpenseRemaining,
         )
       : linearRoutineExpenseRemaining;
 
@@ -318,19 +358,18 @@ const buildMonthlyForecast = ({
   scheduledIncomeRemaining = round2(scheduledIncomeRemaining);
   scheduledExpenseRemaining = round2(scheduledExpenseRemaining);
 
+  // Recurring and non-recurring remaining cash flow are separate components,
+  // so a known upcoming bill/salary is not swallowed by a max() floor and is
+  // not double-counted inside the routine/history component.
   const projectedIncome = round2(
     currentIncome +
-      Math.max(
-        estimatedIncomeRemaining,
-        scheduledIncomeRemaining,
-      ),
+      estimatedNonRecurringIncomeRemaining +
+      scheduledIncomeRemaining,
   );
   const projectedExpense = round2(
     currentExpense +
-      Math.max(
-        estimatedRoutineExpenseRemaining,
-        scheduledExpenseRemaining,
-      ),
+      estimatedNonRecurringExpenseRemaining +
+      scheduledExpenseRemaining,
   );
   const projectedNetSavings = round2(
     projectedIncome - projectedExpense,
@@ -362,6 +401,14 @@ const buildMonthlyForecast = ({
       ).length,
       averageIncome: historicalAverageIncome,
       averageExpense: historicalAverageExpense,
+      averageRecurringIncome:
+        round2(Number(historicalRecurringAverage.income) || 0),
+      averageRecurringExpense:
+        round2(Number(historicalRecurringAverage.expense) || 0),
+      averageNonRecurringIncome:
+        historicalNonRecurringIncome,
+      averageNonRecurringExpense:
+        historicalNonRecurringExpense,
     },
     currentMonthToDate: {
       income: currentIncome,
@@ -370,6 +417,14 @@ const buildMonthlyForecast = ({
         currentIncome - currentExpense,
       ),
       transactionCount: currentTransactionCount,
+    },
+    recurringCashFlowContext: {
+      currentRecordedIncome: currentRecurringIncome,
+      currentRecordedExpense: currentRecurringExpense,
+      historicalAverageIncome:
+        round2(Number(historicalRecurringAverage.income) || 0),
+      historicalAverageExpense:
+        round2(Number(historicalRecurringAverage.expense) || 0),
     },
     scheduledRemainingThisMonth: {
       income: scheduledIncomeRemaining,
@@ -381,29 +436,35 @@ const buildMonthlyForecast = ({
       routinePaceWeightPercent: round2(
         routinePaceWeight * 100,
       ),
-      estimatedRoutineExpenseRemaining,
-      historicalExpenseRemaining,
+      estimatedRoutineExpenseRemaining:
+        estimatedNonRecurringExpenseRemaining,
+      historicalExpenseRemaining:
+        historicalNonRecurringExpenseRemaining,
       linearRoutineExpenseRemaining,
     },
     remainingMonthEstimate: {
+      nonRecurringIncome:
+        estimatedNonRecurringIncomeRemaining,
+      scheduledRecurringIncome:
+        scheduledIncomeRemaining,
       income: round2(
-        Math.max(
-          estimatedIncomeRemaining,
+        estimatedNonRecurringIncomeRemaining +
           scheduledIncomeRemaining,
-        ),
       ),
+      nonRecurringExpense:
+        estimatedNonRecurringExpenseRemaining,
+      scheduledRecurringExpense:
+        scheduledExpenseRemaining,
       expense: round2(
-        Math.max(
-          estimatedRoutineExpenseRemaining,
+        estimatedNonRecurringExpenseRemaining +
           scheduledExpenseRemaining,
-        ),
       ),
-      incomeBasis: hasHistoricalIncome
-        ? "RECENT_COMPLETED_INCOME_BASELINE"
-        : "CURRENT_MONTH_INCOME_PACE",
-      expenseBasis: hasHistoricalExpense
-        ? "ANOMALY_ADJUSTED_ROUTINE_PACE_BLENDED_WITH_RECENT_EXPENSE_HISTORY"
-        : "ANOMALY_ADJUSTED_CURRENT_ROUTINE_PACE",
+      incomeBasis: hasHistoricalNonRecurringIncome
+        ? "RECENT_NON_RECURRING_INCOME_BASELINE_GAP_PLUS_EXACT_RECURRING"
+        : "EXACT_RECURRING_ONLY_NO_NON_RECURRING_INCOME_EXTRAPOLATION",
+      expenseBasis: hasHistoricalNonRecurringExpense
+        ? "ANOMALY_ADJUSTED_NON_RECURRING_PACE_BLENDED_WITH_HISTORY_PLUS_EXACT_RECURRING"
+        : "ANOMALY_ADJUSTED_NON_RECURRING_PACE_PLUS_EXACT_RECURRING",
     },
     forecast: {
       income: projectedIncome,
@@ -449,8 +510,8 @@ const buildMonthlyForecast = ({
       confidence,
       method:
         expensePaceAdjustment.excludedFromPace > 0
-          ? "ANOMALY_ADJUSTED_REMAINING_MONTH_FORECAST_WITH_RECURRING_FLOOR"
-          : "REMAINING_MONTH_HISTORY_OR_PACE_WITH_RECURRING_FLOOR",
+          ? "ANOMALY_ADJUSTED_NON_RECURRING_FORECAST_PLUS_EXACT_RECURRING"
+          : "NON_RECURRING_HISTORY_OR_PACE_PLUS_EXACT_RECURRING",
       anomalyAdjusted:
         expensePaceAdjustment.excludedFromPace > 0,
       excludedExpenseFromPace:
@@ -470,8 +531,12 @@ const buildMonthlyForecast = ({
         expensePaceAdjustment.excludedFromPace > 0
           ? `${expensePaceAdjustment.excludedFromPace} of already-recorded current expenses is included once but excluded from daily pace extrapolation because it is out-of-pattern relative to available history.`
           : null,
-        !hasHistoricalExpense
-          ? "No completed positive-expense month is available for an expense baseline; only non-anomalous current spending is pace-projected."
+        !hasHistoricalNonRecurringExpense
+          ? "No completed positive non-recurring expense baseline is available; only non-anomalous current non-recurring spending is pace-projected."
+          : null,
+        !hasHistoricalNonRecurringIncome &&
+        scheduledIncomeRemaining === 0
+          ? "No remaining recurring income or positive non-recurring income baseline is available, so FinTrack does not extrapolate one-off current income."
           : null,
       ],
     }),
@@ -479,7 +544,8 @@ const buildMonthlyForecast = ({
       "Forecasts are directional planning estimates, not guaranteed outcomes.",
       "One-off purchases are included as already-incurred expenses but are not automatically repeated in the remaining-days spending pace when FinTrack flags them as anomalous or high-severity new activity.",
       "Irregular income, missing transactions, and future behavior changes can materially alter the result.",
-      "Known recurring items due before month-end are used only as a minimum floor; FinTrack does not assume unrecorded future transactions.",
+      "Known recurring items due before month-end are added as exact scheduled components and are separated from the non-recurring pace estimate.",
+      "Current one-off income is not automatically repeated; only known remaining recurring income and a conservative historical non-recurring gap are projected.",
     ],
   });
 };

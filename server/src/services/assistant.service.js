@@ -231,7 +231,8 @@ Financial accuracy rules:
 - For goal feasibility, use get_goal_progress and qualify conclusions using the evidence confidence and number of completed activity months in the savings baseline.
 - For unusual, anomalous, out-of-pattern, concentration, spike, or possible-recurring-spend questions, use analyze_spending_patterns. An anomaly only means unusual relative to recorded FinTrack history; never label it fraud, unauthorized, suspicious, or incorrect without direct evidence.
 - For end-of-month projections, cash-flow forecasts, projected savings, projected expenses, projected income, or future budget pace, use get_financial_forecast. Always state the supplied confidence and forecast caveats.
-- For explicit hypothetical questions such as "what if I spend...", "what if I earn...", or "what if I cut category spending...", use simulate_financial_scenario. It is read-only. Never imply that the scenario changed any FinTrack record.
+- For explicit hypothetical questions such as "what if I spend..." or "what if I earn...", use simulate_financial_scenario. It is read-only. For "reduce/cut category spending by X%" interpret the reduction as future remaining-month spending unless the user explicitly says "if I had spent X% less", which is retrospective. Never imply that a scenario changed any FinTrack record.
+- The advanced forecast/simulation engine is current-month only. Never reinterpret "next month", a future named month, next year, or next quarter as the current month.
 - What-if simulations must use the exact backend-calculated before/after values. Do not invent extra assumptions, future investment returns, market performance, interest, or currency conversions.
 - Never add balances in different currencies together. Advanced anomaly, forecast, and simulation tools may refuse combined calculations when active account currencies are mixed; respect that refusal.
 - Distinguish facts from suggestions. Do not claim why spending changed unless transaction evidence directly supports the explanation.
@@ -615,10 +616,91 @@ const parseReductionScenario = (message) => {
   }
 
   return {
-    scenario: "REDUCE_CATEGORY_SPENDING",
+    scenario: "REDUCE_FUTURE_CATEGORY_SPENDING",
     category: match[1].trim(),
     reductionPercent: Number(match[2]),
   };
+};
+
+const parseRetrospectiveReductionScenario = (message) => {
+  const match = String(message || "").match(
+    /\b(?:if i had spent|what if i had spent)\s+([0-9]+(?:\.[0-9]+)?)\s*%\s+less\s+(?:on|in)\s+(.+?)(?:\s+this\s+month|\s*$)/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    scenario: "REDUCE_RECORDED_CATEGORY_SPENDING",
+    category: match[2].trim(),
+    reductionPercent: Number(match[1]),
+  };
+};
+
+const getAdvancedFuturePeriodIssue = ({
+  message,
+  asOf,
+}) => {
+  const normalized = String(message || "").toLowerCase();
+  const advancedIntent =
+    /\b(what if|hypothetical|forecast|project(?:ed|ion)?|finish|end[- ]of[- ]month|at this pace|reduce|spend|earn|receive)\b/i.test(
+      normalized,
+    );
+
+  if (!advancedIntent) {
+    return null;
+  }
+
+  if (
+    /\b(next month|following month|next year|following year|next quarter)\b/i.test(
+      normalized,
+    )
+  ) {
+    return "FinTrack's current advanced forecast and what-if engine is scoped to the current calendar month. It will not silently reinterpret a next-month or next-year scenario as this month.";
+  }
+
+  const monthNames = {
+    january: 0,
+    february: 1,
+    march: 2,
+    april: 3,
+    may: 4,
+    june: 5,
+    july: 6,
+    august: 7,
+    september: 8,
+    october: 9,
+    november: 10,
+    december: 11,
+  };
+  const named = normalized.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(20\d{2})\b/i,
+  );
+
+  if (named) {
+    const target = new Date(
+      Date.UTC(
+        Number(named[2]),
+        monthNames[named[1].toLowerCase()],
+        1,
+      ),
+    );
+    const current = new Date(asOf);
+    const currentMonth = new Date(
+      Date.UTC(
+        current.getUTCFullYear(),
+        current.getUTCMonth(),
+        1,
+      ),
+    );
+
+    if (target > currentMonth) {
+      return "FinTrack's current advanced forecast and what-if engine supports the current calendar month only. A future named month must not be calculated using the current-month model.";
+    }
+  }
+
+  return null;
 };
 
 const parseExpenseCategory = (message) => {
@@ -637,6 +719,16 @@ const getDirectAdvancedToolRequest = (message) => {
       normalized,
     )
   ) {
+    const retrospectiveReduction =
+      parseRetrospectiveReductionScenario(message);
+
+    if (retrospectiveReduction) {
+      return {
+        name: "simulate_financial_scenario",
+        args: retrospectiveReduction,
+      };
+    }
+
     const reduction = parseReductionScenario(message);
 
     if (reduction) {
@@ -815,6 +907,42 @@ const runAgentWithModel = async ({
   message,
   history,
 }) => {
+  const advancedFuturePeriodIssue =
+    getAdvancedFuturePeriodIssue({
+      message,
+      asOf: new Date().toISOString(),
+    });
+
+  if (advancedFuturePeriodIssue) {
+    return {
+      reply: advancedFuturePeriodIssue,
+      presentation: {
+        answer: advancedFuturePeriodIssue,
+        summary:
+          "This advanced calculation is outside the currently supported forecast period.",
+        status: "neutral",
+        metrics: [],
+        insights: [
+          "No current-month figures were reused for the requested future period.",
+        ],
+        recommendations: [
+          "Use a current-month forecast/what-if question, or add a dedicated future-period planning model before relying on next-month estimates.",
+        ],
+        confidence: "not_applicable",
+        toolsUsed: [],
+      },
+      model: "fintrack-deterministic",
+      generatedAt: new Date().toISOString(),
+      toolsUsed: [],
+      toolCallCount: 0,
+      modelRequestCount: 0,
+      structuredOutput: false,
+      richPresentation: true,
+      presentationSource: "FINTRACK_DETERMINISTIC",
+      directAdvancedRouting: true,
+    };
+  }
+
   const directAdvancedRequest =
     getDirectAdvancedToolRequest(message);
 
