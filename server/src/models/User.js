@@ -1,6 +1,30 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
+const notificationPreferencesSchema = new mongoose.Schema(
+  {
+    emailEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    budgetAlerts: {
+      type: Boolean,
+      default: true,
+    },
+    goalAlerts: {
+      type: Boolean,
+      default: true,
+    },
+    recurringAlerts: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
 const userSchema = new mongoose.Schema(
   {
     fullName: {
@@ -49,6 +73,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+
+    notificationPreferences: {
+      type: notificationPreferencesSchema,
+      default: () => ({}),
     },
 
     emailVerified: {

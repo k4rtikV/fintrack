@@ -21,10 +21,21 @@ const getMonthRange = (month) => {
   };
 };
 
-const deliverNotificationEmail = async (notification) => {
+const isAlertTypeEnabled = (user, type) => {
+  const preferences = user.notificationPreferences || {};
+
+  if (type === "BUDGET") return preferences.budgetAlerts ?? true;
+  if (type === "GOAL") return preferences.goalAlerts ?? true;
+  if (type === "RECURRING") return preferences.recurringAlerts ?? true;
+
+  return true;
+};
+
+const deliverNotificationEmail = async ({ user, notification }) => {
   try {
-    const user = await User.findById(notification.user);
     if (!user?.email || !user.emailVerified) return;
+    if (user.notificationPreferences?.emailEnabled === false) return;
+
     await sendNotificationEmail({ user, notification });
   } catch (error) {
     console.error("FinTrack notification email failed:", error.message);
@@ -41,6 +52,16 @@ const createNotificationForUser = async ({
   dedupeKey = null,
   email = true,
 }) => {
+  const user = await User.findById(userId);
+
+  if (!user || !user.isActive) {
+    return null;
+  }
+
+  if (!isAlertTypeEnabled(user, type)) {
+    return null;
+  }
+
   let notification;
 
   try {
@@ -61,7 +82,7 @@ const createNotificationForUser = async ({
   }
 
   if (email) {
-    void deliverNotificationEmail(notification);
+    void deliverNotificationEmail({ user, notification });
   }
 
   return notification;
