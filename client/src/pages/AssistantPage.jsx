@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
+import AssistantResponseCard from "../components/assistant/AssistantResponseCard";
 import DashboardCard from "../components/layout/DashboardCard";
 import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
@@ -31,10 +32,11 @@ const welcomeMessage = {
     "Ask me about your spending, budgets, cash flow, accounts, recurring payments, or savings goals. I’ll answer using the financial data already in your FinTrack account.",
 };
 
-const makeMessage = (role, content) => ({
+const makeMessage = (role, content, metadata = {}) => ({
   id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   role,
   content,
+  ...metadata,
 });
 
 const getUserStorageId = (user) =>
@@ -45,6 +47,49 @@ const getChatStorageKey = (user) =>
 
 const getDraftStorageKey = (user) =>
   `fintrack_assistant_draft:${getUserStorageId(user)}`;
+
+const getCooldownStorageKey = (user) =>
+  `fintrack_assistant_cooldown:${getUserStorageId(user)}`;
+
+const loadStoredCooldownUntil = (user) => {
+  try {
+    const stored = Number(sessionStorage.getItem(getCooldownStorageKey(user)));
+
+    return Number.isFinite(stored) && stored > Date.now() ? stored : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const getRetryAfterSeconds = (error) => {
+  const structuredRetry =
+    error.response?.data?.errors?.retryAfterSeconds;
+
+  if (Number.isFinite(structuredRetry) && structuredRetry > 0) {
+    return Math.ceil(structuredRetry);
+  }
+
+  const retryAfterHeader = error.response?.headers?.["retry-after"];
+
+  if (retryAfterHeader !== undefined) {
+    const seconds = Number(retryAfterHeader);
+
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return Math.ceil(seconds);
+    }
+
+    const retryDate = Date.parse(retryAfterHeader);
+
+    if (!Number.isNaN(retryDate)) {
+      return Math.max(Math.ceil((retryDate - Date.now()) / 1000), 1);
+    }
+  }
+
+  const message = error.response?.data?.message || error.message || "";
+  const match = String(message).match(/(?:about|in)\s+(\d+)\s+seconds?/i);
+
+  return match ? Math.max(Number(match[1]), 1) : null;
+};
 
 const loadStoredMessages = (user) => {
   try {
@@ -88,7 +133,18 @@ const AssistantPage = () => {
   const [messages, setMessages] = useState(() => loadStoredMessages(user));
   const [input, setInput] = useState(() => loadStoredDraft(user));
   const [isSending, setIsSending] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(() =>
+    loadStoredCooldownUntil(user),
+  );
+  const [cooldownSeconds, setCooldownSeconds] = useState(() =>
+    Math.max(
+      Math.ceil((loadStoredCooldownUntil(user) - Date.now()) / 1000),
+      0,
+    ),
+  );
   const messagesEndRef = useRef(null);
+
+  const isCoolingDown = cooldownSeconds > 0;
 
   useEffect(() => {
     try {
@@ -115,6 +171,37 @@ const AssistantPage = () => {
   }, [input, user]);
 
   useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownSeconds(0);
+      return undefined;
+    }
+
+    const updateCountdown = () => {
+      const secondsRemaining = Math.max(
+        Math.ceil((cooldownUntil - Date.now()) / 1000),
+        0,
+      );
+
+      setCooldownSeconds(secondsRemaining);
+
+      if (secondsRemaining <= 0) {
+        setCooldownUntil(0);
+
+        try {
+          sessionStorage.removeItem(getCooldownStorageKey(user));
+        } catch {
+          // Cooldown storage is optional.
+        }
+      }
+    };
+
+    updateCountdown();
+    const intervalId = window.setInterval(updateCountdown, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cooldownUntil, user]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "nearest",
@@ -136,19 +223,26 @@ const AssistantPage = () => {
   const handleSend = async (prompt = input) => {
     const message = prompt.trim();
 
-    if (!message || isSending) {
+    if (!message || isSending || isCoolingDown) {
       return;
     }
 
     const history = messages
-      .filter((item) => item.id !== "welcome")
+      .filter(
+        (item) =>
+          item.id !== "welcome" &&
+          !item.isError &&
+          !String(item.content).startsWith("I couldn’t complete that request."),
+      )
       .slice(-10)
       .map((item) => ({
         role: item.role,
         content: item.content,
       }));
 
-    setMessages((current) => [...current, makeMessage("user", message)]);
+    const pendingMessage = makeMessage("user", message);
+
+    setMessages((current) => [...current, pendingMessage]);
     setInput("");
     setIsSending(true);
 
@@ -160,10 +254,44 @@ const AssistantPage = () => {
 
       setMessages((current) => [
         ...current,
-        makeMessage("assistant", result.reply),
+        makeMessage("assistant", result.reply, {
+          presentation: result.presentation,
+          toolsUsed: result.toolsUsed,
+          model: result.model,
+          generatedAt: result.generatedAt,
+        }),
       ]);
     } catch (error) {
       const messageText = getApiError(error);
+      const retryAfterSeconds = getRetryAfterSeconds(error);
+
+      if (error.response?.status === 429 && retryAfterSeconds) {
+        const nextCooldownUntil =
+          Date.now() + retryAfterSeconds * 1000;
+
+        setMessages((current) =>
+          current.filter((item) => item.id !== pendingMessage.id),
+        );
+        setInput(message);
+        setCooldownUntil(nextCooldownUntil);
+        setCooldownSeconds(retryAfterSeconds);
+
+        try {
+          sessionStorage.setItem(
+            getCooldownStorageKey(user),
+            String(nextCooldownUntil),
+          );
+        } catch {
+          // The countdown still works in memory if storage is unavailable.
+        }
+
+        toast.error(
+          `Gemini is rate-limited. Sending will unlock in ${retryAfterSeconds}s.`,
+        );
+
+        return;
+      }
+
       toast.error(messageText);
 
       setMessages((current) => [
@@ -171,6 +299,7 @@ const AssistantPage = () => {
         makeMessage(
           "assistant",
           `I couldn’t complete that request. ${messageText}`,
+          { isError: true },
         ),
       ]);
     } finally {
@@ -227,15 +356,23 @@ const AssistantPage = () => {
                   key={message.id}
                   className={`flex ${assistant ? "justify-start" : "justify-end"}`}
                 >
-                  <div
-                    className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[78%] ${
-                      assistant
-                        ? "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                        : "bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/20"
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  </div>
+                  {assistant && message.presentation ? (
+                    <div className="w-full max-w-[94%] sm:max-w-[88%]">
+                      <AssistantResponseCard
+                        presentation={message.presentation}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[78%] ${
+                        assistant
+                          ? "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          : "bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/20"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -253,6 +390,13 @@ const AssistantPage = () => {
           </div>
 
           <div className="border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+            {isCoolingDown && (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300">
+                Gemini is temporarily rate-limited. Your question has been restored below, and sending will unlock automatically in{" "}
+                <span className="font-semibold">{cooldownSeconds}s</span>.
+              </div>
+            )}
+
             <div className="flex items-end gap-3">
               <textarea
                 value={input}
@@ -267,16 +411,24 @@ const AssistantPage = () => {
 
               <Button
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isSending}
+                disabled={!input.trim() || isSending || isCoolingDown}
                 className="h-[52px] w-[52px] px-0"
-                aria-label="Send message"
+                aria-label={
+                  isCoolingDown
+                    ? `Send available in ${cooldownSeconds} seconds`
+                    : "Send message"
+                }
               >
                 <Send size={18} />
               </Button>
             </div>
 
             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
-              <span>Enter to send · Shift + Enter for a new line</span>
+              <span>
+                {isCoolingDown
+                  ? `Gemini cooldown: ${cooldownSeconds}s remaining`
+                  : "Enter to send · Shift + Enter for a new line"}
+              </span>
               <span>{input.length}/1200</span>
             </div>
           </div>
@@ -304,7 +456,7 @@ const AssistantPage = () => {
                   key={prompt}
                   type="button"
                   onClick={() => handleSend(prompt)}
-                  disabled={isSending}
+                  disabled={isSending || isCoolingDown}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-left text-sm leading-5 text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50/60 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-emerald-700 dark:hover:bg-emerald-500/10"
                 >
                   {prompt}

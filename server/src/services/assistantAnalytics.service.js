@@ -74,7 +74,101 @@ const getBudgetStatus = (percentageUsed, isOverBudget) => {
   return "ON_TRACK";
 };
 
-const buildBudgetAnalytics = ({ budgets, categories, totalExpense }) => {
+
+const getProjectionConfidence = ({ transactionCount, daysElapsed }) => {
+  if (transactionCount >= 10 && daysElapsed >= 14) {
+    return "HIGH";
+  }
+
+  if (transactionCount >= 4 && daysElapsed >= 7) {
+    return "MEDIUM";
+  }
+
+  return "LOW";
+};
+
+const getBudgetPaceAssessment = ({
+  percentageUsed,
+  monthElapsedPercent,
+  isOverBudget,
+}) => {
+  if (isOverBudget || percentageUsed > 100) {
+    return "ALREADY_OVER_BUDGET";
+  }
+
+  if (percentageUsed === 0) {
+    return "NO_SPEND_YET";
+  }
+
+  if (monthElapsedPercent <= 0) {
+    return "INSUFFICIENT_TIME_DATA";
+  }
+
+  const paceRatio = percentageUsed / monthElapsedPercent;
+
+  if (paceRatio >= 2) {
+    return "FAR_AHEAD_OF_BUDGET_PACE";
+  }
+
+  if (paceRatio >= 1.25) {
+    return "AHEAD_OF_BUDGET_PACE";
+  }
+
+  if (paceRatio >= 0.85) {
+    return "ROUGHLY_ON_BUDGET_PACE";
+  }
+
+  return "BELOW_BUDGET_PACE";
+};
+
+const getBudgetPaceRisk = ({
+  isOverBudget,
+  projectedUsagePercent,
+  percentageUsed,
+}) => {
+  if (isOverBudget || percentageUsed > 100) {
+    return "HIGH";
+  }
+
+  if (projectedUsagePercent !== null && projectedUsagePercent > 120) {
+    return "HIGH";
+  }
+
+  if (projectedUsagePercent !== null && projectedUsagePercent > 100) {
+    return "ELEVATED";
+  }
+
+  if (percentageUsed >= 90) {
+    return "ELEVATED";
+  }
+
+  return "LOW";
+};
+
+const buildMonthProgress = ({ currentMonth, asOf }) => {
+  const [year, monthNumber] = currentMonth.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const asOfDate = new Date(asOf);
+  const daysElapsed = Math.min(
+    Math.max(asOfDate.getUTCDate(), 1),
+    daysInMonth,
+  );
+
+  return {
+    daysElapsed,
+    daysInMonth,
+    daysRemaining: Math.max(daysInMonth - daysElapsed, 0),
+    monthElapsedPercent: round2((daysElapsed / daysInMonth) * 100),
+  };
+};
+
+const buildBudgetAnalytics = ({
+  budgets,
+  categories,
+  totalExpense,
+  currentMonth,
+  asOf,
+}) => {
   const categoryById = new Map(
     categories.map((category) => [category.categoryId?.toString(), category]),
   );
@@ -95,18 +189,68 @@ const buildBudgetAnalytics = ({ budgets, categories, totalExpense }) => {
       budgetedCategoryIds.add(categoryId);
     }
 
+    const transactionCount = category?.transactionCount || 0;
+    const monthProgress = buildMonthProgress({
+      currentMonth,
+      asOf,
+    });
+    const averageDailySpend =
+      monthProgress.daysElapsed > 0
+        ? round2(spent / monthProgress.daysElapsed)
+        : 0;
+    const projectedMonthEndSpend =
+      spent > 0
+        ? round2(averageDailySpend * monthProgress.daysInMonth)
+        : 0;
+    const projectedUsagePercent =
+      amount > 0 ? percentOf(projectedMonthEndSpend, amount) : null;
+    const projectedOverage =
+      amount > 0
+        ? round2(Math.max(projectedMonthEndSpend - amount, 0))
+        : 0;
+    const paceRatio =
+      monthProgress.monthElapsedPercent > 0
+        ? round2(percentageUsed / monthProgress.monthElapsedPercent)
+        : null;
+    const paceAssessment = getBudgetPaceAssessment({
+      percentageUsed,
+      monthElapsedPercent: monthProgress.monthElapsedPercent,
+      isOverBudget: Boolean(budget.isOverBudget),
+    });
+    const paceRisk = getBudgetPaceRisk({
+      isOverBudget: Boolean(budget.isOverBudget),
+      projectedUsagePercent,
+      percentageUsed,
+    });
+
     return {
       category: budget.category?.name || category?.name || "Unknown",
       budget: amount,
       spent,
       remaining,
       percentageUsed,
-      transactionCount: category?.transactionCount || 0,
+      transactionCount,
       isOverBudget: Boolean(budget.isOverBudget),
       amountOverBudget: budget.isOverBudget
         ? round2(Math.max(spent - amount, 0))
         : 0,
       status: getBudgetStatus(percentageUsed, budget.isOverBudget),
+      monthProgress,
+      expectedUsageByNowPercent: monthProgress.monthElapsedPercent,
+      paceRatio,
+      paceAssessment,
+      paceRisk,
+      averageDailySpend,
+      projectedMonthEndSpend,
+      projectedUsagePercent,
+      projectedOverage,
+      projectionConfidence: getProjectionConfidence({
+        transactionCount,
+        daysElapsed: monthProgress.daysElapsed,
+      }),
+      projectionMethod: "LINEAR_MONTH_TO_DATE_DAILY_AVERAGE",
+      projectionCaveat:
+        "This is a simple pace projection from month-to-date average spending. One-off or irregular purchases can make it inaccurate.",
     };
   });
 
@@ -133,6 +277,25 @@ const buildBudgetAnalytics = ({ budgets, categories, totalExpense }) => {
     items.reduce((total, item) => total + item.budget, 0),
   );
 
+  const monthProgress = buildMonthProgress({
+    currentMonth,
+    asOf,
+  });
+  const paceRiskItems = items
+    .filter((item) => ["HIGH", "ELEVATED"].includes(item.paceRisk))
+    .sort((a, b) => {
+      const riskRank = {
+        HIGH: 2,
+        ELEVATED: 1,
+        LOW: 0,
+      };
+
+      return (
+        riskRank[b.paceRisk] - riskRank[a.paceRisk] ||
+        (b.projectedUsagePercent || 0) - (a.projectedUsagePercent || 0)
+      );
+    });
+
   return {
     totalBudget,
     budgetedSpent,
@@ -144,6 +307,11 @@ const buildBudgetAnalytics = ({ budgets, categories, totalExpense }) => {
     nearLimitCount: items.filter((item) =>
       ["CRITICAL", "NEAR_LIMIT"].includes(item.status),
     ).length,
+    monthProgress,
+    paceRiskCount: paceRiskItems.length,
+    highestPaceRiskBudget: paceRiskItems[0] || null,
+    projectionNote:
+      "Budget projections use a simple month-to-date daily-average pace. They are directional estimates, not guarantees.",
     items,
     unbudgetedSpending,
   };
@@ -229,7 +397,21 @@ const buildAccountAnalytics = (accounts) => {
   };
 };
 
-const buildGoalAnalytics = ({ goals, recentAverageMonthlySavings }) => {
+const buildGoalAnalytics = ({
+  goals,
+  recentAverageMonthlySavings,
+  recentSavingsMonthsUsed,
+}) => {
+  const baselineMonthCount = recentSavingsMonthsUsed.length;
+  const evidenceConfidence =
+    baselineMonthCount >= 3
+      ? "HIGH"
+      : baselineMonthCount === 2
+        ? "MEDIUM"
+        : baselineMonthCount === 1
+          ? "LOW"
+          : "NONE";
+
   return goals.map((goal) => {
     const remainingAmount = round2(goal.remainingAmount);
     const daysRemaining = Number(goal.daysRemaining);
@@ -246,7 +428,7 @@ const buildGoalAnalytics = ({ goals, recentAverageMonthlySavings }) => {
       const remainingMonths = Math.max(daysRemaining / 30.4375, 1 / 30.4375);
       requiredMonthlyContribution = round2(remainingAmount / remainingMonths);
 
-      if (recentAverageMonthlySavings <= 0) {
+      if (baselineMonthCount === 0 || recentAverageMonthlySavings <= 0) {
         paceAssessment = "NO_POSITIVE_RECENT_SAVINGS_BASELINE";
       } else if (requiredMonthlyContribution <= recentAverageMonthlySavings) {
         paceAssessment = "WITHIN_RECENT_SAVINGS_PACE";
@@ -266,6 +448,13 @@ const buildGoalAnalytics = ({ goals, recentAverageMonthlySavings }) => {
       status: goal.status,
       requiredMonthlyContribution,
       recentAverageMonthlySavings: round2(recentAverageMonthlySavings),
+      savingsBaselineMonthsUsed: recentSavingsMonthsUsed,
+      savingsBaselineMonthCount: baselineMonthCount,
+      evidenceConfidence,
+      assessmentBasis:
+        baselineMonthCount > 0
+          ? `Based on ${baselineMonthCount} completed month${baselineMonthCount === 1 ? "" : "s"} with recorded income or expense activity.`
+          : "No completed month with recorded income or expense activity is available for a recent savings baseline.",
       requiredShareOfRecentSavingsPercent:
         requiredMonthlyContribution !== null && recentAverageMonthlySavings > 0
           ? percentOf(requiredMonthlyContribution, recentAverageMonthlySavings)
@@ -380,12 +569,19 @@ const buildInsightCandidates = ({
     });
   }
 
-  for (const item of budgetAnalytics.items.filter((budget) =>
-    ["OVER_BUDGET", "CRITICAL", "NEAR_LIMIT"].includes(budget.status),
+  for (const item of budgetAnalytics.items.filter(
+    (budget) =>
+      ["HIGH", "ELEVATED"].includes(budget.paceRisk) ||
+      ["OVER_BUDGET", "CRITICAL", "NEAR_LIMIT"].includes(budget.status),
   )) {
     insights.push({
-      type: "BUDGET_ALERT",
-      importance: item.status === "OVER_BUDGET" ? "HIGH" : "MEDIUM",
+      type: ["HIGH", "ELEVATED"].includes(item.paceRisk)
+        ? "BUDGET_PACE_ALERT"
+        : "BUDGET_ALERT",
+      importance:
+        item.status === "OVER_BUDGET" || item.paceRisk === "HIGH"
+          ? "HIGH"
+          : "MEDIUM",
       fact: item,
     });
   }
@@ -452,7 +648,10 @@ const buildDeterministicAnalytics = ({
   recurringItems,
 }) => {
   const completedTrend = monthlyTrend.filter((item) => item.key !== currentMonth);
-  const recentCompleted = completedTrend.slice(-3);
+  const completedTrendWithActivity = completedTrend.filter(
+    (item) => (Number(item.income) || 0) !== 0 || (Number(item.expense) || 0) !== 0,
+  );
+  const recentCompleted = completedTrendWithActivity.slice(-3);
   const recentAverageMonthlyIncome = average(
     recentCompleted.map((item) => item.income),
   );
@@ -468,6 +667,8 @@ const buildDeterministicAnalytics = ({
     budgets,
     categories: currentCategories,
     totalExpense: currentOverview.totalExpense,
+    currentMonth,
+    asOf,
   });
   const categoryComparison = buildCategoryComparison({
     currentCategories,
@@ -476,6 +677,7 @@ const buildDeterministicAnalytics = ({
   const goalAnalytics = buildGoalAnalytics({
     goals,
     recentAverageMonthlySavings,
+    recentSavingsMonthsUsed: recentCompleted.map((item) => item.key),
   });
   const recurringAnalytics = buildRecurringAnalytics({
     recurringItems,
@@ -544,9 +746,13 @@ const buildDeterministicAnalytics = ({
     },
     recentCompletedMonthAverages: {
       monthsUsed: recentCompleted.map((item) => item.key),
+      monthCount: recentCompleted.length,
+      excludedEmptyCompletedMonths: completedTrend.length - completedTrendWithActivity.length,
       averageIncome: recentAverageMonthlyIncome,
       averageExpense: recentAverageMonthlyExpense,
       averageNetSavings: recentAverageMonthlySavings,
+      note:
+        "Only completed months with recorded income or expense activity are used for recent averages.",
     },
   };
 
@@ -581,4 +787,12 @@ const buildDeterministicAnalytics = ({
   return deterministicAnalytics;
 };
 
-export { buildDeterministicAnalytics };
+export {
+  buildAccountAnalytics,
+  buildBudgetAnalytics,
+  buildCategoryComparison,
+  buildDeterministicAnalytics,
+  buildGoalAnalytics,
+  buildRecurringAnalytics,
+  compareValues,
+};
