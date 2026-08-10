@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 import Goal from "../models/Goal.js";
 import AppError from "../utils/AppError.js";
+import { createGoalMilestoneAlerts } from "./notification.service.js";
 
 const ensureValidObjectId = (id) => {
   if (!mongoose.isValidObjectId(id)) {
@@ -120,7 +121,15 @@ const createGoalForUser = async ({
     icon,
   });
 
-  return getGoalWithProgress(goal);
+  const goalWithProgress = getGoalWithProgress(goal);
+
+  await createGoalMilestoneAlerts({
+    userId,
+    goal: goalWithProgress,
+    previousPercentage: 0,
+  });
+
+  return goalWithProgress;
 };
 
 const getGoalsForUser = async ({ userId }) => {
@@ -174,6 +183,8 @@ const updateGoalForUser = async ({
     userId,
   });
 
+  const previousPercentage = getGoalWithProgress(goal).percentageComplete;
+
   if (updates.name !== undefined && updates.name !== goal.name) {
     await ensureUniqueActiveName({
       userId,
@@ -203,7 +214,15 @@ const updateGoalForUser = async ({
 
   await goal.save();
 
-  return getGoalWithProgress(goal);
+  const goalWithProgress = getGoalWithProgress(goal);
+
+  await createGoalMilestoneAlerts({
+    userId,
+    goal: goalWithProgress,
+    previousPercentage,
+  });
+
+  return goalWithProgress;
 };
 
 const deleteGoalForUser = async ({

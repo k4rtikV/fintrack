@@ -15,6 +15,7 @@ import authRoutes from "./routes/auth.routes.js";
 import budgetRoutes from "./routes/budget.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import goalRoutes from "./routes/goal.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 import recurringRoutes from "./routes/recurring.routes.js";
 import transactionRoutes from "./routes/transaction.routes.js";
 
@@ -60,6 +61,7 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/budgets", budgetRoutes);
 app.use("/api/goals", goalRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/recurring", recurringRoutes);
 
 app.use(notFound);

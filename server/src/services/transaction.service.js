@@ -4,6 +4,7 @@ import Account from "../models/Account.js";
 import Category from "../models/Category.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
+import { syncBudgetAlertsForTransaction } from "./notification.service.js";
 
 const getBalanceAdjustment = (type, amount) => {
   return type === "INCOME" ? amount : -amount;
@@ -113,9 +114,19 @@ const createTransactionForUser = async ({
     createdTransaction = createdTransactions[0];
   });
 
-  return Transaction.findById(createdTransaction._id)
+  const populatedTransaction = await Transaction.findById(createdTransaction._id)
     .populate("account", "name type currency balance")
     .populate("category", "name type icon color");
+
+  if (populatedTransaction.type === "EXPENSE") {
+    await syncBudgetAlertsForTransaction({
+      userId,
+      categoryId: populatedTransaction.category._id,
+      transactionDate: populatedTransaction.transactionDate,
+    });
+  }
+
+  return populatedTransaction;
 };
 
 const getTransactionsForUser = async ({
@@ -330,9 +341,19 @@ const updateTransactionForUser = async ({
     updatedTransaction = transaction;
   });
 
-  return Transaction.findById(updatedTransaction._id)
+  const populatedTransaction = await Transaction.findById(updatedTransaction._id)
     .populate("account", "name type currency balance")
     .populate("category", "name type icon color");
+
+  if (populatedTransaction.type === "EXPENSE") {
+    await syncBudgetAlertsForTransaction({
+      userId,
+      categoryId: populatedTransaction.category._id,
+      transactionDate: populatedTransaction.transactionDate,
+    });
+  }
+
+  return populatedTransaction;
 };
 
 const deleteTransactionForUser = async ({

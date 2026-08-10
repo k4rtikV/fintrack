@@ -5,6 +5,10 @@ import Category from "../models/Category.js";
 import RecurringTransaction from "../models/RecurringTransaction.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
+import {
+  createRecurringProcessedAlert,
+  syncBudgetAlertsForTransaction,
+} from "./notification.service.js";
 
 const MAX_OCCURRENCES_PER_PROCESS = 24;
 
@@ -431,6 +435,22 @@ const createGeneratedTransaction = async ({
 
     created = true;
   });
+
+  if (created) {
+    await createRecurringProcessedAlert({
+      userId: recurring.user,
+      recurring,
+      occurrenceDate,
+    });
+
+    if (recurring.type === "EXPENSE") {
+      await syncBudgetAlertsForTransaction({
+        userId: recurring.user,
+        categoryId: recurring.category,
+        transactionDate: occurrenceDate,
+      });
+    }
+  }
 
   return created;
 };
