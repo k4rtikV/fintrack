@@ -133,6 +133,10 @@ const updateCategoryForUser = async ({
     userId,
   });
 
+  if (category.isDefault && updates.name && updates.name !== category.name) {
+    throw new AppError("Default category names cannot be changed", 400);
+  }
+
   if (updates.name && updates.name !== category.name) {
     const duplicate = await Category.findOne({
       user: userId,

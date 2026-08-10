@@ -4,6 +4,7 @@ import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AccountsPage from "./pages/AccountsPage";
 import BudgetsPage from "./pages/BudgetsPage";
+import CategoriesPage from "./pages/CategoriesPage";
 import DashboardPage from "./pages/DashboardPage";
 import GoalsPage from "./pages/GoalsPage";
 import LoginOtpPage from "./pages/LoginOtpPage";
@@ -17,7 +18,6 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute";
 
 const placeholderRoutes = [
-  "categories",
   "reports",
   "assistant",
   "settings",
@@ -42,6 +42,7 @@ const App = () => {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/recurring" element={<RecurringPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
