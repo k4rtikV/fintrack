@@ -131,6 +131,10 @@ const safePercent = (part, whole) => {
 };
 
 const sanitizeFiniteNumbers = (value) => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+
   if (Array.isArray(value)) {
     return value.map(sanitizeFiniteNumbers);
   }
