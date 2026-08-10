@@ -11,7 +11,7 @@ const TopExpensesList = ({ expenses = [], currency = "INR" }) => {
       <div>
         <h2 className="font-bold text-slate-900 dark:text-white">Top expenses</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Your largest expenses this month.
+          Your largest expenses overall.
         </p>
       </div>
 
@@ -19,7 +19,7 @@ const TopExpensesList = ({ expenses = [], currency = "INR" }) => {
         <EmptyState
           icon={ReceiptText}
           title="No expenses recorded"
-          description="Your largest monthly expenses will appear here."
+          description="Your largest expenses will appear here."
         />
       ) : (
         <div className="mt-5 divide-y divide-slate-100 dark:divide-slate-800">

@@ -52,7 +52,7 @@ const DashboardPage = () => {
       tone: "blue",
     },
     {
-      label: "Monthly income",
+      label: "Total income",
       value: formatCurrency(overview?.totalIncome, currency),
       note: `${overview?.incomeTransactionCount || 0} income transaction${
         overview?.incomeTransactionCount === 1 ? "" : "s"
@@ -61,7 +61,7 @@ const DashboardPage = () => {
       tone: "emerald",
     },
     {
-      label: "Monthly expenses",
+      label: "Total expenses",
       value: formatCurrency(overview?.totalExpense, currency),
       note: `${overview?.expenseTransactionCount || 0} expense transaction${
         overview?.expenseTransactionCount === 1 ? "" : "s"
@@ -70,7 +70,7 @@ const DashboardPage = () => {
       tone: "rose",
     },
     {
-      label: "Savings rate",
+      label: "Overall savings rate",
       value:
         overview?.totalIncome > 0
           ? `${Number(overview?.savingsRate || 0).toFixed(1)}%`
@@ -91,7 +91,7 @@ const DashboardPage = () => {
   return (
     <PageContainer
       title={`Welcome back, ${firstName} 👋`}
-      description="Track your balances, spending, and monthly cash flow from one place."
+      description="See your overall financial position and recent cash flow in one place."
       action={
         <Button onClick={() => navigate("/transactions")}>
           <ArrowUpRight size={17} />

@@ -1,18 +1,6 @@
 import api from "../api/axios";
 
-const getMonthDateRange = (date = new Date()) => {
-  const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-  const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
-};
-
 const getDashboardAnalytics = async () => {
-  const monthRange = getMonthDateRange();
-
   const [
     overviewResponse,
     trendResponse,
@@ -20,20 +8,15 @@ const getDashboardAnalytics = async () => {
     expensesResponse,
     accountsResponse,
   ] = await Promise.all([
-    api.get("/analytics/overview", {
-      params: monthRange,
-    }),
+    api.get("/analytics/overview"),
     api.get("/analytics/monthly-trend", {
       params: {
         months: 6,
       },
     }),
-    api.get("/analytics/category-breakdown", {
-      params: monthRange,
-    }),
+    api.get("/analytics/category-breakdown"),
     api.get("/analytics/top-expenses", {
       params: {
-        ...monthRange,
         limit: 5,
       },
     }),
@@ -49,4 +32,4 @@ const getDashboardAnalytics = async () => {
   };
 };
 
-export { getDashboardAnalytics, getMonthDateRange };
+export { getDashboardAnalytics };

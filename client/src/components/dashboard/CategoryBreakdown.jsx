@@ -29,7 +29,7 @@ const CategoryBreakdown = ({ data = [], currency = "INR" }) => {
         </h2>
 
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Where your money went this month.
+          Where your money has gone overall.
         </p>
       </div>
 
