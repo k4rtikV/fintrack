@@ -3,13 +3,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AccountsPage from "./pages/AccountsPage";
+import AssistantPage from "./pages/AssistantPage";
 import BudgetsPage from "./pages/BudgetsPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import DashboardPage from "./pages/DashboardPage";
 import GoalsPage from "./pages/GoalsPage";
 import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
-import PlaceholderPage from "./pages/PlaceholderPage";
 import RecurringPage from "./pages/RecurringPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -19,7 +19,6 @@ import TransactionsPage from "./pages/TransactionsPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute";
 
-const placeholderRoutes = ["assistant"];
 
 const App = () => {
   return (
@@ -46,15 +45,8 @@ const App = () => {
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/goals" element={<GoalsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-
-          {placeholderRoutes.map((path) => (
-            <Route
-              key={path}
-              path={`/${path}`}
-              element={<PlaceholderPage />}
-            />
-          ))}
         </Route>
       </Route>
 
