@@ -190,21 +190,39 @@ const getCategoryBreakdownForUser = async ({
 const getMonthlyTrendForUser = async ({
   userId,
   months = 6,
+  startDate,
+  endDate,
 }) => {
   const userObjectId = toObjectId(userId);
+  const hasDateRange = Boolean(startDate || endDate);
 
-  const startDate = new Date();
+  let rangeStart;
+  let rangeEnd;
 
-  startDate.setHours(0, 0, 0, 0);
-  startDate.setDate(1);
-  startDate.setMonth(startDate.getMonth() - (months - 1));
+  if (hasDateRange) {
+    rangeStart = startDate ? new Date(startDate) : new Date(0);
+    rangeEnd = endDate ? new Date(endDate) : new Date();
+  } else {
+    rangeEnd = new Date();
+    rangeStart = new Date(
+      Date.UTC(
+        rangeEnd.getUTCFullYear(),
+        rangeEnd.getUTCMonth() - (months - 1),
+        1,
+      ),
+    );
+  }
+
+  const inclusiveEndDate = new Date(rangeEnd);
+  inclusiveEndDate.setUTCHours(23, 59, 59, 999);
 
   const results = await Transaction.aggregate([
     {
       $match: {
         user: userObjectId,
         transactionDate: {
-          $gte: startDate,
+          $gte: rangeStart,
+          $lte: inclusiveEndDate,
         },
       },
     },
@@ -253,15 +271,19 @@ const getMonthlyTrendForUser = async ({
     }
   }
 
+  const firstMonth = new Date(
+    Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth(), 1),
+  );
+  const lastMonth = new Date(
+    Date.UTC(rangeEnd.getUTCFullYear(), rangeEnd.getUTCMonth(), 1),
+  );
+
   const trend = [];
+  const cursor = new Date(firstMonth);
 
-  for (let offset = 0; offset < months; offset += 1) {
-    const date = new Date(startDate);
-
-    date.setMonth(startDate.getMonth() + offset);
-
-    const year = date.getFullYear();
-    const monthNumber = date.getMonth() + 1;
+  while (cursor <= lastMonth) {
+    const year = cursor.getUTCFullYear();
+    const monthNumber = cursor.getUTCMonth() + 1;
     const key = `${year}-${String(monthNumber).padStart(2, "0")}`;
 
     const totals = resultMap.get(key) || {
@@ -273,14 +295,17 @@ const getMonthlyTrendForUser = async ({
       key,
       year,
       month: monthNumber,
-      label: date.toLocaleDateString("en-IN", {
+      label: cursor.toLocaleDateString("en-IN", {
         month: "short",
         year: "numeric",
+        timeZone: "UTC",
       }),
       income: totals.income,
       expense: totals.expense,
       netSavings: totals.income - totals.expense,
     });
+
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
 
   return trend;

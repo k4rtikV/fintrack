@@ -24,14 +24,30 @@ export const analyticsDateRangeSchema = z.object({
 });
 
 export const monthlyTrendSchema = z.object({
-  query: z.object({
-    months: z.coerce
-      .number()
-      .int()
-      .min(1, "Months must be at least 1")
-      .max(24, "Months cannot exceed 24")
-      .default(6),
-  }),
+  query: z
+    .object({
+      months: z.coerce
+        .number()
+        .int()
+        .min(1, "Months must be at least 1")
+        .max(24, "Months cannot exceed 24")
+        .optional(),
+      startDate: z.coerce.date().optional(),
+      endDate: z.coerce.date().optional(),
+    })
+    .refine(
+      (data) => {
+        if (!data.startDate || !data.endDate) {
+          return true;
+        }
+
+        return data.startDate <= data.endDate;
+      },
+      {
+        message: "Start date cannot be after end date",
+        path: ["startDate"],
+      },
+    ),
 });
 
 export const topExpensesSchema = z.object({

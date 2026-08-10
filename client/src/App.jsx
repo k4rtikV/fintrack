@@ -11,17 +11,14 @@ import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import RecurringPage from "./pages/RecurringPage";
+import ReportsPage from "./pages/ReportsPage";
 import RegisterPage from "./pages/RegisterPage";
 import RegistrationOtpPage from "./pages/RegistrationOtpPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute";
 
-const placeholderRoutes = [
-  "reports",
-  "assistant",
-  "settings",
-];
+const placeholderRoutes = ["assistant", "settings"];
 
 const App = () => {
   return (
@@ -47,6 +44,7 @@ const App = () => {
           <Route path="/recurring" element={<RecurringPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/goals" element={<GoalsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
 
           {placeholderRoutes.map((path) => (
             <Route
