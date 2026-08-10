@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "backfill:categories": "node src/scripts/backfillCategoryOrder.js"
+    "backfill:categories": "node src/scripts/backfillCategoryOrder.js",
+    "test:assistant": "node src/scripts/testAssistantIntelligence.js"
   },
   "keywords": [
     "finance",

@@ -16,6 +16,20 @@ import {
   buildGoalAnalytics,
   compareValues,
 } from "./assistantAnalytics.service.js";
+import {
+  getCurrencySafety,
+  getEvidenceConfidence,
+  sanitizeFiniteNumbers,
+} from "./assistantGuardrails.service.js";
+import { buildSpendingInsights } from "./assistantInsights.service.js";
+import {
+  buildGoalCompletionForecast,
+  buildMonthlyForecast,
+} from "./assistantForecast.service.js";
+import {
+  SCENARIOS,
+  simulateFinancialScenario,
+} from "./assistantSimulation.service.js";
 import { getBudgetsForUser } from "./budget.service.js";
 import { getGoalsForUser } from "./goal.service.js";
 
@@ -86,6 +100,89 @@ const getPreviousComparableRange = (asOf) => {
   };
 };
 
+const getComparableRangeMonthsBack = ({
+  asOf,
+  monthsBack,
+}) => {
+  const date = new Date(asOf);
+  const currentDay = date.getUTCDate();
+  const targetMonthStart = new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth() - monthsBack,
+      1,
+    ),
+  );
+  const targetYear = targetMonthStart.getUTCFullYear();
+  const targetMonth = targetMonthStart.getUTCMonth();
+  const lastDay = new Date(
+    Date.UTC(targetYear, targetMonth + 1, 0),
+  ).getUTCDate();
+  const comparableDay = Math.min(currentDay, lastDay);
+
+  return {
+    period: `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`,
+    startDate: toDateKey(
+      new Date(Date.UTC(targetYear, targetMonth, 1)),
+    ),
+    endDate: toDateKey(
+      new Date(
+        Date.UTC(
+          targetYear,
+          targetMonth,
+          comparableDay,
+        ),
+      ),
+    ),
+    daysIncluded: comparableDay,
+  };
+};
+
+const getMonthEnd = (asOf) => {
+  const date = new Date(asOf);
+
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    ),
+  );
+};
+
+const mapCategoryRows = (categories) =>
+  categories.map((category) => ({
+    category: category.name,
+    amount: round2(category.amount),
+    expenseSharePercent: round2(category.percentage),
+    transactionCount: category.transactionCount || 0,
+  }));
+
+const getRollingTransactionHistory = async ({
+  userId,
+  startDate,
+  endDate,
+  limit = 500,
+}) =>
+  Transaction.find({
+    user: userId,
+    transactionDate: {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    },
+  })
+    .populate("account", "name type currency")
+    .populate("category", "name type")
+    .sort({
+      transactionDate: -1,
+      createdAt: -1,
+    })
+    .limit(limit);
+
 const getRollingRange = ({ asOf, days }) => {
   const end = new Date(asOf);
   const start = new Date(asOf);
@@ -147,6 +244,7 @@ const simplifyTransaction = (transaction) => ({
   accountType: transaction.account?.type || "Unknown",
   currency: transaction.account?.currency || "Unknown",
   paymentMethod: transaction.paymentMethod,
+  isLinkedRecurring: Boolean(transaction.recurringTransaction),
 });
 
 const simplifyRecurring = (recurring) => ({
@@ -686,6 +784,601 @@ const getFinancialHealthSummaryTool = async ({ user, asOf }) => {
   };
 };
 
+const getSpendingPatternsTool = async ({
+  user,
+  args,
+  asOf,
+}) => {
+  const lookbackMonths = clampInteger(
+    args.lookbackMonths,
+    {
+      min: 2,
+      max: 6,
+      fallback: 3,
+    },
+  );
+  const currentRange = getCurrentMonthToDateRange(asOf);
+  const historicalRanges = Array.from(
+    { length: lookbackMonths },
+    (_, index) =>
+      getComparableRangeMonthsBack({
+        asOf,
+        monthsBack: index + 1,
+      }),
+  );
+
+  const accounts = await getAccountSummaryForUser({
+    userId: user._id,
+  });
+  const currencySafety = getCurrencySafety({
+    accounts,
+    preferredCurrency: user.preferredCurrency || "INR",
+  });
+
+  if (!currencySafety.supported) {
+    return {
+      supported: false,
+      preferredCurrency: user.preferredCurrency || "INR",
+      currencySafety,
+      anomalies: [],
+      patterns: [],
+      topSignals: [],
+      note: currencySafety.note,
+    };
+  }
+
+  const currentMonthStart = new Date(
+    `${currentRange.startDate}T00:00:00.000Z`,
+  );
+  const baselineEnd = new Date(currentMonthStart);
+  baselineEnd.setUTCDate(baselineEnd.getUTCDate() - 1);
+  baselineEnd.setUTCHours(23, 59, 59, 999);
+  const baselineStart = new Date(
+    `${historicalRanges.at(-1).startDate}T00:00:00.000Z`,
+  );
+  const patternStart = new Date(asOf);
+  patternStart.setUTCDate(patternStart.getUTCDate() - 119);
+  patternStart.setUTCHours(0, 0, 0, 0);
+
+  const [
+    currentCategoriesRaw,
+    historicalCategoryRows,
+    currentTransactionsRaw,
+    baselineTransactionsRaw,
+    patternTransactionsRaw,
+    monthlyTrend,
+  ] = await Promise.all([
+    getCategoryBreakdownForUser({
+      userId: user._id,
+      startDate: currentRange.startDate,
+      endDate: currentRange.endDate,
+    }),
+    Promise.all(
+      historicalRanges.map(async (range) => ({
+        period: range.period,
+        categories: mapCategoryRows(
+          await getCategoryBreakdownForUser({
+            userId: user._id,
+            startDate: range.startDate,
+            endDate: range.endDate,
+          }),
+        ),
+      })),
+    ),
+    Transaction.find({
+      user: user._id,
+      type: "EXPENSE",
+      transactionDate: {
+        $gte: new Date(
+          `${currentRange.startDate}T00:00:00.000Z`,
+        ),
+        $lte: new Date(asOf),
+      },
+    })
+      .populate("account", "name type currency")
+      .populate("category", "name type")
+      .sort({
+        transactionDate: -1,
+        createdAt: -1,
+      })
+      .limit(200),
+    getRollingTransactionHistory({
+      userId: user._id,
+      startDate: baselineStart,
+      endDate: baselineEnd,
+      limit: 500,
+    }),
+    getRollingTransactionHistory({
+      userId: user._id,
+      startDate: patternStart,
+      endDate: new Date(asOf),
+      limit: 400,
+    }),
+    getMonthlyTrendForUser({
+      userId: user._id,
+      months: Math.max(lookbackMonths + 1, 4),
+    }),
+  ]);
+
+  const result = buildSpendingInsights({
+    asOf,
+    currentRange,
+    historicalRanges,
+    currentCategories: mapCategoryRows(
+      currentCategoriesRaw,
+    ),
+    historicalCategoryWindows:
+      historicalCategoryRows,
+    currentTransactions:
+      currentTransactionsRaw.map(simplifyTransaction),
+    baselineTransactions:
+      baselineTransactionsRaw.map(simplifyTransaction),
+    patternTransactions:
+      patternTransactionsRaw.map(simplifyTransaction),
+    monthlyTrend,
+    currencySafety,
+  });
+
+  return {
+    preferredCurrency: user.preferredCurrency || "INR",
+    ...result,
+  };
+};
+
+const buildForecastBudgetRows = ({
+  budgetItems,
+  patternAnalysis,
+  recurringItems,
+  monthProgress,
+}) => {
+  const anomalies = patternAnalysis?.supported
+    ? patternAnalysis.anomalies || []
+    : [];
+  const daysElapsed = Math.max(
+    Number(monthProgress?.daysElapsed) || 1,
+    1,
+  );
+  const daysRemaining = Math.max(
+    Number(monthProgress?.daysRemaining) || 0,
+    0,
+  );
+
+  const recurringExpenseByCategory = new Map();
+
+  for (const item of recurringItems || []) {
+    if (item.type !== "EXPENSE") {
+      continue;
+    }
+
+    const key = String(item.category || "").toLowerCase();
+    recurringExpenseByCategory.set(
+      key,
+      round2(
+        (recurringExpenseByCategory.get(key) || 0) +
+          (Number(item.amount) || 0),
+      ),
+    );
+  }
+
+  return (budgetItems || []).map((item) => {
+    const categoryKey = String(item.category || "").toLowerCase();
+    const categorySignals = anomalies.filter(
+      (signal) =>
+        String(signal.category || "").toLowerCase() === categoryKey,
+    );
+    const highNewActivity = categorySignals.find(
+      (signal) =>
+        signal.type === "NEW_CATEGORY_ACTIVITY" &&
+        signal.severity === "HIGH",
+    );
+    const categorySpike = categorySignals.find(
+      (signal) => signal.type === "CATEGORY_SPIKE",
+    );
+    const largeTransactionTotal = categorySignals
+      .filter((signal) => signal.type === "LARGE_TRANSACTION")
+      .reduce(
+        (sum, signal) => sum + (Number(signal.amount) || 0),
+        0,
+      );
+    const scheduledRemaining =
+      recurringExpenseByCategory.get(categoryKey) || 0;
+
+    let projectedMonthEndSpend =
+      Number(item.projectedMonthEndSpend) || Number(item.spent) || 0;
+    let forecastMethod = "LINEAR_PACE";
+    let anomalyAdjusted = false;
+
+    if (highNewActivity) {
+      projectedMonthEndSpend = round2(
+        Math.max(
+          Number(item.spent) || 0,
+          (Number(item.spent) || 0) + scheduledRemaining,
+        ),
+      );
+      forecastMethod = "HIGH_SEVERITY_NEW_ACTIVITY_INCLUDED_ONCE";
+      anomalyAdjusted = true;
+    } else if (categorySpike) {
+      const baselineComparable =
+        Number(categorySpike.baselineAverage) || 0;
+      const baselineRemaining =
+        daysElapsed > 0
+          ? round2(
+              (baselineComparable / daysElapsed) * daysRemaining,
+            )
+          : 0;
+      projectedMonthEndSpend = round2(
+        (Number(item.spent) || 0) +
+          Math.max(
+            baselineRemaining,
+            scheduledRemaining,
+          ),
+      );
+      forecastMethod = "CATEGORY_SPIKE_BASELINE_REMAINING";
+      anomalyAdjusted = true;
+    } else if (largeTransactionTotal > 0) {
+      const routineSpent = Math.max(
+        (Number(item.spent) || 0) - largeTransactionTotal,
+        0,
+      );
+      const routineRemaining =
+        daysElapsed > 0
+          ? round2(
+              (routineSpent / daysElapsed) * daysRemaining,
+            )
+          : 0;
+      projectedMonthEndSpend = round2(
+        (Number(item.spent) || 0) +
+          Math.max(
+            routineRemaining,
+            scheduledRemaining,
+          ),
+      );
+      forecastMethod = "LARGE_TRANSACTION_INCLUDED_ONCE";
+      anomalyAdjusted = true;
+    }
+
+    const budget = Number(item.budget) || 0;
+    const projectedUsagePercent =
+      budget > 0
+        ? round2(
+            (projectedMonthEndSpend / budget) * 100,
+          )
+        : null;
+
+    return {
+      category: item.category,
+      budget: item.budget,
+      currentSpent: item.spent,
+      projectedMonthEndSpend,
+      projectedUsagePercent,
+      projectedOverage: round2(
+        Math.max(
+          projectedMonthEndSpend - budget,
+          0,
+        ),
+      ),
+      paceRisk: item.paceRisk,
+      projectionConfidence:
+        anomalyAdjusted
+          ? "LOW"
+          : item.projectionConfidence,
+      anomalyAdjusted,
+      forecastMethod,
+    };
+  });
+};
+
+const getFinancialForecastTool = async ({
+  user,
+  args,
+  asOf,
+}) => {
+  const historyMonths = clampInteger(
+    args.historyMonths,
+    {
+      min: 3,
+      max: 6,
+      fallback: 6,
+    },
+  );
+  const currentMonth = getCurrentMonthKey(asOf);
+  const currentRange = getCurrentMonthToDateRange(asOf);
+  const monthEnd = getMonthEnd(asOf);
+
+  const [
+    accounts,
+    currentOverview,
+    monthlyTrend,
+    currentCategories,
+    budgets,
+    goals,
+    recurringItems,
+    patternAnalysis,
+  ] = await Promise.all([
+    getAccountSummaryForUser({
+      userId: user._id,
+    }),
+    getOverviewForUser({
+      userId: user._id,
+      startDate: currentRange.startDate,
+      endDate: currentRange.endDate,
+    }),
+    getMonthlyTrendForUser({
+      userId: user._id,
+      months: historyMonths,
+    }),
+    getCategoryBreakdownForUser({
+      userId: user._id,
+      startDate: currentRange.startDate,
+      endDate: currentRange.endDate,
+    }),
+    getBudgetsForUser({
+      userId: user._id,
+      month: currentMonth,
+    }),
+    getGoalsForUser({
+      userId: user._id,
+    }),
+    RecurringTransaction.find({
+      user: user._id,
+      isActive: true,
+      nextRunDate: {
+        $gte: new Date(asOf),
+        $lte: monthEnd,
+      },
+    })
+      .populate("account", "name type currency")
+      .populate("category", "name type")
+      .sort({ nextRunDate: 1 })
+      .limit(30),
+    getSpendingPatternsTool({
+      user,
+      args: {
+        lookbackMonths: Math.min(
+          historyMonths,
+          6,
+        ),
+      },
+      asOf,
+    }),
+  ]);
+
+  const currencySafety = getCurrencySafety({
+    accounts,
+    preferredCurrency: user.preferredCurrency || "INR",
+  });
+  const highSeverityAnomalyCount =
+    patternAnalysis.supported
+      ? (patternAnalysis.anomalies || []).filter(
+          (item) => item.severity === "HIGH",
+        ).length
+      : 0;
+
+  const forecast = buildMonthlyForecast({
+    asOf,
+    currentOverview,
+    monthlyTrend,
+    recurringDueBeforeMonthEnd:
+      recurringItems.map(simplifyRecurring),
+    currentTransactionCount:
+      currentOverview.totalTransactionCount,
+    highSeverityAnomalyCount,
+    anomalySignals:
+      patternAnalysis.supported
+        ? patternAnalysis.anomalies || []
+        : [],
+    currencySafety,
+  });
+
+  if (!forecast.supported) {
+    return {
+      preferredCurrency: user.preferredCurrency || "INR",
+      ...forecast,
+    };
+  }
+
+  const budgetAnalytics = buildBudgetAnalytics({
+    budgets,
+    categories: currentCategories,
+    totalExpense: currentOverview.totalExpense,
+    currentMonth,
+    asOf,
+  });
+
+  const completedWithActivity = monthlyTrend.filter(
+    (item) =>
+      item.key !== currentMonth &&
+      ((Number(item.income) || 0) !== 0 ||
+        (Number(item.expense) || 0) !== 0),
+  );
+  const recentCompleted = completedWithActivity.slice(-3);
+  const recentAverageSavings = recentCompleted.length
+    ? round2(
+        recentCompleted.reduce(
+          (total, item) =>
+            total +
+            (Number(item.netSavings) || 0),
+          0,
+        ) / recentCompleted.length,
+      )
+    : 0;
+  const evidenceConfidence = getEvidenceConfidence({
+    activeHistoryMonths: recentCompleted.length,
+    baselineTransactionCount:
+      currentOverview.totalTransactionCount,
+    daysElapsed:
+      forecast.monthProgress.daysElapsed,
+  });
+  const goalAnalytics = buildGoalAnalytics({
+    goals,
+    recentAverageMonthlySavings:
+      recentAverageSavings,
+    recentSavingsMonthsUsed:
+      recentCompleted.map((item) => item.key),
+  });
+
+  return sanitizeFiniteNumbers({
+    preferredCurrency: user.preferredCurrency || "INR",
+    dataCoverage: {
+      asOf,
+      month: currentMonth,
+      through: monthEnd.toISOString(),
+    },
+    ...forecast,
+    budgetForecasts: buildForecastBudgetRows({
+      budgetItems: budgetAnalytics.items,
+      patternAnalysis,
+      recurringItems:
+        recurringItems.map(simplifyRecurring),
+      monthProgress: forecast.monthProgress,
+    }),
+    goalForecasts: buildGoalCompletionForecast({
+      asOf,
+      goals: goalAnalytics,
+      recentAverageMonthlySavings:
+        recentAverageSavings,
+      evidenceConfidence,
+    }),
+    anomalyContext: {
+      highSeverityAnomalyCount,
+      topSignals: patternAnalysis.supported
+        ? (patternAnalysis.topSignals || []).slice(
+            0,
+            3,
+          )
+        : [],
+    },
+  });
+};
+
+const simulateFinancialScenarioTool = async ({
+  user,
+  args,
+  asOf,
+}) => {
+  const scenario = SCENARIOS.includes(args.scenario)
+    ? args.scenario
+    : null;
+
+  if (!scenario) {
+    throw new AppError(
+      `scenario must be one of: ${SCENARIOS.join(", ")}`,
+      400,
+    );
+  }
+
+  const currentMonth = getCurrentMonthKey(asOf);
+  const currentRange = getCurrentMonthToDateRange(asOf);
+  const monthEnd = getMonthEnd(asOf);
+
+  const [
+    accounts,
+    currentOverview,
+    monthlyTrend,
+    currentCategoriesRaw,
+    budgets,
+    recurringItems,
+    patternAnalysis,
+  ] = await Promise.all([
+    getAccountSummaryForUser({
+      userId: user._id,
+    }),
+    getOverviewForUser({
+      userId: user._id,
+      startDate: currentRange.startDate,
+      endDate: currentRange.endDate,
+    }),
+    getMonthlyTrendForUser({
+      userId: user._id,
+      months: 6,
+    }),
+    getCategoryBreakdownForUser({
+      userId: user._id,
+      startDate: currentRange.startDate,
+      endDate: currentRange.endDate,
+    }),
+    getBudgetsForUser({
+      userId: user._id,
+      month: currentMonth,
+    }),
+    RecurringTransaction.find({
+      user: user._id,
+      isActive: true,
+      nextRunDate: {
+        $gte: new Date(asOf),
+        $lte: monthEnd,
+      },
+    })
+      .populate("account", "name type currency")
+      .populate("category", "name type")
+      .sort({ nextRunDate: 1 })
+      .limit(30),
+    getSpendingPatternsTool({
+      user,
+      args: {
+        lookbackMonths: 3,
+      },
+      asOf,
+    }),
+  ]);
+
+  const currencySafety = getCurrencySafety({
+    accounts,
+    preferredCurrency: user.preferredCurrency || "INR",
+  });
+  const forecast = buildMonthlyForecast({
+    asOf,
+    currentOverview,
+    monthlyTrend,
+    recurringDueBeforeMonthEnd:
+      recurringItems.map(simplifyRecurring),
+    currentTransactionCount:
+      currentOverview.totalTransactionCount,
+    highSeverityAnomalyCount:
+      patternAnalysis.supported
+        ? (patternAnalysis.topSignals || []).filter(
+            (item) => item.severity === "HIGH",
+          ).length
+        : 0,
+    anomalySignals:
+      patternAnalysis.supported
+        ? patternAnalysis.anomalies || []
+        : [],
+    currencySafety,
+  });
+
+  if (!forecast.supported) {
+    return {
+      preferredCurrency: user.preferredCurrency || "INR",
+      ...forecast,
+    };
+  }
+
+  const budgetAnalytics = buildBudgetAnalytics({
+    budgets,
+    categories: currentCategoriesRaw,
+    totalExpense: currentOverview.totalExpense,
+    currentMonth,
+    asOf,
+  });
+
+  return simulateFinancialScenario({
+    scenario,
+    amount: args.amount,
+    category: String(args.category || "").trim() || null,
+    reductionPercent: args.reductionPercent,
+    currentOverview,
+    currentCategories: mapCategoryRows(
+      currentCategoriesRaw,
+    ),
+    budgetAnalytics,
+    monthlyForecast: forecast,
+    currencySafety,
+    preferredCurrency:
+      user.preferredCurrency || "INR",
+  });
+};
+
 const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_financial_health_summary",
@@ -853,6 +1546,75 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
       },
     },
   },
+  {
+    name: "analyze_spending_patterns",
+    description:
+      "Detects unusual expense transactions, category spikes versus equivalent elapsed-day historical windows, spending concentration, possible recurring transaction patterns, and short multi-month trends. Use when the user asks what is unusual, out of pattern, spiking, anomalous, concentrated, or recurring. An anomaly is not evidence of fraud.",
+    parameters: {
+      type: "object",
+      properties: {
+        lookbackMonths: {
+          type: "integer",
+          minimum: 2,
+          maximum: 6,
+          description:
+            "Historical comparable months to use for pattern evidence. Defaults to 3.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_financial_forecast",
+    description:
+      "Builds a read-only end-of-current-month cash-flow forecast using month-to-date pace, recent completed-month history, known recurring items due before month-end, budget pacing, goal pace, and anomaly context. Use for 'how will I finish the month', 'projected', 'forecast', or future budget/savings questions.",
+    parameters: {
+      type: "object",
+      properties: {
+        historyMonths: {
+          type: "integer",
+          minimum: 3,
+          maximum: 6,
+          description:
+            "Historical months to inspect for the forecast. Defaults to 6.",
+        },
+      },
+    },
+  },
+  {
+    name: "simulate_financial_scenario",
+    description:
+      "Runs a hypothetical read-only what-if simulation without changing FinTrack records. Use only when the user explicitly asks what would happen if they add an expense, add income, or reduce spending in a category.",
+    parameters: {
+      type: "object",
+      properties: {
+        scenario: {
+          type: "string",
+          enum: SCENARIOS,
+          description:
+            "ADD_EXPENSE for a hypothetical one-time expense, ADD_INCOME for hypothetical one-time income, or REDUCE_CATEGORY_SPENDING for reducing current-period category spending by a percentage.",
+        },
+        amount: {
+          type: "number",
+          minimum: 0.01,
+          description:
+            "Required for ADD_EXPENSE or ADD_INCOME. Amount is in the user's FinTrack preferred currency.",
+        },
+        category: {
+          type: "string",
+          description:
+            "Category to evaluate for budget impact or for REDUCE_CATEGORY_SPENDING.",
+        },
+        reductionPercent: {
+          type: "number",
+          minimum: 0.01,
+          maximum: 100,
+          description:
+            "Required for REDUCE_CATEGORY_SPENDING. Percentage of current-period spending in that category to hypothetically avoid.",
+        },
+      },
+      required: ["scenario"],
+    },
+  },
 ];
 
 const TOOL_EXECUTORS = {
@@ -866,6 +1628,9 @@ const TOOL_EXECUTORS = {
   get_recent_transactions: getRecentTransactionsTool,
   get_recurring_transactions: getRecurringTransactionsTool,
   get_monthly_trend: getMonthlyTrendTool,
+  analyze_spending_patterns: getSpendingPatternsTool,
+  get_financial_forecast: getFinancialForecastTool,
+  simulate_financial_scenario: simulateFinancialScenarioTool,
 };
 
 const executeAssistantTool = async ({ name, args = {}, user, asOf }) => {
@@ -897,7 +1662,7 @@ const executeAssistantTool = async ({ name, args = {}, user, asOf }) => {
       authoritative: true,
       source: "FINTRACK_DATABASE",
       generatedAt: new Date().toISOString(),
-      data,
+      data: sanitizeFiniteNumbers(data),
     };
   } catch (error) {
     console.warn("FinTrack assistant tool failed", {

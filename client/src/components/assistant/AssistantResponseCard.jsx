@@ -58,6 +58,9 @@ const formatToolName = (toolName) => {
     get_recent_transactions: "Recent transactions",
     get_recurring_transactions: "Recurring transactions",
     get_monthly_trend: "Monthly trend",
+    analyze_spending_patterns: "Spending patterns",
+    get_financial_forecast: "Financial forecast",
+    simulate_financial_scenario: "What-if simulation",
   };
 
   return (

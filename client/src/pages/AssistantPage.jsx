@@ -20,8 +20,10 @@ import getApiError from "../utils/getApiError";
 
 const starterPrompts = [
   "How am I doing financially this month?",
-  "Where am I spending the most this month?",
   "Am I on track with my current budgets?",
+  "What spending looks unusual or out of pattern this month?",
+  "How am I projected to finish this month?",
+  "What if I spend ₹25,000 more this month?",
   "Review my savings goals and priorities.",
 ];
 
@@ -29,7 +31,7 @@ const welcomeMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Ask me about your spending, budgets, cash flow, accounts, recurring payments, or savings goals. I’ll answer using the financial data already in your FinTrack account.",
+    "Ask me about spending, budgets, cash flow, unusual patterns, forecasts, what-if scenarios, accounts, recurring payments, or savings goals. I’ll answer using the financial data already in your FinTrack account.",
 };
 
 const makeMessage = (role, content, metadata = {}) => ({
@@ -479,10 +481,10 @@ const AssistantPage = () => {
 
             <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
               <p>• Current-month income, expenses, and savings</p>
-              <p>• Spending categories and six-month trends</p>
-              <p>• Budgets and over-budget categories</p>
-              <p>• Account balances and recent transactions</p>
-              <p>• Savings goals and recurring transactions</p>
+              <p>• Spending anomalies, spikes, and recurring patterns</p>
+              <p>• Budgets, pacing, and month-end forecasts</p>
+              <p>• Read-only what-if cash-flow simulations</p>
+              <p>• Accounts, goals, recurring items, and trends</p>
             </div>
           </DashboardCard>
 

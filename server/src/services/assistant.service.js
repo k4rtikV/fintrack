@@ -229,15 +229,22 @@ Financial accuracy rules:
 - Unbudgeted spending means recorded expense spending in a category with no budget for that month. It does not mean invalid or suspicious spending.
 - For budget questions, use get_budget_status. Treat linear month-end projections as directional estimates, not guarantees, and state low confidence when the tool marks it low.
 - For goal feasibility, use get_goal_progress and qualify conclusions using the evidence confidence and number of completed activity months in the savings baseline.
-- Never add balances in different currencies together. If multiple currencies exist, report them separately unless converted values are explicitly supplied.
+- For unusual, anomalous, out-of-pattern, concentration, spike, or possible-recurring-spend questions, use analyze_spending_patterns. An anomaly only means unusual relative to recorded FinTrack history; never label it fraud, unauthorized, suspicious, or incorrect without direct evidence.
+- For end-of-month projections, cash-flow forecasts, projected savings, projected expenses, projected income, or future budget pace, use get_financial_forecast. Always state the supplied confidence and forecast caveats.
+- For explicit hypothetical questions such as "what if I spend...", "what if I earn...", or "what if I cut category spending...", use simulate_financial_scenario. It is read-only. Never imply that the scenario changed any FinTrack record.
+- What-if simulations must use the exact backend-calculated before/after values. Do not invent extra assumptions, future investment returns, market performance, interest, or currency conversions.
+- Never add balances in different currencies together. Advanced anomaly, forecast, and simulation tools may refuse combined calculations when active account currencies are mixed; respect that refusal.
 - Distinguish facts from suggestions. Do not claim why spending changed unless transaction evidence directly supports the explanation.
 - Use the user's preferred currency where the tool data is in that currency. Do not perform currency conversion unless converted values are supplied.
+- Treat low-history pattern detection and forecasts as weak evidence. Explicitly say when the backend reports low or no confidence.
 - You may explain general budgeting, saving, cash-flow, and personal-finance concepts, but do not present yourself as a licensed financial adviser.
 - Do not recommend specific stocks, securities, crypto assets, or other investments as personalized financial advice.
 
 Response style:
 - Prefer concrete observations with numbers and evidence.
 - Mention the relevant date window when comparisons could otherwise be ambiguous.
+- When discussing anomaly/pattern output, explain the signal without overstating causation or risk.
+- When discussing forecasts or simulations, separate current recorded facts from estimated or hypothetical values.
 - When relevant, end with one practical next step.
 - Keep most answers under 300 words unless the user asks for more detail.
 - The final user-facing response may be requested as structured JSON by FinTrack. When it is, obey the supplied response schema exactly.
@@ -281,8 +288,10 @@ const requestModel = async ({
   model,
   apiKey,
   contents,
-  functionCallingMode,
+  functionCallingMode = "AUTO",
+  allowedFunctionNames = null,
   structuredOutput = false,
+  useTools = true,
 }) => {
   const makeRequest = async (useStructuredOutput) => {
     const generationConfig = {
@@ -301,29 +310,55 @@ const requestModel = async ({
       };
     }
 
-    const response = await requestGeminiWithRetry({
-      url: `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
-      body: {
-        systemInstruction: {
-          parts: [
-            {
-              text: SYSTEM_INSTRUCTION,
-            },
-          ],
-        },
-        contents,
-        tools: [
+    const activeFunctionDeclarations = useTools
+      ? Array.isArray(allowedFunctionNames) && allowedFunctionNames.length > 0
+        ? ASSISTANT_FUNCTION_DECLARATIONS.filter((declaration) =>
+            allowedFunctionNames.includes(declaration.name),
+          )
+        : ASSISTANT_FUNCTION_DECLARATIONS
+      : [];
+
+    if (useTools && !activeFunctionDeclarations.length) {
+      throw new AppError(
+        "The AI Assistant could not resolve a valid FinTrack tool for that request.",
+        500,
+      );
+    }
+
+    const body = {
+      systemInstruction: {
+        parts: [
           {
-            functionDeclarations: ASSISTANT_FUNCTION_DECLARATIONS,
+            text: SYSTEM_INSTRUCTION,
           },
         ],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: functionCallingMode,
-          },
-        },
-        generationConfig,
       },
+      contents,
+      generationConfig,
+    };
+
+    if (useTools) {
+      body.tools = [
+        {
+          functionDeclarations: activeFunctionDeclarations,
+        },
+      ];
+      body.toolConfig = {
+        functionCallingConfig: {
+          mode: functionCallingMode,
+          ...(Array.isArray(allowedFunctionNames) &&
+          allowedFunctionNames.length > 0
+            ? {
+                allowedFunctionNames,
+              }
+            : {}),
+        },
+      };
+    }
+
+    const response = await requestGeminiWithRetry({
+      url: `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
+      body,
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
@@ -421,6 +456,39 @@ const getSupplementalToolRequests = ({
       normalized,
     );
 
+  const mentionsAnomaly =
+    /\b(anomal|unusual|out[- ]of[- ]pattern|pattern|spike|spiking|concentrat|recurring pattern)\b/i.test(
+      normalized,
+    );
+  const mentionsForecast =
+    /\b(forecast|project(?:ed|ion)?|end[- ]of[- ]month|finish the month|month[- ]end|at this pace)\b/i.test(
+      normalized,
+    );
+
+  if (
+    mentionsAnomaly &&
+    !used.has("analyze_spending_patterns")
+  ) {
+    requests.push({
+      name: "analyze_spending_patterns",
+      args: {
+        lookbackMonths: 3,
+      },
+    });
+  }
+
+  if (
+    mentionsForecast &&
+    !used.has("get_financial_forecast")
+  ) {
+    requests.push({
+      name: "get_financial_forecast",
+      args: {
+        historyMonths: 6,
+      },
+    });
+  }
+
   if (mentionsTransactions && mentionsBudget) {
     if (!used.has("get_recent_transactions")) {
       const limitMatch = normalized.match(/\b(?:my|the)?\s*(\d{1,2})\s+most recent transactions?\b/i);
@@ -486,6 +554,260 @@ const executeSupplementalTools = async ({
   return results;
 };
 
+const getInitialAllowedFunctionNames = (message) => {
+  const normalized = String(message || "").toLowerCase();
+  const allowed = [];
+
+  if (
+    /\b(what if|hypothetical|suppose|if i spend|if i earn|if i get|if i cut|if i reduce)\b/i.test(
+      normalized,
+    )
+  ) {
+    allowed.push("simulate_financial_scenario");
+  }
+
+  if (
+    /\b(anomal|unusual|out[- ]of[- ]pattern|pattern|spike|spiking|concentrat|recurring pattern)\b/i.test(
+      normalized,
+    )
+  ) {
+    allowed.push("analyze_spending_patterns");
+  }
+
+  if (
+    /\b(forecast|project(?:ed|ion)?|end[- ]of[- ]month|finish the month|month[- ]end|at this pace)\b/i.test(
+      normalized,
+    )
+  ) {
+    allowed.push("get_financial_forecast");
+  }
+
+  return [...new Set(allowed)];
+};
+
+
+const parseMoneyAmount = (message) => {
+  const text = String(message || "");
+  const explicit = text.match(
+    /(?:₹|INR|Rs\.?)\s*([0-9][0-9,]*(?:\.\d+)?)/i,
+  );
+
+  if (explicit) {
+    return Number(explicit[1].replace(/,/g, ""));
+  }
+
+  const afterVerb = text.match(
+    /\b(?:spend|pay|earn|receive|get|income|expense|cost)\b[^0-9]{0,24}([0-9][0-9,]*(?:\.\d+)?)/i,
+  );
+
+  return afterVerb
+    ? Number(afterVerb[1].replace(/,/g, ""))
+    : null;
+};
+
+const parseReductionScenario = (message) => {
+  const match = String(message || "").match(
+    /\breduce\s+(.+?)\s+spending\s+by\s+([0-9]+(?:\.[0-9]+)?)\s*%/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    scenario: "REDUCE_CATEGORY_SPENDING",
+    category: match[1].trim(),
+    reductionPercent: Number(match[2]),
+  };
+};
+
+const parseExpenseCategory = (message) => {
+  const match = String(message || "").match(
+    /\b(?:in|on)\s+([A-Za-z][A-Za-z &-]{1,40}?)(?:\s+this\s+month|\s+today|\s*$)/i,
+  );
+
+  return match ? match[1].trim() : null;
+};
+
+const getDirectAdvancedToolRequest = (message) => {
+  const normalized = String(message || "").toLowerCase();
+
+  if (
+    /\b(what if|hypothetical|suppose|if i spend|if i earn|if i get|if i cut|if i reduce)\b/i.test(
+      normalized,
+    )
+  ) {
+    const reduction = parseReductionScenario(message);
+
+    if (reduction) {
+      return {
+        name: "simulate_financial_scenario",
+        args: reduction,
+      };
+    }
+
+    const amount = parseMoneyAmount(message);
+
+    if (Number.isFinite(amount) && amount > 0) {
+      const isIncome =
+        /\b(earn|receive|income|salary|bonus|get paid)\b/i.test(normalized) &&
+        !/\bspend\b/i.test(normalized);
+
+      return {
+        name: "simulate_financial_scenario",
+        args: {
+          scenario: isIncome ? "ADD_INCOME" : "ADD_EXPENSE",
+          amount,
+          ...(isIncome
+            ? {}
+            : {
+                category: parseExpenseCategory(message),
+              }),
+        },
+      };
+    }
+  }
+
+  if (
+    /\b(anomal|unusual|out[- ]of[- ]pattern|pattern|spike|spiking|concentrat|recurring pattern)\b/i.test(
+      normalized,
+    )
+  ) {
+    return {
+      name: "analyze_spending_patterns",
+      args: {
+        lookbackMonths: 3,
+      },
+    };
+  }
+
+  if (
+    /\b(forecast|project(?:ed|ion)?|end[- ]of[- ]month|finish the month|month[- ]end|at this pace)\b/i.test(
+      normalized,
+    )
+  ) {
+    return {
+      name: "get_financial_forecast",
+      args: {
+        historyMonths: 6,
+      },
+    };
+  }
+
+  return null;
+};
+
+const runDirectAdvancedToolFlow = async ({
+  model,
+  apiKey,
+  user,
+  message,
+  history,
+  directRequest,
+}) => {
+  const asOf = new Date().toISOString();
+  const toolResult = await executeAssistantTool({
+    name: directRequest.name,
+    args: directRequest.args,
+    user,
+    asOf,
+  });
+
+  const toolTrace = [
+    {
+      name: directRequest.name,
+      args: directRequest.args,
+      ok: toolResult.ok,
+      data: toolResult.ok ? toolResult.data : null,
+      directRouted: true,
+    },
+  ];
+
+  if (!toolResult.ok) {
+    throw new AppError(
+      toolResult.error || "The FinTrack analysis tool could not complete the request.",
+      502,
+    );
+  }
+
+  const contents = [
+    ...mapHistoryToGemini(history),
+    {
+      role: "user",
+      parts: [
+        {
+          text: `FINTRACK_REQUEST_CONTEXT:
+As of: ${asOf}
+Preferred currency: ${user.preferredCurrency || "INR"}
+Timezone: ${user.timezone || "Asia/Kolkata"}
+
+USER_QUESTION:
+${message}
+
+FINTRACK_AUTHORITATIVE_TOOL_RESULT:
+Tool: ${directRequest.name}
+Result:
+${JSON.stringify(toolResult)}
+
+Instructions:
+Answer the user's question using only the authoritative FinTrack result above for personal financial facts.
+Do not ask for or call another tool.
+If supported=false or the result contains a limitation, explain that limitation plainly.
+For anomalies, never call unusual activity fraud or suspicious.
+For forecasts and simulations, clearly distinguish estimates/hypotheticals from recorded facts.`,
+        },
+      ],
+    },
+  ];
+
+  const response = await requestModel({
+    model,
+    apiKey,
+    contents,
+    functionCallingMode: "NONE",
+    structuredOutput: false,
+    useTools: false,
+  });
+
+  const rawReply = extractGeminiText(response.data);
+
+  if (!rawReply) {
+    throw new AppError(
+      "The AI Assistant could not generate an explanation for the completed FinTrack analysis.",
+      502,
+    );
+  }
+
+  const presentation = buildDeterministicPresentation({
+    reply: rawReply,
+    toolTrace,
+  });
+  const toolsUsed = [directRequest.name];
+
+  console.info("FinTrack advanced request direct-routed", {
+    model,
+    tool: directRequest.name,
+    args: directRequest.args,
+  });
+
+  return {
+    reply: presentation.answer,
+    presentation: {
+      ...presentation,
+      toolsUsed,
+    },
+    model,
+    generatedAt: new Date().toISOString(),
+    toolsUsed,
+    toolCallCount: 1,
+    modelRequestCount: 1,
+    structuredOutput: false,
+    richPresentation: true,
+    presentationSource: "FINTRACK_DETERMINISTIC",
+    directAdvancedRouting: true,
+  };
+};
+
 const runAgentWithModel = async ({
   model,
   apiKey,
@@ -493,11 +815,27 @@ const runAgentWithModel = async ({
   message,
   history,
 }) => {
+  const directAdvancedRequest =
+    getDirectAdvancedToolRequest(message);
+
+  if (directAdvancedRequest) {
+    return runDirectAdvancedToolFlow({
+      model,
+      apiKey,
+      user,
+      message,
+      history,
+      directRequest: directAdvancedRequest,
+    });
+  }
+
   const asOf = new Date().toISOString();
   const toolTrace = [];
   let modelRequestCount = 0;
   let toolRounds = 0;
   let executedToolCalls = 0;
+  const initialAllowedFunctionNames =
+    getInitialAllowedFunctionNames(message);
   const contents = [
     ...mapHistoryToGemini(history),
     {
@@ -518,6 +856,10 @@ const runAgentWithModel = async ({
       apiKey,
       contents,
       functionCallingMode,
+      allowedFunctionNames:
+        initialAllowedFunctionNames.length > 0
+          ? initialAllowedFunctionNames
+          : null,
       structuredOutput: false,
     });
     modelRequestCount += 1;
@@ -864,7 +1206,9 @@ const getAssistantReply = async ({
 
     console.error("Gemini tool-calling assistant request failed", {
       status,
+      code: error.code || null,
       message: error.response?.data?.error?.message || error.message,
+      details: error.response?.data?.error?.details || null,
     });
 
     throw new AppError(

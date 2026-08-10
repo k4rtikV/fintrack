@@ -148,17 +148,46 @@ const formatMoney = (value, currency = "INR") => {
 };
 
 const getFallbackAnswer = (reply) => {
-  try {
-    const parsed = JSON.parse(String(reply || ""));
+  const raw = String(reply || "").trim();
 
-    if (typeof parsed?.answer === "string" && parsed.answer.trim()) {
-      return parsed.answer.trim();
-    }
-  } catch {
-    // Plain text is expected in the deterministic-presentation path.
+  if (!raw) {
+    return "";
   }
 
-  return String(reply || "").trim();
+  const candidates = [raw];
+
+  // Gemini may occasionally wrap an otherwise valid JSON object in a
+  // Markdown code fence even when FinTrack asked for a plain-text
+  // explanation. Parse that shape defensively instead of rendering the JSON
+  // verbatim in the assistant card.
+  const fencedMatch = raw.match(
+    /```(?:json|javascript|js)?\s*([\s\S]*?)```/i,
+  );
+
+  if (fencedMatch?.[1]?.trim()) {
+    candidates.unshift(fencedMatch[1].trim());
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+
+      if (typeof parsed?.answer === "string" && parsed.answer.trim()) {
+        return parsed.answer.trim();
+      }
+
+      if (
+        typeof parsed?.response?.answer === "string" &&
+        parsed.response.answer.trim()
+      ) {
+        return parsed.response.answer.trim();
+      }
+    } catch {
+      // Try the next candidate, then fall back to normal plain text.
+    }
+  }
+
+  return raw;
 };
 
 const buildFallbackPresentation = (reply) => {
@@ -915,11 +944,551 @@ const healthPresentation = ({ reply, data }) => {
   };
 };
 
+const spendingPatternsPresentation = ({ reply, data }) => {
+  if (!data.supported) {
+    return {
+      answer: getFallbackAnswer(reply),
+      summary:
+        data.note ||
+        "FinTrack cannot safely combine this analysis across the current account currencies.",
+      status: "warning",
+      metrics: [],
+      insights: [
+        data.currencySafety?.note ||
+          "A safe comparable-currency baseline is unavailable.",
+      ].filter(Boolean),
+      recommendations: [
+        "Review the relevant accounts separately by currency or add an authoritative FX conversion layer before combining them.",
+      ],
+      confidence: "low",
+    };
+  }
+
+  const anomalies = Array.isArray(data.anomalies)
+    ? data.anomalies
+    : [];
+  const patterns = Array.isArray(data.patterns)
+    ? data.patterns
+    : [];
+  const signals = Array.isArray(data.topSignals)
+    ? data.topSignals
+    : [];
+  const highCount = signals.filter(
+    (item) => item.severity === "HIGH",
+  ).length;
+  const mediumCount = signals.filter(
+    (item) => item.severity === "MEDIUM",
+  ).length;
+  const topConcentration = patterns.find(
+    (item) =>
+      item.type === "SPENDING_CONCENTRATION",
+  );
+  const confidence =
+    String(data.evidence?.confidence || "NONE").toLowerCase();
+
+  const status =
+    highCount > 0
+      ? "warning"
+      : mediumCount > 0
+        ? "warning"
+        : "neutral";
+
+  const insights = signals.slice(0, 4).map((signal) => {
+    if (signal.type === "LARGE_TRANSACTION") {
+      return `${signal.title} (${signal.category}) at ${formatMoney(
+        signal.amount,
+        data.preferredCurrency,
+      )} is materially larger than the recent expense-transaction baseline.`;
+    }
+
+    if (
+      signal.type === "CATEGORY_SPIKE" ||
+      signal.type === "NEW_CATEGORY_ACTIVITY"
+    ) {
+      return signal.percentChange === null
+        ? `${signal.category} has new comparable-period activity at ${formatMoney(
+            signal.currentAmount,
+            data.preferredCurrency,
+          )}; there is no positive historical baseline for a percentage comparison.`
+        : `${signal.category} is ${formatPercent(
+            signal.percentChange,
+          )} above its recent comparable-period average.`;
+    }
+
+    if (
+      signal.type === "SPENDING_CONCENTRATION"
+    ) {
+      return `${signal.category} accounts for ${formatPercent(
+        signal.topCategorySharePercent,
+      )} of current-period expenses.`;
+    }
+
+    if (
+      signal.type ===
+      "POSSIBLE_RECURRING_PATTERN"
+    ) {
+      return `${signal.title} appears ${signal.occurrences} times at a roughly ${signal.medianIntervalDays}-day interval with similar amounts.`;
+    }
+
+    return signal.explanation || signal.type;
+  });
+
+  const recommendations = [];
+
+  const large = anomalies.find(
+    (item) => item.type === "LARGE_TRANSACTION",
+  );
+  if (large) {
+    recommendations.push(
+      `Review the ${large.title} transaction if you do not recognize why it is unusually large relative to your recorded history.`,
+    );
+  }
+
+  const recurring = patterns.find(
+    (item) =>
+      item.type === "POSSIBLE_RECURRING_PATTERN",
+  );
+  if (recurring) {
+    recommendations.push(
+      `If ${recurring.title} is intentionally recurring, consider tracking it through FinTrack's recurring-transactions feature.`,
+    );
+  }
+
+  if (
+    !signals.length &&
+    confidence !== "none"
+  ) {
+    recommendations.push(
+      "No strong outlier signal was detected in the available history; continue recording transactions to strengthen the baseline.",
+    );
+  }
+
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: signals.length
+      ? `FinTrack found ${signals.length} notable spending signal${
+          signals.length === 1 ? "" : "s"
+        } in the available history.`
+      : "FinTrack did not find a strong spending anomaly in the available history.",
+    status,
+    metrics: [
+      {
+        label: "Notable signals",
+        value: String(signals.length),
+        detail: `${anomalies.length} anomaly · ${patterns.length} pattern`,
+        tone: highCount > 0 ? "warning" : "neutral",
+      },
+      {
+        label: "High severity",
+        value: String(highCount),
+        detail: "Relative to recorded FinTrack history",
+        tone: highCount > 0 ? "warning" : "positive",
+      },
+      {
+        label: "History used",
+        value: String(
+          data.evidence?.activeHistoricalMonths?.length || 0,
+        ),
+        detail: "Comparable active months",
+        tone: "neutral",
+      },
+      {
+        label: "Top-category share",
+        value: topConcentration
+          ? formatPercent(
+              topConcentration.topCategorySharePercent,
+            )
+          : "—",
+        detail: topConcentration?.category || "No strong concentration",
+        tone:
+          topConcentration?.severity === "HIGH"
+            ? "warning"
+            : "neutral",
+      },
+    ],
+    insights,
+    recommendations: recommendations.slice(0, 3),
+    confidence:
+      ["high", "medium", "low"].includes(confidence)
+        ? confidence
+        : "not_applicable",
+  };
+};
+
+const forecastPresentation = ({ reply, data }) => {
+  if (!data.supported) {
+    return {
+      answer: getFallbackAnswer(reply),
+      summary:
+        data.note ||
+        "FinTrack cannot safely build this forecast from the current currency mix.",
+      status: "warning",
+      metrics: [],
+      insights: [
+        data.quality?.currencySafety?.note ||
+          data.note,
+      ].filter(Boolean),
+      recommendations: [],
+      confidence: "low",
+    };
+  }
+
+  const forecast = data.forecast || {};
+  const currency =
+    data.preferredCurrency || "INR";
+  const budgetRisks = (
+    data.budgetForecasts || []
+  )
+    .filter(
+      (item) =>
+        Number(item.projectedUsagePercent) > 100 ||
+        ["HIGH", "ELEVATED"].includes(
+          item.paceRisk,
+        ),
+    )
+    .sort(
+      (a, b) =>
+        Number(b.projectedUsagePercent || 0) -
+        Number(a.projectedUsagePercent || 0),
+    );
+  const topBudgetRisk = budgetRisks[0];
+  const projectedSavings =
+    Number(forecast.netSavings) || 0;
+  const status =
+    projectedSavings < 0 ||
+    Number(topBudgetRisk?.projectedUsagePercent) > 120
+      ? "warning"
+      : projectedSavings > 0 &&
+          !topBudgetRisk
+        ? "positive"
+        : "neutral";
+
+  const insights = [];
+
+  if (topBudgetRisk) {
+    insights.push(
+      topBudgetRisk.anomalyAdjusted
+        ? `${topBudgetRisk.category} has already used ${formatPercent(
+            topBudgetRisk.projectedUsagePercent,
+          )} of its current budget. FinTrack keeps the pace-risk warning but does not automatically repeat the anomalous outlay in the month-end forecast.`
+        : `${topBudgetRisk.category} is projected to reach ${formatPercent(
+            topBudgetRisk.projectedUsagePercent,
+          )} of its current budget at the present pace; this remains a directional estimate.`,
+    );
+  }
+
+  if (
+    Number(
+      data.anomalyContext
+        ?.highSeverityAnomalyCount,
+    ) > 0
+  ) {
+    insights.push(
+      "A high-severity current-period anomaly is present, so the month-end forecast is intentionally treated with lower confidence.",
+    );
+  }
+
+  if (
+    Number(
+      data.expensePaceAdjustment
+        ?.excludedFromPace,
+    ) > 0
+  ) {
+    insights.push(
+      `${formatMoney(
+        data.expensePaceAdjustment.excludedFromPace,
+        currency,
+      )} of already-recorded spending is included once but not automatically repeated in the remaining-days pace because FinTrack classified it as out-of-pattern/high-severity activity.`,
+    );
+  }
+
+  if (
+    data.historicalBaseline?.expenseMonthCount === 0
+  ) {
+    insights.push(
+      "No completed positive-expense month was available for an expense baseline, so only non-anomalous current spending is pace-projected.",
+    );
+  } else {
+    insights.push(
+      `The forecast uses ${data.historicalBaseline.monthCount} recent completed active month${
+        data.historicalBaseline.monthCount === 1 ? "" : "s"
+      } plus current month-to-date pace.`,
+    );
+  }
+
+  const recommendations = [];
+
+  if (projectedSavings < 0) {
+    recommendations.push(
+      "Review discretionary spending and known upcoming expenses before month-end if maintaining positive savings is a priority.",
+    );
+  }
+
+  if (topBudgetRisk) {
+    recommendations.push(
+      `Review the remaining ${topBudgetRisk.category} budget before additional spending in that category.`,
+    );
+  }
+
+  return {
+    answer: getFallbackAnswer(reply),
+    summary:
+      projectedSavings >= 0
+        ? `FinTrack projects month-end net savings around ${formatMoney(
+            projectedSavings,
+            currency,
+          )}.`
+        : `FinTrack projects a month-end savings shortfall around ${formatMoney(
+            Math.abs(projectedSavings),
+            currency,
+          )}.`,
+    status,
+    metrics: [
+      {
+        label: "Projected income",
+        value: formatMoney(
+          forecast.income,
+          currency,
+        ),
+        detail: "Month-end estimate",
+        tone: "positive",
+      },
+      {
+        label: "Projected expenses",
+        value: formatMoney(
+          forecast.expense,
+          currency,
+        ),
+        detail: "Month-end estimate",
+        tone:
+          topBudgetRisk ? "warning" : "neutral",
+      },
+      {
+        label: "Projected net savings",
+        value: formatMoney(
+          forecast.netSavings,
+          currency,
+        ),
+        detail: `${String(
+          forecast.confidence || "NONE",
+        ).toLowerCase()} confidence`,
+        tone:
+          projectedSavings >= 0
+            ? "positive"
+            : "warning",
+      },
+      {
+        label: "Projected savings rate",
+        value:
+          forecast.savingsRate === null
+            ? "—"
+            : formatPercent(
+                forecast.savingsRate,
+              ),
+        detail: data.monthProgress
+          ? `${formatPercent(
+              data.monthProgress
+                .monthElapsedPercent,
+            )} of month elapsed`
+          : "",
+        tone:
+          projectedSavings >= 0
+            ? "positive"
+            : "warning",
+      },
+    ],
+    insights: insights.slice(0, 4),
+    recommendations: recommendations.slice(0, 3),
+    confidence: lowerConfidence(
+      forecast.confidence,
+    ),
+  };
+};
+
+const simulationPresentation = ({ reply, data }) => {
+  if (!data.supported) {
+    return {
+      answer: getFallbackAnswer(reply),
+      summary:
+        data.error ||
+        "FinTrack could not safely run that what-if scenario.",
+      status: "warning",
+      metrics: [],
+      insights: [data.error].filter(Boolean),
+      recommendations: [],
+      confidence: "low",
+    };
+  }
+
+  const currency =
+    data.preferredCurrency || "INR";
+  const after =
+    data.currentMonth?.after || {};
+  const changes =
+    data.currentMonth?.changes || {};
+  const budgetImpact = data.budgetImpact || {};
+  const forecastAfter =
+    data.monthEndForecast?.after;
+  const status =
+    data.assessment === "HIGH_IMPACT"
+      ? "critical"
+      : data.assessment ===
+          "NOTICEABLE_IMPACT"
+        ? "warning"
+        : data.assessment ===
+            "POSITIVE_IMPACT"
+          ? "positive"
+          : "neutral";
+
+  const metrics = [
+    {
+      label: "Net savings after",
+      value: formatMoney(
+        after.netSavings,
+        currency,
+      ),
+      detail: `${formatMoney(
+        changes.netSavings,
+        currency,
+      )} change`,
+      tone:
+        Number(after.netSavings) >= 0
+          ? "positive"
+          : "critical",
+    },
+    {
+      label: "Savings rate after",
+      value:
+        after.savingsRate === null
+          ? "—"
+          : formatPercent(after.savingsRate),
+      detail:
+        changes.savingsRatePercentagePoints ===
+        null
+          ? ""
+          : `${round2(
+              changes.savingsRatePercentagePoints,
+            )} percentage-point change`,
+      tone:
+        Number(
+          changes.savingsRatePercentagePoints,
+        ) < -10
+          ? "warning"
+          : "neutral",
+    },
+  ];
+
+  if (forecastAfter) {
+    metrics.push({
+      label: "Month-end savings after",
+      value: formatMoney(
+        forecastAfter.netSavings,
+        currency,
+      ),
+      detail: `${String(
+        data.monthEndForecast
+          ?.forecastConfidence || "NONE",
+      ).toLowerCase()} forecast confidence`,
+      tone:
+        Number(forecastAfter.netSavings) >= 0
+          ? "positive"
+          : "warning",
+    });
+  }
+
+  if (budgetImpact.matchedBudget) {
+    metrics.push({
+      label: "Budget used after",
+      value: formatPercent(
+        budgetImpact.percentageUsedAfter,
+      ),
+      detail: budgetImpact.category,
+      tone:
+        budgetImpact.overBudgetAfter
+          ? "critical"
+          : Number(
+                budgetImpact.percentageUsedAfter,
+              ) >= 80
+            ? "warning"
+            : "neutral",
+    });
+  }
+
+  const insights = [
+    `This scenario changes current-month net savings by ${formatMoney(
+      changes.netSavings,
+      currency,
+    )}.`,
+  ];
+
+  if (budgetImpact.matchedBudget) {
+    insights.push(
+      `${budgetImpact.category} would move from ${formatPercent(
+        budgetImpact.percentageUsedBefore,
+      )} to ${formatPercent(
+        budgetImpact.percentageUsedAfter,
+      )} of budget usage.`,
+    );
+  } else if (budgetImpact.note) {
+    insights.push(budgetImpact.note);
+  }
+
+  const recommendations =
+    status === "critical" ||
+    status === "warning"
+      ? [
+          "Compare this hypothetical impact with your current budget and savings priorities before deciding.",
+        ]
+      : [];
+
+  return {
+    answer: getFallbackAnswer(reply),
+    summary:
+      data.scenario === "REDUCE_CATEGORY_SPENDING"
+        ? `Avoiding the simulated spending would improve current-month net savings by ${formatMoney(
+            Math.abs(changes.netSavings),
+            currency,
+          )}.`
+        : `Under this hypothetical scenario, current-month net savings would be ${formatMoney(
+            after.netSavings,
+            currency,
+          )}.`,
+    status,
+    metrics: metrics.slice(0, 4),
+    insights: insights.slice(0, 4),
+    recommendations,
+    confidence: lowerConfidence(
+      data.evidence?.forecastConfidence,
+    ),
+  };
+};
+
 const buildDeterministicPresentation = ({
   reply,
   toolTrace = [],
 }) => {
   const toolResults = getSuccessfulToolResults(toolTrace);
+
+  if (toolResults.has("simulate_financial_scenario")) {
+    return simulationPresentation({
+      reply,
+      data: toolResults.get("simulate_financial_scenario"),
+    });
+  }
+
+  if (toolResults.has("get_financial_forecast")) {
+    return forecastPresentation({
+      reply,
+      data: toolResults.get("get_financial_forecast"),
+    });
+  }
+
+  if (toolResults.has("analyze_spending_patterns")) {
+    return spendingPatternsPresentation({
+      reply,
+      data: toolResults.get("analyze_spending_patterns"),
+    });
+  }
 
   if (toolResults.has("get_budget_status")) {
     return budgetPresentation({
