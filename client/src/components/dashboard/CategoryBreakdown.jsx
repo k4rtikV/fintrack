@@ -50,7 +50,9 @@ const CategoryBreakdown = ({ data = [], currency = "INR" }) => {
                   nameKey="name"
                   innerRadius={58}
                   outerRadius={88}
-                  paddingAngle={3}
+                  minAngle={2}
+                  paddingAngle={2}
+                  stroke="none"
                 >
                   {data.map((item, index) => (
                     <Cell

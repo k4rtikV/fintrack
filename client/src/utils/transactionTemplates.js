@@ -1,15 +1,45 @@
-const STORAGE_KEY = "fintrack_transaction_templates";
+const LEGACY_STORAGE_KEY = "fintrack_transaction_templates";
+const STORAGE_PREFIX = "fintrack_transaction_templates:";
 
-const readTemplates = () => {
+const getUserStorageId = (user) =>
+  user?._id || user?.id || user?.email || "anonymous";
+
+const getStorageKey = (user) =>
+  `${STORAGE_PREFIX}${getUserStorageId(user)}`;
+
+const discardLegacyTemplates = () => {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    // Older FinTrack builds used one shared key for every account in the
+    // browser. Do not migrate it automatically because that could expose one
+    // account's finance template data to another account on a shared device.
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // Template storage is optional.
+  }
+};
+
+const readTemplates = (user) => {
+  try {
+    discardLegacyTemplates();
+    const parsed = JSON.parse(
+      localStorage.getItem(getStorageKey(user)) || "[]",
+    );
+
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 };
 
-const saveTemplate = (transaction) => {
-  const templates = readTemplates();
+const writeTemplates = (user, templates) => {
+  localStorage.setItem(
+    getStorageKey(user),
+    JSON.stringify(templates.slice(0, 12)),
+  );
+};
+
+const saveTemplate = (transaction, user) => {
+  const templates = readTemplates(user);
   const template = {
     id: crypto.randomUUID(),
     name: transaction.title,
@@ -23,13 +53,15 @@ const saveTemplate = (transaction) => {
     note: transaction.note || "",
   };
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([template, ...templates].slice(0, 12)));
+  writeTemplates(user, [template, ...templates]);
   return template;
 };
 
-const deleteTemplate = (templateId) => {
-  const templates = readTemplates().filter((template) => template.id !== templateId);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
+const deleteTemplate = (templateId, user) => {
+  const templates = readTemplates(user).filter(
+    (template) => template.id !== templateId,
+  );
+  writeTemplates(user, templates);
   return templates;
 };
 

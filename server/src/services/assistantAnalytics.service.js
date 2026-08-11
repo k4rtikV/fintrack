@@ -795,4 +795,5 @@ export {
   buildGoalAnalytics,
   buildRecurringAnalytics,
   compareValues,
+  getBudgetPaceRisk,
 };

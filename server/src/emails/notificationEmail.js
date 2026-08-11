@@ -1,3 +1,4 @@
+import { getPrimaryClientUrl } from "../config/clientOrigins.js";
 import { emailLayout, escapeHtml } from "./emailLayout.js";
 
 const formatCurrency = (amount, currency = "INR", locale = "en-IN") =>
@@ -50,7 +51,7 @@ const buildNotificationEmail = ({ user, notification }) => {
     bodyHtml,
     action: notification.actionUrl
       ? {
-          url: `${process.env.CLIENT_URL || "http://localhost:5173"}${notification.actionUrl}`,
+          url: `${getPrimaryClientUrl()}${notification.actionUrl}`,
           label: "View in FinTrack",
         }
       : null,

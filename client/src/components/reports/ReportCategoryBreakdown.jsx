@@ -28,7 +28,16 @@ const ReportCategoryBreakdown = ({ data = [], currency = "INR" }) => {
           <div className="mt-4 h-52">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={data} dataKey="amount" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={3}>
+                <Pie
+                  data={data}
+                  dataKey="amount"
+                  nameKey="name"
+                  innerRadius={58}
+                  outerRadius={88}
+                  minAngle={2}
+                  paddingAngle={2}
+                  stroke="none"
+                >
                   {data.map((item, index) => (
                     <Cell
                       key={item.categoryId || item.name}

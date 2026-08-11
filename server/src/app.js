@@ -3,7 +3,13 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import mongoose from "mongoose";
 
+import {
+  getAllowedClientOrigins,
+  normalizeClientOrigin,
+} from "./config/clientOrigins.js";
+import protectCookieAuthenticatedMutation from "./middleware/csrf.middleware.js";
 import {
   errorHandler,
   notFound,
@@ -24,18 +30,47 @@ import transactionRoutes from "./routes/transaction.routes.js";
 
 const app = express();
 
+if (process.env.NODE_ENV === "production") {
+  const configuredHops = Number.parseInt(
+    process.env.TRUST_PROXY_HOPS || "1",
+    10,
+  );
+
+  app.set(
+    "trust proxy",
+    Number.isFinite(configuredHops) && configuredHops > 0
+      ? configuredHops
+      : 1,
+  );
+}
+
+app.disable("x-powered-by");
 app.use(helmet());
+
+const allowedClientOrigins = getAllowedClientOrigins();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Non-browser tools such as health checks do not send an Origin header.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(
+        null,
+        allowedClientOrigins.includes(normalizeClientOrigin(origin)),
+      );
+    },
     credentials: true,
   }),
 );
 
 app.use(express.json({ limit: "10kb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
+app.use(protectCookieAuthenticatedMutation);
 
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
@@ -49,10 +84,15 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "FinTrack API is working",
+  const databaseConnected = mongoose.connection.readyState === 1;
+
+  res.status(databaseConnected ? 200 : 503).json({
+    success: databaseConnected,
+    message: databaseConnected
+      ? "FinTrack API is working"
+      : "FinTrack API is running but the database is unavailable",
     environment: process.env.NODE_ENV,
+    database: databaseConnected ? "connected" : "unavailable",
     timestamp: new Date().toISOString(),
   });
 });

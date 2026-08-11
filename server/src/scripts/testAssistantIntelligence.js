@@ -5,6 +5,9 @@ import {
   safePercent,
 } from "../services/assistantGuardrails.service.js";
 import {
+  getBudgetPaceRisk,
+} from "../services/assistantAnalytics.service.js";
+import {
   buildSpendingInsights,
 } from "../services/assistantInsights.service.js";
 import {
@@ -30,6 +33,26 @@ const currencySafety = getCurrencySafety({
 
 assert.equal(currencySafety.supported, true);
 assert.equal(safePercent(100, 0), null);
+
+// Budget risk must be based on the anomaly-aware month-end projection rather
+// than the stale linear pace. An 80%-used budget projected to remain at 80%
+// after one-off exclusion is near its limit, but it is not a pace-overrun risk.
+assert.equal(
+  getBudgetPaceRisk({
+    isOverBudget: false,
+    percentageUsed: 80,
+    projectedUsagePercent: 80,
+  }),
+  "LOW",
+);
+assert.equal(
+  getBudgetPaceRisk({
+    isOverBudget: false,
+    percentageUsed: 80,
+    projectedUsagePercent: 125,
+  }),
+  "HIGH",
+);
 
 const currentCategories = [
   {

@@ -1,6 +1,9 @@
 import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
-import { AUTH_COOKIE_NAME } from "../utils/authCookie.js";
+import {
+  AUTH_COOKIE_NAME,
+  clearAuthCookie,
+} from "../utils/authCookie.js";
 import { verifyAccessToken } from "../utils/jwt.js";
 
 const protect = async (req, res, next) => {
@@ -20,12 +23,14 @@ const protect = async (req, res, next) => {
     const user = await User.findById(decoded.sub);
 
     if (!user || !user.isActive) {
-      throw new AppError("The account associated with this session was not found", 401);
+      throw new AppError(
+        "The account associated with this session was not found",
+        401,
+      );
     }
 
     if (!user.emailVerified) {
-      throw new AppError(
-        "Email verification is required",403,);
+      throw new AppError("Email verification is required", 403);
     }
 
     if (
@@ -41,16 +46,23 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    let normalizedError = error;
+
     if (
       error.name === "JsonWebTokenError" ||
       error.name === "TokenExpiredError"
     ) {
-      return next(
-        new AppError("Your session is invalid or has expired", 401),
+      normalizedError = new AppError(
+        "Your session is invalid or has expired",
+        401,
       );
     }
 
-    next(error);
+    if (normalizedError.statusCode === 401) {
+      clearAuthCookie(res);
+    }
+
+    next(normalizedError);
   }
 };
 

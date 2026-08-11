@@ -15,6 +15,7 @@ import {
   buildDeterministicAnalytics,
   buildGoalAnalytics,
   compareValues,
+  getBudgetPaceRisk,
 } from "./assistantAnalytics.service.js";
 import {
   getCurrencySafety,
@@ -740,6 +741,12 @@ const getBudgetStatusTool = async ({ user, args, asOf }) => {
       return item;
     }
 
+    const adjustedPaceRisk = getBudgetPaceRisk({
+      isOverBudget: Boolean(item.isOverBudget),
+      projectedUsagePercent: adjusted.projectedUsagePercent,
+      percentageUsed: item.percentageUsed,
+    });
+
     return {
       ...item,
       projectedMonthEndSpend:
@@ -748,6 +755,7 @@ const getBudgetStatusTool = async ({ user, args, asOf }) => {
         adjusted.projectedUsagePercent,
       projectedOverage:
         adjusted.projectedOverage,
+      paceRisk: adjustedPaceRisk,
       projectionConfidence:
         adjusted.projectionConfidence,
       projectionMethod:
@@ -770,6 +778,7 @@ const getBudgetStatusTool = async ({ user, args, asOf }) => {
         Number(b.projectedUsagePercent || 0) -
         Number(a.projectedUsagePercent || 0),
     );
+  analytics.paceRiskCount = paceRiskItems.length;
   analytics.highestPaceRiskBudget =
     paceRiskItems[0] || null;
   analytics.projectionNote =
@@ -1028,6 +1037,51 @@ const getMonthlyTrendTool = async ({ user, args }) => {
   };
 };
 
+const buildAdjustedBudgetInsightCandidates = ({
+  existingInsights,
+  budgetAnalytics,
+}) => {
+  const retainedInsights = (existingInsights || []).filter(
+    (insight) =>
+      !["BUDGET_PACE_ALERT", "BUDGET_ALERT"].includes(insight.type),
+  );
+  const adjustedBudgetInsights = (budgetAnalytics?.items || [])
+    .filter(
+      (item) =>
+        ["HIGH", "ELEVATED"].includes(item.paceRisk) ||
+        ["OVER_BUDGET", "CRITICAL", "NEAR_LIMIT"].includes(item.status),
+    )
+    .map((item) => ({
+      type: ["HIGH", "ELEVATED"].includes(item.paceRisk)
+        ? "BUDGET_PACE_ALERT"
+        : "BUDGET_ALERT",
+      importance:
+        item.status === "OVER_BUDGET" || item.paceRisk === "HIGH"
+          ? "HIGH"
+          : "MEDIUM",
+      fact: item,
+    }));
+
+  const insertAt = retainedInsights.findIndex((insight) =>
+    [
+      "UNBUDGETED_SPENDING",
+      "MIXED_CURRENCY_WARNING",
+      "GOAL_PACE_ALERT",
+      "UPCOMING_RECURRING",
+    ].includes(insight.type),
+  );
+
+  if (insertAt === -1) {
+    return [...retainedInsights, ...adjustedBudgetInsights];
+  }
+
+  return [
+    ...retainedInsights.slice(0, insertAt),
+    ...adjustedBudgetInsights,
+    ...retainedInsights.slice(insertAt),
+  ];
+};
+
 const getFinancialHealthSummaryTool = async ({ user, asOf }) => {
   const userId = user._id;
   const currentMonth = getCurrentMonthKey(asOf);
@@ -1107,6 +1161,21 @@ const getFinancialHealthSummaryTool = async ({ user, asOf }) => {
     recurringItems: recurringItems.map(simplifyRecurring),
   });
 
+  const adjustedBudgetAnalytics = await getBudgetStatusTool({
+    user,
+    args: {
+      month: currentMonth,
+    },
+    asOf,
+  });
+  const budgetAnalytics = adjustedBudgetAnalytics?.supported
+    ? adjustedBudgetAnalytics
+    : analytics.budgets;
+  const adjustedInsightCandidates = buildAdjustedBudgetInsightCandidates({
+    existingInsights: analytics.insightCandidates,
+    budgetAnalytics,
+  });
+
   return {
     supported: true,
     preferredCurrency: user.preferredCurrency || "INR",
@@ -1114,19 +1183,20 @@ const getFinancialHealthSummaryTool = async ({ user, asOf }) => {
     dataCoverage: analytics.dataCoverage,
     cashFlow: analytics.cashFlow,
     budgetSummary: {
-      totalBudget: analytics.budgets.totalBudget,
-      budgetedSpent: analytics.budgets.budgetedSpent,
-      unbudgetedSpent: analytics.budgets.unbudgetedSpent,
-      overBudgetCount: analytics.budgets.overBudgetCount,
-      nearLimitCount: analytics.budgets.nearLimitCount,
-      paceRiskCount: analytics.budgets.paceRiskCount,
-      highestPaceRiskBudget: analytics.budgets.highestPaceRiskBudget,
-      unbudgetedSpending: analytics.budgets.unbudgetedSpending.slice(0, 5),
+      totalBudget: budgetAnalytics.totalBudget,
+      budgetedSpent: budgetAnalytics.budgetedSpent,
+      unbudgetedSpent: budgetAnalytics.unbudgetedSpent,
+      overBudgetCount: budgetAnalytics.overBudgetCount,
+      nearLimitCount: budgetAnalytics.nearLimitCount,
+      paceRiskCount: budgetAnalytics.paceRiskCount,
+      highestPaceRiskBudget: budgetAnalytics.highestPaceRiskBudget,
+      unbudgetedSpending: (budgetAnalytics.unbudgetedSpending || []).slice(0, 5),
+      projectionNote: budgetAnalytics.projectionNote,
     },
     accountSummary: analytics.accounts,
     goalSummary: analytics.goals,
     recurringSummary: analytics.recurring,
-    insightCandidates: analytics.insightCandidates.slice(0, 10),
+    insightCandidates: adjustedInsightCandidates.slice(0, 10),
   };
 };
 
@@ -1434,6 +1504,11 @@ const buildForecastBudgetRows = ({
             (projectedMonthEndSpend / budget) * 100,
           )
         : null;
+    const adjustedPaceRisk = getBudgetPaceRisk({
+      isOverBudget: Boolean(item.isOverBudget),
+      projectedUsagePercent,
+      percentageUsed: item.percentageUsed,
+    });
 
     return {
       category: item.category,
@@ -1447,7 +1522,7 @@ const buildForecastBudgetRows = ({
           0,
         ),
       ),
-      paceRisk: item.paceRisk,
+      paceRisk: adjustedPaceRisk,
       projectionConfidence:
         anomalyAdjusted
           ? "LOW"
@@ -2098,5 +2173,6 @@ const executeAssistantTool = async ({ name, args = {}, user, asOf }) => {
 
 export {
   ASSISTANT_FUNCTION_DECLARATIONS,
+  buildForecastBudgetRows,
   executeAssistantTool,
 };

@@ -32,6 +32,16 @@ textarea {
   font: inherit;
 }
 
+/* Keep native date controls readable in both themes. Chromium uses
+   color-scheme to choose the calendar-picker indicator color. */
+input[type="date"] {
+  color-scheme: light;
+}
+
+.dark input[type="date"] {
+  color-scheme: dark;
+}
+
 button {
   cursor: pointer;
 }

@@ -51,7 +51,7 @@ const TransactionsPage = () => {
   const [deletingId, setDeletingId] = useState("");
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [templates, setTemplates] = useState(() => readTemplates());
+  const [templates, setTemplates] = useState(() => readTemplates(user));
   const [debouncedSearch, setDebouncedSearch] = useState(initialFilters.search);
 
   useEffect(() => {
@@ -61,6 +61,10 @@ const TransactionsPage = () => {
 
     return () => window.clearTimeout(timer);
   }, [filters.search]);
+
+  useEffect(() => {
+    setTemplates(readTemplates(user));
+  }, [user]);
 
   const serverFilters = useMemo(() => {
     const nextFilters = {
@@ -198,7 +202,7 @@ const TransactionsPage = () => {
   });
 
   const handleSaveTemplate = (transaction) => {
-    const template = saveTemplate(transaction);
+    const template = saveTemplate(transaction, user);
     setTemplates((current) => [template, ...current].slice(0, 12));
     toast.success("Transaction template saved");
   };

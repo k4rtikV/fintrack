@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BellRing,
   CheckCircle2,
@@ -79,6 +80,7 @@ const SettingsSectionTitle = ({ icon: Icon, title, description }) => (
 
 const SettingsPage = () => {
   const { user, refreshUser, clearAuthentication } = useAuth();
+  const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
@@ -138,6 +140,7 @@ const SettingsPage = () => {
       });
 
       await refreshUser();
+      await queryClient.invalidateQueries();
       toast.success(response.message);
     } catch (error) {
       toast.error(getApiError(error, "Could not update profile settings"));

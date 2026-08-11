@@ -2,6 +2,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const { validateEnvironment } = await import("./config/env.js");
+validateEnvironment();
+
 const { default: connectDatabase } = await import("./config/db.js");
 const { default: app } = await import("./app.js");
 

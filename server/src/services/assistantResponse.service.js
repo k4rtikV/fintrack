@@ -440,7 +440,7 @@ const budgetPresentation = ({ reply, data, toolResults }) => {
 
     if (Number.isFinite(Number(focus.projectedMonthEndSpend))) {
       metrics.push({
-        label: "Linear projection",
+        label: "Month-end projection",
         value: formatMoney(focus.projectedMonthEndSpend, currency),
         detail: `${String(focus.projectionConfidence || "LOW").toLowerCase()} confidence`,
         tone:
@@ -480,7 +480,13 @@ const budgetPresentation = ({ reply, data, toolResults }) => {
       focus.paceRisk === "ELEVATED"
     ) {
       insights.push(
-        `${focus.category} spending is ahead of the month's elapsed pace; the month-end projection is only a directional estimate.`,
+        focus.anomalyAdjusted
+          ? `${focus.category}'s anomaly-aware month-end projection is still above the configured budget, so it remains a genuine budget risk even after one-off spending is excluded from repeat pacing.`
+          : `${focus.category} spending is ahead of the month's elapsed pace; the month-end projection is only a directional estimate.`,
+      );
+    } else if (focus.anomalyAdjusted) {
+      insights.push(
+        `${focus.category}'s month-end projection is anomaly-aware: the unusual amount already spent is included once rather than repeated through the remaining days.`,
       );
     }
   }
@@ -1160,9 +1166,11 @@ const formatHealthInsight = ({ insight, currency }) => {
   if (insight.type === "BUDGET_PACE_ALERT") {
     const usage = formatPercent(fact.percentageUsed);
     const projected = Number.isFinite(Number(fact.projectedUsagePercent))
-      ? `; the simple pace projection is ${formatPercent(
+      ? `; the ${
+          fact.anomalyAdjusted ? "anomaly-aware" : "current"
+        } month-end projection is ${formatPercent(
           fact.projectedUsagePercent,
-        )} by month-end`
+        )}`
       : "";
 
     return `${fact.category || "This category"} has used ${usage} of its ${formatMoney(
@@ -1535,9 +1543,9 @@ const forecastPresentation = ({ reply, data }) => {
   if (topBudgetRisk) {
     insights.push(
       topBudgetRisk.anomalyAdjusted
-        ? `${topBudgetRisk.category} has already used ${formatPercent(
+        ? `${topBudgetRisk.category}'s anomaly-aware month-end projection is ${formatPercent(
             topBudgetRisk.projectedUsagePercent,
-          )} of its current budget. FinTrack keeps the pace-risk warning but does not automatically repeat the anomalous outlay in the month-end forecast.`
+          )} of its current budget; the unusual outlay is included once rather than automatically repeated through the remaining days.`
         : `${topBudgetRisk.category} is projected to reach ${formatPercent(
             topBudgetRisk.projectedUsagePercent,
           )} of its current budget at the present pace; this remains a directional estimate.`,
