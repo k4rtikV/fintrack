@@ -38,6 +38,7 @@ const getCategoryBreakdown = async (req, res) => {
 const getMonthlyTrend = async (req, res) => {
   const trend = await getMonthlyTrendForUser({
     userId: req.user._id,
+    timezone: req.user.timezone,
     ...req.validatedData.query,
   });
 

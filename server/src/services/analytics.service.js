@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 
 import Account from "../models/Account.js";
 import Transaction from "../models/Transaction.js";
+import {
+  endOfUtcDateOnly,
+  getDateKeyInTimeZone,
+  toUtcDateOnly,
+} from "../utils/dateOnly.js";
 
 const toObjectId = (value) => {
   return new mongoose.Types.ObjectId(value.toString());
@@ -15,14 +20,11 @@ const buildDateMatch = ({ startDate, endDate }) => {
   const transactionDate = {};
 
   if (startDate) {
-    transactionDate.$gte = new Date(startDate);
+    transactionDate.$gte = toUtcDateOnly(startDate);
   }
 
   if (endDate) {
-    const inclusiveEndDate = new Date(endDate);
-
-    inclusiveEndDate.setHours(23, 59, 59, 999);
-    transactionDate.$lte = inclusiveEndDate;
+    transactionDate.$lte = endOfUtcDateOnly(endDate);
   }
 
   return {
@@ -192,6 +194,7 @@ const getMonthlyTrendForUser = async ({
   months = 6,
   startDate,
   endDate,
+  timezone = "Asia/Kolkata",
 }) => {
   const userObjectId = toObjectId(userId);
   const hasDateRange = Boolean(startDate || endDate);
@@ -200,10 +203,12 @@ const getMonthlyTrendForUser = async ({
   let rangeEnd;
 
   if (hasDateRange) {
-    rangeStart = startDate ? new Date(startDate) : new Date(0);
-    rangeEnd = endDate ? new Date(endDate) : new Date();
+    rangeStart = startDate ? toUtcDateOnly(startDate) : new Date(0);
+    rangeEnd = endDate
+      ? toUtcDateOnly(endDate)
+      : toUtcDateOnly(getDateKeyInTimeZone(new Date(), timezone));
   } else {
-    rangeEnd = new Date();
+    rangeEnd = toUtcDateOnly(getDateKeyInTimeZone(new Date(), timezone));
     rangeStart = new Date(
       Date.UTC(
         rangeEnd.getUTCFullYear(),
@@ -213,8 +218,7 @@ const getMonthlyTrendForUser = async ({
     );
   }
 
-  const inclusiveEndDate = new Date(rangeEnd);
-  inclusiveEndDate.setUTCHours(23, 59, 59, 999);
+  const inclusiveEndDate = endOfUtcDateOnly(rangeEnd);
 
   const results = await Transaction.aggregate([
     {

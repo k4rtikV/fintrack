@@ -147,6 +147,95 @@ const formatMoney = (value, currency = "INR") => {
   return `${currencySymbol(currency)}${formatted}`;
 };
 
+const firstReadableString = (...values) =>
+  values.find(
+    (value) => typeof value === "string" && value.trim(),
+  )?.trim() || "";
+
+const getStructuredReadableText = (parsed) => {
+  if (typeof parsed === "string") {
+    return parsed.trim();
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return "";
+  }
+
+  const primaryText = firstReadableString(
+    parsed.answer,
+    parsed.response?.answer,
+    parsed.summary,
+    parsed.response?.summary,
+    parsed.explanation,
+    parsed.response?.explanation,
+    parsed.analysis,
+    parsed.overview,
+    parsed.message,
+    parsed.conclusion,
+    parsed.result?.answer,
+    parsed.result?.summary,
+  );
+
+  if (primaryText) {
+    return primaryText;
+  }
+
+  const readableCollections = [
+    parsed.insights,
+    parsed.warnings,
+    parsed.recommendations,
+    parsed.nextSteps,
+    parsed.signals,
+  ];
+  const readableItems = readableCollections
+    .filter(Array.isArray)
+    .flat()
+    .map((item) => {
+      if (typeof item === "string") {
+        return item.trim();
+      }
+
+      if (!item || typeof item !== "object") {
+        return "";
+      }
+
+      return firstReadableString(
+        item.description,
+        item.message,
+        item.summary,
+        item.detail,
+        item.title,
+      );
+    })
+    .filter(Boolean)
+    .slice(0, 4);
+
+  return readableItems.join(" ");
+};
+
+const extractJsonStringField = (raw, fieldName) => {
+  const escapedFieldName = String(fieldName).replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const match = String(raw).match(
+    new RegExp(
+      `"${escapedFieldName}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`,
+      "i",
+    ),
+  );
+
+  if (!match?.[1]) {
+    return "";
+  }
+
+  try {
+    return JSON.parse(`"${match[1]}"`).trim();
+  } catch {
+    return match[1].replace(/\\n/g, " ").trim();
+  }
+};
+
 const getFallbackAnswer = (reply) => {
   const raw = String(reply || "").trim();
 
@@ -154,37 +243,78 @@ const getFallbackAnswer = (reply) => {
     return "";
   }
 
-  const candidates = [raw];
+  const candidates = [];
+  const addCandidate = (value) => {
+    const normalized = String(value || "").trim();
 
-  // Gemini may occasionally wrap an otherwise valid JSON object in a
-  // Markdown code fence even when FinTrack asked for a plain-text
-  // explanation. Parse that shape defensively instead of rendering the JSON
-  // verbatim in the assistant card.
-  const fencedMatch = raw.match(
-    /```(?:json|javascript|js)?\s*([\s\S]*?)```/i,
-  );
+    if (normalized && !candidates.includes(normalized)) {
+      candidates.push(normalized);
+    }
+  };
 
-  if (fencedMatch?.[1]?.trim()) {
-    candidates.unshift(fencedMatch[1].trim());
+  // Gemini can occasionally return a structured object even when FinTrack
+  // requested plain prose. Accept fenced JSON, bare JSON, or JSON surrounded
+  // by a small amount of prose, but never render the raw payload to the user.
+  for (const match of raw.matchAll(
+    /```(?:json|javascript|js)?\s*([\s\S]*?)```/gi,
+  )) {
+    addCandidate(match[1]);
   }
+
+  addCandidate(raw);
+
+  const firstObjectBrace = raw.indexOf("{");
+  const lastObjectBrace = raw.lastIndexOf("}");
+
+  if (firstObjectBrace >= 0 && lastObjectBrace > firstObjectBrace) {
+    addCandidate(raw.slice(firstObjectBrace, lastObjectBrace + 1));
+  }
+
+  const firstArrayBracket = raw.indexOf("[");
+  const lastArrayBracket = raw.lastIndexOf("]");
+
+  if (firstArrayBracket >= 0 && lastArrayBracket > firstArrayBracket) {
+    addCandidate(raw.slice(firstArrayBracket, lastArrayBracket + 1));
+  }
+
+  let parsedStructuredPayload = false;
 
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
+      parsedStructuredPayload =
+        parsedStructuredPayload ||
+        (parsed !== null && typeof parsed === "object");
+      const readable = getStructuredReadableText(parsed);
 
-      if (typeof parsed?.answer === "string" && parsed.answer.trim()) {
-        return parsed.answer.trim();
-      }
-
-      if (
-        typeof parsed?.response?.answer === "string" &&
-        parsed.response.answer.trim()
-      ) {
-        return parsed.response.answer.trim();
+      if (readable) {
+        return readable;
       }
     } catch {
-      // Try the next candidate, then fall back to normal plain text.
+      // Try the next candidate. A truncated provider response may still have
+      // a recoverable answer/summary string, handled below.
     }
+  }
+
+  const recoveredText =
+    extractJsonStringField(raw, "answer") ||
+    extractJsonStringField(raw, "summary") ||
+    extractJsonStringField(raw, "explanation");
+
+  if (recoveredText) {
+    return recoveredText;
+  }
+
+  const looksStructured =
+    parsedStructuredPayload ||
+    /^```(?:json|javascript|js)?\b/i.test(raw) ||
+    /^[{[]/.test(raw) ||
+    /"(?:summary|metrics|insights|warnings|recommendations|nextSteps)"\s*:/i.test(
+      raw,
+    );
+
+  if (looksStructured) {
+    return "FinTrack analyzed the requested data. Review the grounded metrics and insights below for the result.";
   }
 
   return raw;
@@ -901,11 +1031,231 @@ const trendPresentation = ({ reply, data }) => {
   };
 };
 
+const formatCalendarDateRange = (startDate, endDate) => {
+  const parseDateKey = (value) => {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      year: Number(match[1]),
+      month: Number(match[2]),
+      day: Number(match[3]),
+    };
+  };
+
+  const start = parseDateKey(startDate);
+  const end = parseDateKey(endDate);
+
+  if (!start || !end) {
+    return "";
+  }
+
+  const monthLabel = (month) =>
+    new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(
+      new Date(Date.UTC(2020, month - 1, 1)),
+    );
+
+  if (start.year === end.year && start.month === end.month) {
+    return `${monthLabel(start.month)} ${start.day}–${end.day}, ${start.year}`;
+  }
+
+  if (start.year === end.year) {
+    return `${monthLabel(start.month)} ${start.day}–${monthLabel(end.month)} ${
+      end.day
+    }, ${start.year}`;
+  }
+
+  return `${monthLabel(start.month)} ${start.day}, ${start.year}–${monthLabel(
+    end.month,
+  )} ${end.day}, ${end.year}`;
+};
+
+const formatHealthInsight = ({ insight, currency }) => {
+  if (typeof insight === "string") {
+    return insight.trim();
+  }
+
+  if (!insight || typeof insight !== "object") {
+    return "";
+  }
+
+  if (typeof insight.message === "string" && insight.message.trim()) {
+    return insight.message.trim();
+  }
+
+  if (typeof insight.description === "string" && insight.description.trim()) {
+    return insight.description.trim();
+  }
+
+  const fact = insight.fact || {};
+
+  if (insight.type === "CASH_FLOW_COMPARISON") {
+    const income = fact.income || {};
+    const expense = fact.expense || {};
+    const savings = fact.netSavings || {};
+    const comparison = fact.comparisonBasis || {};
+    const previousPeriod = comparison.previousPeriod || {};
+    const currentPeriod = comparison.currentPeriod || {};
+    const periodLabel =
+      formatCalendarDateRange(
+        previousPeriod.startDate,
+        previousPeriod.endDate,
+      ) || "the previous comparable period";
+    const currentLabel =
+      formatCalendarDateRange(
+        currentPeriod.startDate,
+        currentPeriod.endDate,
+      ) || "the current period";
+
+    const directionText = (change, label, verb = "is") => {
+      const absolute = Number(change.absoluteChange);
+
+      if (!Number.isFinite(absolute) || absolute === 0) {
+        return `${label} ${verb} unchanged`;
+      }
+
+      return `${label} ${verb} ${absolute > 0 ? "up" : "down"} ${formatMoney(
+        Math.abs(absolute),
+        currency,
+      )}`;
+    };
+
+    return `Compared with ${periodLabel}, ${directionText(
+      income,
+      "income",
+    )}, ${directionText(expense, "expenses", "are")}, and ${directionText(
+      savings,
+      "net savings",
+    )} for ${currentLabel}.`;
+  }
+
+  if (insight.type === "TOP_SPENDING_CATEGORY") {
+    const share = Number(fact.currentExpenseSharePercent);
+    const shareText = Number.isFinite(share)
+      ? ` (${formatPercent(share)} of current expenses)`
+      : "";
+
+    return `${fact.category || "Your top category"} is your largest spending category at ${formatMoney(
+      fact.currentSpent,
+      currency,
+    )}${shareText}.`;
+  }
+
+  if (insight.type === "CATEGORY_INCREASE") {
+    const change = Number(fact.absoluteChange);
+    const percent = Number(fact.percentChange);
+    const percentText =
+      fact.comparablePercent && Number.isFinite(percent)
+        ? ` (${formatPercent(Math.abs(percent))})`
+        : "";
+
+    return `${fact.category || "This category"} spending is ${
+      change >= 0 ? "up" : "down"
+    } ${formatMoney(Math.abs(change || 0), currency)}${percentText} versus the previous comparable period.`;
+  }
+
+  if (insight.type === "BUDGET_PACE_ALERT") {
+    const usage = formatPercent(fact.percentageUsed);
+    const projected = Number.isFinite(Number(fact.projectedUsagePercent))
+      ? `; the simple pace projection is ${formatPercent(
+          fact.projectedUsagePercent,
+        )} by month-end`
+      : "";
+
+    return `${fact.category || "This category"} has used ${usage} of its ${formatMoney(
+      fact.budget,
+      currency,
+    )} budget${projected}.`;
+  }
+
+  if (insight.type === "BUDGET_ALERT") {
+    if (fact.isOverBudget || fact.status === "OVER_BUDGET") {
+      return `${fact.category || "This category"} is over budget by ${formatMoney(
+        fact.amountOverBudget,
+        currency,
+      )}.`;
+    }
+
+    return `${fact.category || "This category"} has used ${formatPercent(
+      fact.percentageUsed,
+    )} of its ${formatMoney(fact.budget, currency)} budget.`;
+  }
+
+  if (insight.type === "UNBUDGETED_SPENDING") {
+    const categories = Array.isArray(fact.categories)
+      ? fact.categories
+          .slice(0, 3)
+          .map((item) => item.category)
+          .filter(Boolean)
+      : [];
+    const categoryText = categories.length
+      ? ` across ${categories.join(", ")}`
+      : "";
+
+    return `${formatMoney(
+      fact.total,
+      currency,
+    )} of current spending is outside configured category budgets${categoryText}.`;
+  }
+
+  if (insight.type === "MIXED_CURRENCY_WARNING") {
+    return (
+      fact.note ||
+      "Your active accounts use multiple currencies, so their balances should not be added without exchange-rate conversion."
+    );
+  }
+
+  if (insight.type === "GOAL_PACE_ALERT") {
+    if (fact.paceAssessment === "OVERDUE") {
+      return `${fact.name || "A goal"} is overdue with ${formatMoney(
+        fact.remainingAmount,
+        currency,
+      )} still remaining.`;
+    }
+
+    return `${fact.name || "A goal"} needs about ${formatMoney(
+      fact.requiredMonthlyContribution,
+      currency,
+    )} per month to stay on target, which is above the recent recorded savings pace.`;
+  }
+
+  if (insight.type === "UPCOMING_RECURRING") {
+    const expenseTotal = Number(
+      fact.next30DaysExpenseByCurrency?.[currency],
+    );
+    const incomeTotal = Number(
+      fact.next30DaysIncomeByCurrency?.[currency],
+    );
+    const parts = [];
+
+    if (Number.isFinite(expenseTotal) && expenseTotal > 0) {
+      parts.push(`${formatMoney(expenseTotal, currency)} of expenses`);
+    }
+
+    if (Number.isFinite(incomeTotal) && incomeTotal > 0) {
+      parts.push(`${formatMoney(incomeTotal, currency)} of income`);
+    }
+
+    return `${Number(fact.next30DaysCount || 0)} recurring item${
+      Number(fact.next30DaysCount || 0) === 1 ? " is" : "s are"
+    } due in the next 30 days${parts.length ? `, including ${parts.join(" and ")}` : ""}.`;
+  }
+
+  return "";
+};
+
 const healthPresentation = ({ reply, data }) => {
   const cashFlow = data.cashFlow || {};
   const currency = data.preferredCurrency || "INR";
   const budget = data.budgetSummary || {};
-  let status = Number(cashFlow.current?.netSavings || cashFlow.netSavings || 0) >= 0
+  const current =
+    cashFlow.currentMonthToDate ||
+    cashFlow.current ||
+    cashFlow;
+  let status = Number(current.netSavings || 0) >= 0
     ? "positive"
     : "warning";
 
@@ -914,8 +1264,6 @@ const healthPresentation = ({ reply, data }) => {
   } else if (Number(budget.paceRiskCount) > 0 || Number(budget.nearLimitCount) > 0) {
     status = "warning";
   }
-
-  const current = cashFlow.current || cashFlow;
 
   return {
     answer: getFallbackAnswer(reply),
@@ -928,19 +1276,19 @@ const healthPresentation = ({ reply, data }) => {
       {
         label: "Income",
         value: formatMoney(current.totalIncome, currency),
-        detail: "",
+        detail: "Month to date",
         tone: "positive",
       },
       {
         label: "Expenses",
         value: formatMoney(current.totalExpense, currency),
-        detail: "",
+        detail: "Month to date",
         tone: "neutral",
       },
       {
         label: "Net savings",
         value: formatMoney(current.netSavings, currency),
-        detail: "",
+        detail: "Month to date",
         tone: Number(current.netSavings) >= 0 ? "positive" : "warning",
       },
       {
@@ -952,12 +1300,11 @@ const healthPresentation = ({ reply, data }) => {
     ],
     insights: Array.isArray(data.insightCandidates)
       ? data.insightCandidates
-          .slice(0, 3)
-          .map((item) =>
-            typeof item === "string"
-              ? item
-              : item.message || item.description || JSON.stringify(item),
+          .map((insight) =>
+            formatHealthInsight({ insight, currency }),
           )
+          .filter(Boolean)
+          .slice(0, 3)
       : [],
     recommendations: [],
     confidence: "not_applicable",

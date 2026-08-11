@@ -78,7 +78,7 @@ const SettingsSectionTitle = ({ icon: Icon, title, description }) => (
 );
 
 const SettingsPage = () => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, clearAuthentication } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
@@ -176,7 +176,8 @@ const SettingsPage = () => {
         newPassword: "",
         confirmPassword: "",
       });
-      toast.success(response.message);
+      clearAuthentication();
+      toast.success(`${response.message}. Please log in again.`);
     } catch (error) {
       toast.error(getApiError(error, "Could not change password"));
     } finally {

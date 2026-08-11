@@ -1,3 +1,5 @@
+import { formatDateOnly } from "./dateUtils";
+
 const formatCurrency = (value, currency = "INR") => {
   const numericValue = Number(value) || 0;
 
@@ -19,16 +21,6 @@ const formatCompactCurrency = (value, currency = "INR") => {
   }).format(numericValue);
 };
 
-const formatDate = (value) => {
-  if (!value) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-};
+const formatDate = (value) => formatDateOnly(value);
 
 export { formatCompactCurrency, formatCurrency, formatDate };

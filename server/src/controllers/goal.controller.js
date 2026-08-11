@@ -9,6 +9,7 @@ import {
 const createGoal = async (req, res) => {
   const goal = await createGoalForUser({
     userId: req.user._id,
+    timezone: req.user.timezone,
     ...req.validatedData.body,
   });
 
@@ -24,6 +25,7 @@ const createGoal = async (req, res) => {
 const getGoals = async (req, res) => {
   const goals = await getGoalsForUser({
     userId: req.user._id,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({
@@ -39,6 +41,7 @@ const getGoal = async (req, res) => {
   const goal = await getGoalWithProgressByIdForUser({
     goalId: req.validatedData.params.goalId,
     userId: req.user._id,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({
@@ -54,6 +57,7 @@ const updateGoal = async (req, res) => {
     goalId: req.validatedData.params.goalId,
     userId: req.user._id,
     updates: req.validatedData.body,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({

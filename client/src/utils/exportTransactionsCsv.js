@@ -1,3 +1,5 @@
+import { getDateKey } from "./dateUtils";
+
 const escapeCsvValue = (value) => {
   const text = String(value ?? "");
   return `"${text.replaceAll('"', '""')}"`;
@@ -17,7 +19,7 @@ const exportTransactionsCsv = ({ transactions, filename = "fintrack-transactions
   ];
 
   const rows = transactions.map((transaction) => [
-    new Date(transaction.transactionDate).toISOString().slice(0, 10),
+    getDateKey(transaction.transactionDate),
     transaction.type,
     transaction.title,
     transaction.account?.name || "",

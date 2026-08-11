@@ -27,15 +27,8 @@ import {
   updateBudget,
 } from "../services/budgetService";
 import { formatCurrency } from "../utils/formatters";
+import { getMonthKeyInTimeZone } from "../utils/dateUtils";
 import getApiError from "../utils/getApiError";
-
-const getCurrentMonth = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-
-  return `${year}-${month}`;
-};
 
 const formatMonthLabel = (month) => {
   const [year, monthNumber] = month.split("-").map(Number);
@@ -43,14 +36,17 @@ const formatMonthLabel = (month) => {
   return new Intl.DateTimeFormat("en-IN", {
     month: "long",
     year: "numeric",
-  }).format(new Date(year, monthNumber - 1, 1));
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 };
 
 const BudgetsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    getMonthKeyInTimeZone(new Date(), user?.timezone),
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState(null);
 

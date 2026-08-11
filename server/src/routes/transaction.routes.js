@@ -14,6 +14,7 @@ import validate from "../middleware/validate.js";
 import {
   createTransactionSchema,
   transactionIdSchema,
+  transactionQuerySchema,
   updateTransactionSchema,
 } from "../validators/transaction.validator.js";
 
@@ -24,7 +25,7 @@ router.use(protect);
 router
   .route("/")
   .post(validate(createTransactionSchema), createTransaction)
-  .get(getTransactions);
+  .get(validate(transactionQuerySchema), getTransactions);
 
 router
   .route("/:transactionId")

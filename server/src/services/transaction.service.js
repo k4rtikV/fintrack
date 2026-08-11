@@ -4,6 +4,7 @@ import Account from "../models/Account.js";
 import Category from "../models/Category.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
+import { endOfUtcDateOnly, toUtcDateOnly } from "../utils/dateOnly.js";
 import { syncBudgetAlertsForTransaction } from "./notification.service.js";
 
 const getBalanceAdjustment = (type, amount) => {
@@ -14,15 +15,24 @@ const ensureAccountBelongsToUser = async ({
   accountId,
   userId,
   session,
+  includeArchived = false,
 }) => {
-  const account = await Account.findOne({
+  const filter = {
     _id: accountId,
     user: userId,
-    isArchived: false,
-  }).session(session);
+  };
+
+  if (!includeArchived) {
+    filter.isArchived = false;
+  }
+
+  const account = await Account.findOne(filter).session(session);
 
   if (!account) {
-    throw new AppError("Account not found or archived", 404);
+    throw new AppError(
+      includeArchived ? "Account not found" : "Account not found or archived",
+      404,
+    );
   }
 
   return account;
@@ -33,15 +43,24 @@ const ensureCategoryBelongsToUser = async ({
   userId,
   type,
   session,
+  includeArchived = false,
 }) => {
-  const category = await Category.findOne({
+  const filter = {
     _id: categoryId,
     user: userId,
-    isArchived: false,
-  }).session(session);
+  };
+
+  if (!includeArchived) {
+    filter.isArchived = false;
+  }
+
+  const category = await Category.findOne(filter).session(session);
 
   if (!category) {
-    throw new AppError("Category not found or archived", 404);
+    throw new AppError(
+      includeArchived ? "Category not found" : "Category not found or archived",
+      404,
+    );
   }
 
   if (category.type !== type) {
@@ -101,7 +120,7 @@ const createTransactionForUser = async ({
           amount,
           title,
           note,
-          transactionDate,
+          transactionDate: toUtcDateOnly(transactionDate),
           paymentMethod,
           tags,
         },
@@ -174,11 +193,11 @@ const getTransactionsForUser = async ({
     filter.transactionDate = {};
 
     if (startDate) {
-      filter.transactionDate.$gte = new Date(startDate);
+      filter.transactionDate.$gte = toUtcDateOnly(startDate);
     }
 
     if (endDate) {
-      filter.transactionDate.$lte = new Date(endDate);
+      filter.transactionDate.$lte = endOfUtcDateOnly(endDate);
     }
   }
 
@@ -196,7 +215,7 @@ const getTransactionsForUser = async ({
     sort.createdAt = -1;
   }
 
-  const [transactions, total] = await Promise.all([
+  const [initialTransactions, total] = await Promise.all([
     Transaction.find(filter)
       .populate("account", "name type currency")
       .populate("category", "name type icon color")
@@ -207,13 +226,26 @@ const getTransactionsForUser = async ({
     Transaction.countDocuments(filter),
   ]);
 
+  const pages = Math.ceil(total / safeLimit);
+  const resolvedPage = pages > 0 ? Math.min(safePage, pages) : 1;
+  let transactions = initialTransactions;
+
+  if (total > 0 && resolvedPage !== safePage) {
+    transactions = await Transaction.find(filter)
+      .populate("account", "name type currency")
+      .populate("category", "name type icon color")
+      .sort(sort)
+      .skip((resolvedPage - 1) * safeLimit)
+      .limit(safeLimit);
+  }
+
   return {
     transactions,
     pagination: {
-      page: safePage,
+      page: resolvedPage,
       limit: safeLimit,
       total,
-      pages: Math.ceil(total / safeLimit),
+      pages,
     },
   };
 };
@@ -261,6 +293,7 @@ const updateTransactionForUser = async ({
       accountId: transaction.account,
       userId,
       session,
+      includeArchived: true,
     });
 
     const nextType = updates.type ?? transaction.type;
@@ -269,17 +302,25 @@ const updateTransactionForUser = async ({
     const nextCategoryId =
       updates.categoryId ?? transaction.category.toString();
 
-    const nextAccount = await ensureAccountBelongsToUser({
-      accountId: nextAccountId,
-      userId,
-      session,
-    });
+    const accountChanged = !oldAccount._id.equals(nextAccountId);
+    const categoryChanged =
+      transaction.category.toString() !== nextCategoryId ||
+      transaction.type !== nextType;
+
+    const nextAccount = accountChanged
+      ? await ensureAccountBelongsToUser({
+          accountId: nextAccountId,
+          userId,
+          session,
+        })
+      : oldAccount;
 
     await ensureCategoryBelongsToUser({
       categoryId: nextCategoryId,
       userId,
       type: nextType,
       session,
+      includeArchived: !categoryChanged,
     });
 
     const oldAdjustment = getBalanceAdjustment(
@@ -329,7 +370,10 @@ const updateTransactionForUser = async ({
 
     for (const [inputField, modelField] of Object.entries(fieldMap)) {
       if (updates[inputField] !== undefined) {
-        transaction[modelField] = updates[inputField];
+        transaction[modelField] =
+          inputField === "transactionDate"
+            ? toUtcDateOnly(updates[inputField])
+            : updates[inputField];
       }
     }
 

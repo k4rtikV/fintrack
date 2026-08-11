@@ -3,21 +3,20 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import Button from "../ui/Button";
+import { getDateKey, getDateKeyInTimeZone } from "../../utils/dateUtils";
 
 const fieldClassName =
   "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
-const getToday = () => new Date().toISOString().slice(0, 10);
-
-const createInitialForm = (transaction, template) => ({
+const createInitialForm = (transaction, template, timezone) => ({
   type: transaction?.type || template?.type || "EXPENSE",
   title: transaction?.title || template?.title || "",
   amount: transaction?.amount ? String(transaction.amount) : template?.amount ? String(template.amount) : "",
   accountId: transaction?.account?._id || transaction?.account || template?.accountId || "",
   categoryId: transaction?.category?._id || transaction?.category || template?.categoryId || "",
   transactionDate: transaction?.transactionDate
-    ? new Date(transaction.transactionDate).toISOString().slice(0, 10)
-    : getToday(),
+    ? getDateKey(transaction.transactionDate)
+    : getDateKeyInTimeZone(new Date(), timezone),
   paymentMethod: transaction?.paymentMethod || template?.paymentMethod || "OTHER",
   note: transaction?.note || template?.note || "",
   tags: transaction?.tags?.join(", ") || template?.tags?.join(", ") || "",
@@ -32,16 +31,19 @@ const TransactionModal = ({
   onSubmit,
   transaction,
   template,
+  timezone,
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(transaction, template));
+  const [form, setForm] = useState(() =>
+    createInitialForm(transaction, template, timezone),
+  );
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createInitialForm(transaction, template));
+      setForm(createInitialForm(transaction, template, timezone));
       setError("");
     }
-  }, [isOpen, transaction, template]);
+  }, [isOpen, transaction, template, timezone]);
 
   const matchingCategories = useMemo(
     () => categories.filter((category) => category.type === form.type),
@@ -94,7 +96,7 @@ const TransactionModal = ({
       amount,
       title: form.title.trim(),
       note: form.note.trim(),
-      transactionDate: new Date(`${form.transactionDate}T12:00:00`).toISOString(),
+      transactionDate: form.transactionDate,
       paymentMethod: form.paymentMethod,
       tags,
     });

@@ -2,26 +2,12 @@ import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import Button from "../ui/Button";
+import { getDateKey, getDateKeyInTimeZone } from "../../utils/dateUtils";
 
 const fieldClassName =
   "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
-const todayInputValue = () => {
-  const date = new Date();
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-};
-
-const toDateInputValue = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
-};
-
-const createInitialForm = (recurring) => ({
+const createInitialForm = (recurring, timezone) => ({
   title: recurring?.title || "",
   type: recurring?.type || "EXPENSE",
   amount: recurring ? String(recurring.amount ?? "") : "",
@@ -30,8 +16,8 @@ const createInitialForm = (recurring) => ({
   paymentMethod: recurring?.paymentMethod || "OTHER",
   frequency: recurring?.frequency || "MONTHLY",
   interval: recurring ? String(recurring.interval || 1) : "1",
-  startDate: toDateInputValue(recurring?.startDate) || todayInputValue(),
-  endDate: toDateInputValue(recurring?.endDate),
+  startDate: getDateKey(recurring?.startDate) || getDateKeyInTimeZone(new Date(), timezone),
+  endDate: getDateKey(recurring?.endDate),
   note: recurring?.note || "",
   tags: Array.isArray(recurring?.tags) ? recurring.tags.join(", ") : "",
 });
@@ -44,16 +30,17 @@ const RecurringModal = ({
   isSaving,
   onClose,
   onSubmit,
+  timezone,
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(recurring));
+  const [form, setForm] = useState(() => createInitialForm(recurring, timezone));
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createInitialForm(recurring));
+      setForm(createInitialForm(recurring, timezone));
       setError("");
     }
-  }, [isOpen, recurring]);
+  }, [isOpen, recurring, timezone]);
 
   const filteredCategories = useMemo(
     () => categories.filter((category) => category.type === form.type),

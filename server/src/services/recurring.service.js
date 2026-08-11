@@ -6,80 +6,41 @@ import RecurringTransaction from "../models/RecurringTransaction.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
 import {
+  addDaysDateOnly,
+  addMonthsDateOnlyClamped,
+  addYearsDateOnlyClamped,
+  endOfUtcDateOnly,
+  getDateKeyInTimeZone,
+  normalizeStoredDateOnly,
+  toUtcDateOnly,
+} from "../utils/dateOnly.js";
+import {
   createRecurringProcessedAlert,
   syncBudgetAlertsForTransaction,
 } from "./notification.service.js";
 
 const MAX_OCCURRENCES_PER_PROCESS = 24;
 
-const atStartOfDay = (value) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-
-const addMonthsClamped = (date, months) => {
-  const source = new Date(date);
-  const originalDay = source.getDate();
-
-  const target = new Date(source);
-  target.setDate(1);
-  target.setMonth(target.getMonth() + months);
-
-  const lastDay = new Date(
-    target.getFullYear(),
-    target.getMonth() + 1,
-    0,
-  ).getDate();
-
-  target.setDate(Math.min(originalDay, lastDay));
-
-  return target;
-};
-
-const addYearsClamped = (date, years) => {
-  const source = new Date(date);
-  const month = source.getMonth();
-  const day = source.getDate();
-
-  const target = new Date(source);
-  target.setDate(1);
-  target.setFullYear(target.getFullYear() + years);
-  target.setMonth(month);
-
-  const lastDay = new Date(
-    target.getFullYear(),
-    month + 1,
-    0,
-  ).getDate();
-
-  target.setDate(Math.min(day, lastDay));
-
-  return target;
-};
+const atStartOfDay = (value) => toUtcDateOnly(value);
 
 const getNextOccurrence = ({
   date,
   frequency,
   interval,
 }) => {
-  const current = new Date(date);
-
   if (frequency === "DAILY") {
-    current.setDate(current.getDate() + interval);
-    return current;
+    return addDaysDateOnly(date, interval);
   }
 
   if (frequency === "WEEKLY") {
-    current.setDate(current.getDate() + 7 * interval);
-    return current;
+    return addDaysDateOnly(date, 7 * interval);
   }
 
   if (frequency === "MONTHLY") {
-    return addMonthsClamped(current, interval);
+    return addMonthsDateOnlyClamped(date, interval);
   }
 
-  return addYearsClamped(current, interval);
+  return addYearsDateOnlyClamped(date, interval);
 };
 
 const ensureValidObjectId = (id) => {
@@ -140,6 +101,21 @@ const populateRecurring = (query) =>
     .populate("account", "name type currency balance isArchived")
     .populate("category", "name type icon color isArchived");
 
+const normalizeRecurringCalendarDates = (recurring, timezone) => {
+  for (const field of [
+    "startDate",
+    "endDate",
+    "nextRunDate",
+    "lastRunDate",
+  ]) {
+    if (recurring[field]) {
+      recurring[field] = normalizeStoredDateOnly(recurring[field], timezone);
+    }
+  }
+
+  return recurring;
+};
+
 const createRecurringForUser = async ({
   userId,
   accountId,
@@ -197,6 +173,7 @@ const createRecurringForUser = async ({
 const getRecurringByIdForUser = async ({
   recurringId,
   userId,
+  timezone = "Asia/Kolkata",
 }) => {
   ensureValidObjectId(recurringId);
 
@@ -211,12 +188,13 @@ const getRecurringByIdForUser = async ({
     throw new AppError("Recurring transaction not found", 404);
   }
 
-  return recurring;
+  return normalizeRecurringCalendarDates(recurring, timezone);
 };
 
 const getRecurringForUser = async ({
   userId,
   includeInactive = true,
+  timezone = "Asia/Kolkata",
 }) => {
   const filter = {
     user: userId,
@@ -226,12 +204,16 @@ const getRecurringForUser = async ({
     filter.isActive = true;
   }
 
-  return populateRecurring(
+  const recurring = await populateRecurring(
     RecurringTransaction.find(filter).sort({
       isActive: -1,
       nextRunDate: 1,
       createdAt: -1,
     }),
+  );
+
+  return recurring.map((item) =>
+    normalizeRecurringCalendarDates(item, timezone),
   );
 };
 
@@ -266,6 +248,7 @@ const updateRecurringForUser = async ({
   recurringId,
   userId,
   updates,
+  timezone = "Asia/Kolkata",
 }) => {
   ensureValidObjectId(recurringId);
 
@@ -277,6 +260,8 @@ const updateRecurringForUser = async ({
   if (!recurring) {
     throw new AppError("Recurring transaction not found", 404);
   }
+
+  normalizeRecurringCalendarDates(recurring, timezone);
 
   const nextType = updates.type ?? recurring.type;
   const nextAccountId =
@@ -459,6 +444,7 @@ const processSingleRecurringForUser = async ({
   recurringId,
   userId,
   now = new Date(),
+  timezone = "Asia/Kolkata",
 }) => {
   ensureValidObjectId(recurringId);
 
@@ -471,11 +457,13 @@ const processSingleRecurringForUser = async ({
     throw new AppError("Recurring transaction not found", 404);
   }
 
+  normalizeRecurringCalendarDates(recurring, timezone);
+
   if (!recurring.isActive) {
     throw new AppError("This recurring schedule is paused", 400);
   }
 
-  const today = atStartOfDay(now);
+  const today = atStartOfDay(getDateKeyInTimeZone(now, timezone));
   const nextRun = atStartOfDay(recurring.nextRunDate);
 
   if (nextRun.getTime() > today.getTime()) {
@@ -524,20 +512,22 @@ const processSingleRecurringForUser = async ({
 const processDueRecurringForUser = async ({
   userId,
   now = new Date(),
+  timezone = "Asia/Kolkata",
 }) => {
-  const today = atStartOfDay(now);
+  const today = atStartOfDay(getDateKeyInTimeZone(now, timezone));
 
   const schedules = await RecurringTransaction.find({
     user: userId,
     isActive: true,
     nextRunDate: {
-      $lte: today,
+      $lte: endOfUtcDateOnly(today),
     },
   }).sort({ nextRunDate: 1 });
 
   let generatedCount = 0;
 
   for (const recurring of schedules) {
+    normalizeRecurringCalendarDates(recurring, timezone);
     let processedForSchedule = 0;
 
     while (

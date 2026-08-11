@@ -27,13 +27,9 @@ import {
   processRecurringItem,
   updateRecurring,
 } from "../services/recurringService";
+import { addDaysToDateKey, getDateKey, getDateKeyInTimeZone } from "../utils/dateUtils";
 import getApiError from "../utils/getApiError";
-
-const startOfToday = () => {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
-};
+import { announceNotificationsChanged } from "../utils/notificationEvents";
 
 const RecurringPage = () => {
   const { user } = useAuth();
@@ -66,6 +62,7 @@ const RecurringPage = () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] }),
       queryClient.invalidateQueries({ queryKey: ["budgets"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
     ]);
   };
 
@@ -120,6 +117,7 @@ const RecurringPage = () => {
       toast.success(response.message);
       setProcessingId("");
       await refreshFinanceData();
+      announceNotificationsChanged();
     },
     onError: (error) => {
       setProcessingId("");
@@ -133,9 +131,8 @@ const RecurringPage = () => {
   const currency = user?.preferredCurrency || "INR";
 
   const summary = useMemo(() => {
-    const today = startOfToday();
-    const sevenDaysFromNow = new Date(today);
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const today = getDateKeyInTimeZone(new Date(), user?.timezone);
+    const sevenDaysFromNow = addDaysToDateKey(today, 7);
 
     return recurring.reduce(
       (result, item) => {
@@ -144,9 +141,9 @@ const RecurringPage = () => {
         if (item.isActive) {
           result.active += 1;
 
-          const nextRun = new Date(item.nextRunDate);
+          const nextRun = getDateKey(item.nextRunDate);
           if (
-            !Number.isNaN(nextRun.getTime()) &&
+            nextRun &&
             nextRun >= today &&
             nextRun <= sevenDaysFromNow
           ) {
@@ -165,7 +162,7 @@ const RecurringPage = () => {
         paused: 0,
       },
     );
-  }, [recurring]);
+  }, [recurring, user?.timezone]);
 
   const openCreateModal = () => {
     setSelectedRecurring(null);
@@ -354,6 +351,7 @@ const RecurringPage = () => {
         categories={categories}
         isOpen={isModalOpen}
         isSaving={saveMutation.isPending}
+        timezone={user?.timezone}
         onClose={() => {
           if (!saveMutation.isPending) {
             setIsModalOpen(false);

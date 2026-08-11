@@ -24,16 +24,7 @@ const createTransaction = async (req, res) => {
 const getTransactions = async (req, res) => {
   const result = await getTransactionsForUser({
     userId: req.user._id,
-    accountId: req.query.accountId,
-    categoryId: req.query.categoryId,
-    type: req.query.type?.toUpperCase(),
-    startDate: req.query.startDate,
-    endDate: req.query.endDate,
-    search: req.query.search,
-    sortBy: req.query.sortBy,
-    sortOrder: req.query.sortOrder,
-    page: req.query.page,
-    limit: req.query.limit,
+    ...req.validatedData.query,
   });
 
   res.status(200).json({

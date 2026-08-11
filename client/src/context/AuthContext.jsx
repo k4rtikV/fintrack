@@ -39,6 +39,10 @@ const AuthProvider = ({ children }) => {
     setUser(authenticatedUser);
   }, []);
 
+  const clearAuthentication = useCallback(() => {
+    setUser(null);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await logoutRequest();
@@ -54,6 +58,7 @@ const AuthProvider = ({ children }) => {
       isAuthLoading,
       refreshUser,
       completeAuthentication,
+      clearAuthentication,
       logout,
     }),
     [
@@ -61,6 +66,7 @@ const AuthProvider = ({ children }) => {
       isAuthLoading,
       refreshUser,
       completeAuthentication,
+      clearAuthentication,
       logout,
     ],
   );

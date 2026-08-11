@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 
 import Goal from "../models/Goal.js";
 import AppError from "../utils/AppError.js";
+import {
+  differenceInCalendarDays,
+  getDateKey,
+  getDateKeyInTimeZone,
+  toUtcDateOnly,
+} from "../utils/dateOnly.js";
 import { createGoalMilestoneAlerts } from "./notification.service.js";
 
 const ensureValidObjectId = (id) => {
@@ -10,15 +16,7 @@ const ensureValidObjectId = (id) => {
   }
 };
 
-const getStartOfTodayUtc = () => {
-  const now = new Date();
-
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
-};
-
-const getGoalWithProgress = (goal) => {
+const getGoalWithProgress = (goal, timezone = "Asia/Kolkata") => {
   const goalObject = goal.toObject ? goal.toObject() : goal;
 
   const targetAmount = Number(goalObject.targetAmount) || 0;
@@ -32,19 +30,11 @@ const getGoalWithProgress = (goal) => {
     Math.min(Math.max(rawPercentage, 0), 100).toFixed(2),
   );
 
-  const targetDate = new Date(goalObject.targetDate);
-  const today = getStartOfTodayUtc();
-  const targetDay = new Date(
-    Date.UTC(
-      targetDate.getUTCFullYear(),
-      targetDate.getUTCMonth(),
-      targetDate.getUTCDate(),
-    ),
-  );
-
-  const millisecondsPerDay = 1000 * 60 * 60 * 24;
-  const daysRemaining = Math.ceil(
-    (targetDay.getTime() - today.getTime()) / millisecondsPerDay,
+  const targetDateKey = getDateKey(goalObject.targetDate);
+  const todayDateKey = getDateKeyInTimeZone(new Date(), timezone);
+  const daysRemaining = differenceInCalendarDays(
+    targetDateKey,
+    todayDateKey,
   );
 
   const isCompleted = currentAmount >= targetAmount;
@@ -104,6 +94,7 @@ const createGoalForUser = async ({
   note,
   color,
   icon,
+  timezone = "Asia/Kolkata",
 }) => {
   await ensureUniqueActiveName({
     userId,
@@ -115,13 +106,13 @@ const createGoalForUser = async ({
     name,
     targetAmount,
     currentAmount,
-    targetDate: new Date(targetDate),
+    targetDate: toUtcDateOnly(targetDate),
     note,
     color,
     icon,
   });
 
-  const goalWithProgress = getGoalWithProgress(goal);
+  const goalWithProgress = getGoalWithProgress(goal, timezone);
 
   await createGoalMilestoneAlerts({
     userId,
@@ -132,7 +123,7 @@ const createGoalForUser = async ({
   return goalWithProgress;
 };
 
-const getGoalsForUser = async ({ userId }) => {
+const getGoalsForUser = async ({ userId, timezone = "Asia/Kolkata" }) => {
   const goals = await Goal.find({
     user: userId,
   }).sort({
@@ -140,7 +131,7 @@ const getGoalsForUser = async ({ userId }) => {
     createdAt: -1,
   });
 
-  return goals.map(getGoalWithProgress);
+  return goals.map((goal) => getGoalWithProgress(goal, timezone));
 };
 
 const getGoalByIdForUser = async ({
@@ -164,26 +155,28 @@ const getGoalByIdForUser = async ({
 const getGoalWithProgressByIdForUser = async ({
   goalId,
   userId,
+  timezone = "Asia/Kolkata",
 }) => {
   const goal = await getGoalByIdForUser({
     goalId,
     userId,
   });
 
-  return getGoalWithProgress(goal);
+  return getGoalWithProgress(goal, timezone);
 };
 
 const updateGoalForUser = async ({
   goalId,
   userId,
   updates,
+  timezone = "Asia/Kolkata",
 }) => {
   const goal = await getGoalByIdForUser({
     goalId,
     userId,
   });
 
-  const previousPercentage = getGoalWithProgress(goal).percentageComplete;
+  const previousPercentage = getGoalWithProgress(goal, timezone).percentageComplete;
 
   if (updates.name !== undefined && updates.name !== goal.name) {
     await ensureUniqueActiveName({
@@ -209,12 +202,12 @@ const updateGoalForUser = async ({
   }
 
   if (updates.targetDate !== undefined) {
-    goal.targetDate = new Date(updates.targetDate);
+    goal.targetDate = toUtcDateOnly(updates.targetDate);
   }
 
   await goal.save();
 
-  const goalWithProgress = getGoalWithProgress(goal);
+  const goalWithProgress = getGoalWithProgress(goal, timezone);
 
   await createGoalMilestoneAlerts({
     userId,

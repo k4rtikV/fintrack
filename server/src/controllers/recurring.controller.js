@@ -26,11 +26,13 @@ const createRecurring = async (req, res) => {
 const getRecurring = async (req, res) => {
   const processResult = await processDueRecurringForUser({
     userId: req.user._id,
+    timezone: req.user.timezone,
   });
 
   const recurring = await getRecurringForUser({
     userId: req.user._id,
     includeInactive: req.query.includeInactive !== "false",
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({
@@ -47,6 +49,7 @@ const getRecurringById = async (req, res) => {
   const recurring = await getRecurringByIdForUser({
     recurringId: req.validatedData.params.recurringId,
     userId: req.user._id,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({
@@ -62,6 +65,7 @@ const updateRecurring = async (req, res) => {
     recurringId: req.validatedData.params.recurringId,
     userId: req.user._id,
     updates: req.validatedData.body,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({
@@ -88,6 +92,7 @@ const deleteRecurring = async (req, res) => {
 const processRecurring = async (req, res) => {
   const result = await processDueRecurringForUser({
     userId: req.user._id,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({
@@ -104,6 +109,7 @@ const processSingleRecurring = async (req, res) => {
   const result = await processSingleRecurringForUser({
     recurringId: req.validatedData.params.recurringId,
     userId: req.user._id,
+    timezone: req.user.timezone,
   });
 
   res.status(200).json({

@@ -17,6 +17,55 @@ const paymentMethodSchema = z.enum([
   "OTHER",
 ]);
 
+const dateKeySchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD format")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }, "Date is invalid");
+
+const transactionQuery = z
+  .object({
+    accountId: objectIdString.optional(),
+    categoryId: objectIdString.optional(),
+    type: z
+      .string()
+      .trim()
+      .transform((value) => value.toUpperCase())
+      .pipe(transactionTypeSchema)
+      .optional(),
+    startDate: dateKeySchema.optional(),
+    endDate: dateKeySchema.optional(),
+    search: z.string().trim().max(100, "Search cannot exceed 100 characters").optional(),
+    sortBy: z
+      .enum(["transactionDate", "amount", "title", "createdAt"])
+      .optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
+    page: z.coerce.number().int().min(1).max(100000).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .superRefine((query, ctx) => {
+    if (query.startDate && query.endDate && query.startDate > query.endDate) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: "End date cannot be before start date",
+      });
+    }
+  });
+
+export const transactionQuerySchema = z.object({
+  query: transactionQuery,
+});
+
 export const createTransactionSchema = z.object({
   body: z.object({
     accountId: objectIdString,

@@ -2,6 +2,12 @@ import Account from "../models/Account.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
 import {
+  endOfUtcDateOnly,
+  getDateKeyInTimeZone,
+  getMonthKeyInTimeZone,
+  toUtcDateOnly,
+} from "../utils/dateOnly.js";
+import {
   getAccountSummaryForUser,
   getCategoryBreakdownForUser,
   getMonthlyTrendForUser,
@@ -14,9 +20,6 @@ import { executeAssistantTool } from "./assistantTools.service.js";
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
 const toDateKey = (date) => date.toISOString().slice(0, 10);
-
-const getCurrentMonthKey = (date = new Date()) =>
-  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 
 const parseMonth = (month) => {
   const value = String(month || "");
@@ -293,16 +296,19 @@ const buildReportInsights = ({
 
 const getMonthlyReportData = async ({ user, month: requestedMonth }) => {
   const now = new Date();
-  const currentMonth = getCurrentMonthKey(now);
+  const timezone = user.timezone || "Asia/Kolkata";
+  const currentDateKey = getDateKeyInTimeZone(now, timezone);
+  const currentMonth = getMonthKeyInTimeZone(now, timezone);
   const month = requestedMonth || currentMonth;
   const monthDates = getMonthDates(month);
 
-  if (monthDates.start > now) {
+  if (month > currentMonth) {
     throw new AppError("Monthly reports cannot be generated for a future month", 400);
   }
 
   const isCurrentMonth = month === currentMonth;
-  const analysisEnd = isCurrentMonth && now < monthDates.end ? now : monthDates.end;
+  const currentDayEnd = endOfUtcDateOnly(currentDateKey);
+  const analysisEnd = isCurrentMonth ? currentDayEnd : monthDates.end;
   const previousRange = getComparisonRange({
     month,
     analysisEnd,
@@ -347,6 +353,7 @@ const getMonthlyReportData = async ({ user, month: requestedMonth }) => {
       userId: user._id,
       startDate: trendStart,
       endDate: analysisEnd,
+      timezone,
     }),
     getOverviewForUser({
       userId: user._id,
@@ -385,7 +392,7 @@ const getMonthlyReportData = async ({ user, month: requestedMonth }) => {
   }
 
   const reportAsOf = analysisEnd.toISOString();
-  const liveAsOf = now.toISOString();
+  const liveAsOf = currentDayEnd.toISOString();
   const assistantToolCalls = [
     // Budget and goal models are current mutable records. Historical budget
     // usage is requested with the historical month argument while `asOf`

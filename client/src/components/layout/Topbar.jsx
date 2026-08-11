@@ -7,6 +7,7 @@ import {
   markNotificationRead,
 } from "../../services/notificationService";
 import NotificationPanel from "../notifications/NotificationPanel";
+import { NOTIFICATIONS_CHANGED_EVENT } from "../../utils/notificationEvents";
 import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 
@@ -32,8 +33,25 @@ const Topbar = ({ onMenuClick }) => {
 
   useEffect(() => {
     loadNotifications();
-    const intervalId = window.setInterval(() => loadNotifications({ silent: true }), 60000);
-    return () => window.clearInterval(intervalId);
+    const intervalId = window.setInterval(
+      () => loadNotifications({ silent: true }),
+      60000,
+    );
+    const handleNotificationsChanged = () =>
+      loadNotifications({ silent: true });
+
+    window.addEventListener(
+      NOTIFICATIONS_CHANGED_EVENT,
+      handleNotificationsChanged,
+    );
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener(
+        NOTIFICATIONS_CHANGED_EVENT,
+        handleNotificationsChanged,
+      );
+    };
   }, [loadNotifications]);
 
   useEffect(() => {

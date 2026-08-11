@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { FolderTree, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -14,6 +15,7 @@ import {
 import getApiError from "../utils/getApiError";
 
 const CategoriesPage = () => {
+  const queryClient = useQueryClient();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +67,18 @@ const CategoriesPage = () => {
     [categories],
   );
 
+
+  const invalidateCategoryDependents = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["categories"] }),
+      queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+      queryClient.invalidateQueries({ queryKey: ["recurring"] }),
+      queryClient.invalidateQueries({ queryKey: ["budgets"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] }),
+    ]);
+  };
+
   const openCreate = () => {
     setEditingCategory(null);
     setModalOpen(true);
@@ -87,10 +101,12 @@ const CategoriesPage = () => {
           current.map((item) => (item._id === updated._id ? updated : item)),
         );
         toast.success("Category updated");
+        await invalidateCategoryDependents();
       } else {
         const created = await createCategory(payload);
         setCategories((current) => [...current, created]);
         toast.success("Category created");
+        await invalidateCategoryDependents();
       }
       setModalOpen(false);
       setEditingCategory(null);
@@ -103,7 +119,7 @@ const CategoriesPage = () => {
 
   const handleArchive = async (category) => {
     const accepted = window.confirm(
-      `Archive “${category.name}”? Existing records will keep this category, but it will no longer appear when creating new records.`,
+      `Archive “${category.name}”? Existing records will keep this category, but it will no longer appear for new records. Active recurring schedules must be moved or paused first.`,
     );
     if (!accepted) return;
 
@@ -114,6 +130,7 @@ const CategoriesPage = () => {
         current.filter((item) => item._id !== category._id),
       );
       toast.success("Category archived");
+      await invalidateCategoryDependents();
     } catch (error) {
       toast.error(getApiError(error));
     } finally {

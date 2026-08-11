@@ -15,45 +15,48 @@ import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
 import useAuth from "../hooks/useAuth";
 import { downloadMonthlyPdf, getReportAnalytics } from "../services/reportService";
+import {
+  addMonthsToDateKey,
+  getDateKeyInTimeZone,
+  getMonthEndKey,
+  getMonthKeyInTimeZone,
+  getMonthStartKey,
+  getYearStartKey,
+} from "../utils/dateUtils";
 import { formatCurrency, formatDate } from "../utils/formatters";
 import getApiError from "../utils/getApiError";
 
-const toDateInput = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getPresetRange = (preset) => {
-  const today = new Date();
-  let start = new Date(today.getFullYear(), today.getMonth(), 1);
-  let end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+const getPresetRange = (preset, timezone) => {
+  const today = getDateKeyInTimeZone(new Date(), timezone);
+  let startDate = getMonthStartKey(today);
+  let endDate = getMonthEndKey(today);
 
   if (preset === "last-month") {
-    start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    end = new Date(today.getFullYear(), today.getMonth(), 0);
+    const previousMonth = addMonthsToDateKey(startDate, -1);
+    startDate = getMonthStartKey(previousMonth);
+    endDate = getMonthEndKey(previousMonth);
   }
 
   if (preset === "last-3-months") {
-    start = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-    end = today;
+    startDate = getMonthStartKey(addMonthsToDateKey(startDate, -2));
+    endDate = today;
   }
 
   if (preset === "year-to-date") {
-    start = new Date(today.getFullYear(), 0, 1);
-    end = today;
+    startDate = getYearStartKey(today);
+    endDate = today;
   }
 
-  return {
-    startDate: toDateInput(start),
-    endDate: toDateInput(end),
-  };
+  return { startDate, endDate };
 };
 
 const ReportsPage = () => {
   const { user } = useAuth();
-  const defaultRange = useMemo(() => getPresetRange("this-month"), []);
+  const timezone = user?.timezone || "Asia/Kolkata";
+  const defaultRange = useMemo(
+    () => getPresetRange("this-month", timezone),
+    [timezone],
+  );
   const [preset, setPreset] = useState("this-month");
   const [range, setRange] = useState(defaultRange);
   const [pdfMonth, setPdfMonth] = useState(defaultRange.startDate.slice(0, 7));
@@ -69,7 +72,7 @@ const ReportsPage = () => {
   const handlePresetChange = (nextPreset) => {
     setPreset(nextPreset);
     if (nextPreset !== "custom") {
-      setRange(getPresetRange(nextPreset));
+      setRange(getPresetRange(nextPreset, timezone));
     }
   };
 
@@ -144,7 +147,7 @@ const ReportsPage = () => {
             <input
               type="month"
               value={pdfMonth}
-              max={toDateInput(new Date()).slice(0, 7)}
+              max={getMonthKeyInTimeZone(new Date(), timezone)}
               onChange={(event) => setPdfMonth(event.target.value)}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
             />

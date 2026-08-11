@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
 import Category from "../models/Category.js";
+import RecurringTransaction from "../models/RecurringTransaction.js";
 import AppError from "../utils/AppError.js";
 
 const ensureValidObjectId = (id) => {
@@ -177,6 +178,21 @@ const archiveCategoryForUser = async ({
     categoryId,
     userId,
   });
+
+  const activeRecurringCount = await RecurringTransaction.countDocuments({
+    user: userId,
+    category: category._id,
+    isActive: true,
+  });
+
+  if (activeRecurringCount > 0) {
+    throw new AppError(
+      `Pause, update, or delete ${activeRecurringCount} active recurring schedule${
+        activeRecurringCount === 1 ? "" : "s"
+      } using this category before archiving it`,
+      409,
+    );
+  }
 
   category.isArchived = true;
   await category.save();

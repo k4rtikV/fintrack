@@ -27,6 +27,7 @@ import {
 } from "../services/goalService";
 import { formatCurrency } from "../utils/formatters";
 import getApiError from "../utils/getApiError";
+import { announceNotificationsChanged } from "../utils/notificationEvents";
 
 const GoalsPage = () => {
   const { user } = useAuth();
@@ -60,6 +61,7 @@ const GoalsPage = () => {
       setIsModalOpen(false);
       setSelectedGoal(null);
       await refreshGoalData();
+      announceNotificationsChanged();
     },
     onError: (error) => {
       toast.error(getApiError(error, "Unable to save goal"));
@@ -286,6 +288,7 @@ const GoalsPage = () => {
         goal={selectedGoal}
         isOpen={isModalOpen}
         isSaving={saveMutation.isPending}
+        timezone={user?.timezone}
         onClose={() => {
           if (!saveMutation.isPending) {
             setIsModalOpen(false);

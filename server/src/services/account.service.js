@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 import Account from "../models/Account.js";
+import RecurringTransaction from "../models/RecurringTransaction.js";
 import AppError from "../utils/AppError.js";
 
 const ensureValidObjectId = (id) => {
@@ -142,6 +143,21 @@ const archiveAccountForUser = async ({
     accountId,
     userId,
   });
+
+  const activeRecurringCount = await RecurringTransaction.countDocuments({
+    user: userId,
+    account: account._id,
+    isActive: true,
+  });
+
+  if (activeRecurringCount > 0) {
+    throw new AppError(
+      `Pause, update, or delete ${activeRecurringCount} active recurring schedule${
+        activeRecurringCount === 1 ? "" : "s"
+      } using this account before archiving it`,
+      409,
+    );
+  }
 
   account.isArchived = true;
   await account.save();

@@ -21,8 +21,10 @@ import {
   getTransactionsForExport,
   updateTransaction,
 } from "../services/transactionService";
+import { getDateKeyInTimeZone } from "../utils/dateUtils";
 import exportTransactionsCsv from "../utils/exportTransactionsCsv";
 import getApiError from "../utils/getApiError";
+import { announceNotificationsChanged } from "../utils/notificationEvents";
 import { readTemplates, saveTemplate } from "../utils/transactionTemplates";
 
 const initialFilters = {
@@ -50,13 +52,26 @@ const TransactionsPage = () => {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [templates, setTemplates] = useState(() => readTemplates());
+  const [debouncedSearch, setDebouncedSearch] = useState(initialFilters.search);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(filters.search.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [filters.search]);
 
   const serverFilters = useMemo(() => {
-    const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ""));
-    if (params.endDate) params.endDate = new Date(`${params.endDate}T23:59:59.999`).toISOString();
-    if (params.startDate) params.startDate = new Date(`${params.startDate}T00:00:00.000`).toISOString();
-    return params;
-  }, [filters]);
+    const nextFilters = {
+      ...filters,
+      search: debouncedSearch,
+    };
+
+    return Object.fromEntries(
+      Object.entries(nextFilters).filter(([, value]) => value !== ""),
+    );
+  }, [debouncedSearch, filters]);
 
   const transactionsQuery = useQuery({ queryKey: ["transactions", serverFilters], queryFn: () => getTransactions(serverFilters), placeholderData: (previousData) => previousData });
   const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: getAccounts });
@@ -68,6 +83,8 @@ const TransactionsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] }),
       queryClient.invalidateQueries({ queryKey: ["accounts"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] }),
+      queryClient.invalidateQueries({ queryKey: ["budgets"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
     ]);
   };
 
@@ -79,6 +96,7 @@ const TransactionsPage = () => {
       setSelectedTransaction(null);
       setSelectedTemplate(null);
       await refreshFinanceData();
+      announceNotificationsChanged();
     },
     onError: (error) => toast.error(getApiError(error, "Unable to save transaction")),
   });
@@ -93,6 +111,61 @@ const TransactionsPage = () => {
   const accounts = accountsQuery.data || [];
   const categories = categoriesQuery.data || [];
   const pagination = transactionsQuery.data?.pagination;
+
+  const hasActiveFilters = Boolean(
+    filters.search.trim() ||
+      filters.type ||
+      filters.accountId ||
+      filters.categoryId ||
+      filters.startDate ||
+      filters.endDate,
+  );
+
+  const firstVisibleResult =
+    pagination?.total > 0
+      ? (pagination.page - 1) * pagination.limit + 1
+      : 0;
+  const lastVisibleResult = pagination
+    ? Math.min(pagination.page * pagination.limit, pagination.total)
+    : 0;
+  const isResultsUpdating =
+    filters.search.trim() !== debouncedSearch ||
+    (transactionsQuery.isFetching && !transactionsQuery.isLoading);
+
+  const handleFiltersChange = (nextFilters) => {
+    setSelectedIds([]);
+    setFilters(nextFilters);
+  };
+
+  const handleResetFilters = () => {
+    setSelectedIds([]);
+    setDebouncedSearch("");
+    setFilters(initialFilters);
+  };
+
+  const goToPage = (page) => {
+    setSelectedIds([]);
+    setFilters((current) => ({ ...current, page }));
+  };
+
+  useEffect(() => {
+    const resolvedPage = pagination?.page;
+
+    if (
+      transactionsQuery.isPlaceholderData ||
+      !resolvedPage ||
+      resolvedPage === filters.page
+    ) {
+      return;
+    }
+
+    setSelectedIds([]);
+    setFilters((current) =>
+      current.page === resolvedPage
+        ? current
+        : { ...current, page: resolvedPage },
+    );
+  }, [filters.page, pagination?.page, transactionsQuery.isPlaceholderData]);
 
   useEffect(() => {
     const handleShortcut = (event) => {
@@ -154,9 +227,15 @@ const TransactionsPage = () => {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const exportRows = await getTransactionsForExport(serverFilters);
+      const exportFilters = Object.fromEntries(
+        Object.entries({
+          ...filters,
+          search: filters.search.trim(),
+        }).filter(([, value]) => value !== ""),
+      );
+      const exportRows = await getTransactionsForExport(exportFilters);
       if (!exportRows.length) return toast.error("There are no matching transactions to export");
-      exportTransactionsCsv({ transactions: exportRows, filename: `fintrack-transactions-${new Date().toISOString().slice(0, 10)}.csv` });
+      exportTransactionsCsv({ transactions: exportRows, filename: `fintrack-transactions-${getDateKeyInTimeZone(new Date(), user?.timezone)}.csv` });
       toast.success(`${exportRows.length} transactions exported`);
     } catch (error) {
       toast.error(getApiError(error, "Unable to export transactions"));
@@ -186,27 +265,34 @@ const TransactionsPage = () => {
         </DashboardCard>
       )}
 
-      <DashboardCard><TransactionFilters accounts={accounts} categories={categories} filters={filters} onChange={setFilters} onReset={() => setFilters(initialFilters)} /></DashboardCard>
+      <DashboardCard><TransactionFilters accounts={accounts} categories={categories} filters={filters} onChange={handleFiltersChange} onReset={handleResetFilters} timezone={user?.timezone} /></DashboardCard>
 
       {selectedIds.length > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-500/20 dark:bg-rose-500/10">
-          <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">{selectedIds.length} selected</p>
+          <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">{selectedIds.length} selected on this page</p>
           <Button variant="secondary" onClick={handleBulkDelete} disabled={isBulkDeleting}><Trash2 size={16} />{isBulkDeleting ? "Deleting..." : "Delete selected"}</Button>
         </div>
       )}
 
       <DashboardCard className="mt-5 overflow-hidden p-0">
-        {isLoading ? <div className="flex min-h-72 items-center justify-center"><Loader /></div> : queryError ? <div className="p-6"><EmptyState icon={ReceiptText} title="Unable to load transactions" description={getApiError(queryError, "Check your connection and try again.")} action={<Button onClick={() => transactionsQuery.refetch()}>Try again</Button>} /></div> : transactions.length === 0 ? <div className="p-6"><EmptyState icon={ReceiptText} title="No matching transactions" description="Add a transaction or adjust the current filters." action={<Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button>} /></div> : <TransactionTable currency={user?.preferredCurrency || "INR"} transactions={transactions} selectedIds={selectedIds} onToggle={toggleSelection} onToggleAll={toggleAll} onEdit={openEditModal} onDuplicate={duplicateTransaction} onSaveTemplate={handleSaveTemplate} onDelete={handleDelete} deletingId={deletingId} />}
+        {isLoading ? <div className="flex min-h-72 items-center justify-center"><Loader /></div> : queryError ? <div className="p-6"><EmptyState icon={ReceiptText} title="Unable to load transactions" description={getApiError(queryError, "Check your connection and try again.")} action={<Button onClick={() => transactionsQuery.refetch()}>Try again</Button>} /></div> : transactions.length === 0 ? <div className="p-6"><EmptyState icon={ReceiptText} title={hasActiveFilters ? "No matching transactions" : "No transactions yet"} description={hasActiveFilters ? "Try adjusting or clearing the current filters." : "Add your first income or expense transaction."} action={hasActiveFilters ? <Button variant="secondary" onClick={handleResetFilters}>Clear filters</Button> : <Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button>} /></div> : <TransactionTable currency={user?.preferredCurrency || "INR"} transactions={transactions} selectedIds={selectedIds} onToggle={toggleSelection} onToggleAll={toggleAll} onEdit={openEditModal} onDuplicate={duplicateTransaction} onSaveTemplate={handleSaveTemplate} onDelete={handleDelete} deletingId={deletingId} />}
 
         {pagination && (
           <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Page {pagination.page} of {Math.max(pagination.pages, 1)} · {pagination.total} transactions</p>
-            <div className="flex gap-2"><Button variant="secondary" disabled={pagination.page <= 1} onClick={() => setFilters((current) => ({ ...current, page: current.page - 1 }))}><ChevronLeft size={17} />Previous</Button><Button variant="secondary" disabled={pagination.page >= pagination.pages} onClick={() => setFilters((current) => ({ ...current, page: current.page + 1 }))}>Next<ChevronRight size={17} /></Button></div>
+            <div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {pagination.total > 0 ? `Showing ${firstVisibleResult}–${lastVisibleResult} of ${pagination.total}` : "0 transactions"} · Page {pagination.page} of {Math.max(pagination.pages, 1)}
+              </p>
+              {isResultsUpdating && (
+                <p className="mt-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">Updating results…</p>
+              )}
+            </div>
+            <div className="flex gap-2"><Button variant="secondary" disabled={pagination.page <= 1 || isResultsUpdating} onClick={() => goToPage(pagination.page - 1)}><ChevronLeft size={17} />Previous</Button><Button variant="secondary" disabled={pagination.page >= pagination.pages || isResultsUpdating} onClick={() => goToPage(pagination.page + 1)}>Next<ChevronRight size={17} /></Button></div>
           </div>
         )}
       </DashboardCard>
 
-      <TransactionModal accounts={accounts} categories={categories} isOpen={isModalOpen} isSaving={saveMutation.isPending} transaction={selectedTransaction} template={selectedTemplate} onClose={() => { if (!saveMutation.isPending) { setIsModalOpen(false); setSelectedTransaction(null); setSelectedTemplate(null); } }} onSubmit={(payload) => saveMutation.mutateAsync(payload)} />
+      <TransactionModal accounts={accounts} categories={categories} isOpen={isModalOpen} isSaving={saveMutation.isPending} transaction={selectedTransaction} template={selectedTemplate} timezone={user?.timezone} onClose={() => { if (!saveMutation.isPending) { setIsModalOpen(false); setSelectedTransaction(null); setSelectedTemplate(null); } }} onSubmit={(payload) => saveMutation.mutateAsync(payload)} />
     </PageContainer>
   );
 };

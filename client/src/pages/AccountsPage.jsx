@@ -45,6 +45,8 @@ const AccountsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] }),
       queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+      queryClient.invalidateQueries({ queryKey: ["recurring"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
     ]);
   };
 
@@ -103,7 +105,7 @@ const AccountsPage = () => {
 
   const handleArchive = (account) => {
     const confirmed = window.confirm(
-      `Archive “${account.name}”? It will no longer be available for new transactions.`,
+      `Archive “${account.name}”? It will no longer be available for new transactions. Active recurring schedules must be moved or paused first.`,
     );
 
     if (confirmed) {

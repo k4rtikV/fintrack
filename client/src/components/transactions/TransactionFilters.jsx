@@ -1,30 +1,33 @@
 import { CalendarDays, RotateCcw, Search } from "lucide-react";
 
 import Button from "../ui/Button";
+import {
+  addDaysToDateKey,
+  getDateKeyInTimeZone,
+  getMonthStartKey,
+  getYearStartKey,
+} from "../../utils/dateUtils";
 
 const fieldClassName =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
-const toInputDate = (date) => date.toISOString().slice(0, 10);
 
-const TransactionFilters = ({ accounts, categories, filters, onChange, onReset }) => {
+const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, timezone }) => {
   const updateFilter = (key, value) => {
     onChange({ ...filters, [key]: value, page: 1 });
   };
 
   const applyPreset = (preset) => {
-    const today = new Date();
+    const today = getDateKeyInTimeZone(new Date(), timezone);
     let startDate = "";
-    let endDate = toInputDate(today);
+    let endDate = today;
 
     if (preset === "7_DAYS") {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 6);
-      startDate = toInputDate(start);
+      startDate = addDaysToDateKey(today, -6);
     } else if (preset === "MONTH") {
-      startDate = toInputDate(new Date(today.getFullYear(), today.getMonth(), 1));
+      startDate = getMonthStartKey(today);
     } else if (preset === "YEAR") {
-      startDate = toInputDate(new Date(today.getFullYear(), 0, 1));
+      startDate = getYearStartKey(today);
     } else {
       endDate = "";
     }
@@ -65,6 +68,7 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset }
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
             placeholder="Search transactions..."
+            maxLength={100}
             className={`${fieldClassName} pl-10`}
           />
         </label>
@@ -101,8 +105,8 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset }
           <span className="lg:sr-only">Reset</span>
         </Button>
 
-        <input aria-label="Start date" type="date" value={filters.startDate} onChange={(event) => updateFilter("startDate", event.target.value)} className={`${fieldClassName} lg:col-span-2`} />
-        <input aria-label="End date" type="date" value={filters.endDate} onChange={(event) => updateFilter("endDate", event.target.value)} className={`${fieldClassName} lg:col-span-2`} />
+        <input aria-label="Start date" type="date" value={filters.startDate} max={filters.endDate || undefined} onChange={(event) => updateFilter("startDate", event.target.value)} className={`${fieldClassName} lg:col-span-2`} />
+        <input aria-label="End date" type="date" value={filters.endDate} min={filters.startDate || undefined} onChange={(event) => updateFilter("endDate", event.target.value)} className={`${fieldClassName} lg:col-span-2`} />
         <select aria-label="Rows per page" value={filters.limit} onChange={(event) => updateFilter("limit", Number(event.target.value))} className={`${fieldClassName} lg:col-span-2`}>
           <option value={10}>10 per page</option>
           <option value={20}>20 per page</option>

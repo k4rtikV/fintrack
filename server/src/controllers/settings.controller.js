@@ -4,6 +4,7 @@ import {
   updateNotificationSettingsForUser,
   updateProfileSettingsForUser,
 } from "../services/settings.service.js";
+import { clearAuthCookie } from "../utils/authCookie.js";
 
 const getSettings = async (req, res) => {
   const settings = await getSettingsForUser(req.user._id);
@@ -50,6 +51,8 @@ const changePassword = async (req, res) => {
     currentPassword: req.validatedData.body.currentPassword,
     newPassword: req.validatedData.body.newPassword,
   });
+
+  clearAuthCookie(res);
 
   res.status(200).json({
     success: true,

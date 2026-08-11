@@ -2,40 +2,26 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import Button from "../ui/Button";
+import {
+  addMonthsToDateKey,
+  getDateKey,
+  getDateKeyInTimeZone,
+} from "../../utils/dateUtils";
 
 const fieldClassName =
   "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
-const getDefaultTargetDate = () => {
-  const date = new Date();
-  date.setMonth(date.getMonth() + 6);
+const getDefaultTargetDate = (timezone) =>
+  addMonthsToDateKey(getDateKeyInTimeZone(new Date(), timezone), 6);
 
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+const toDateInputValue = (value, timezone) =>
+  getDateKey(value) || getDefaultTargetDate(timezone);
 
-  return `${year}-${month}-${day}`;
-};
-
-const toDateInputValue = (value) => {
-  if (!value) {
-    return getDefaultTargetDate();
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return getDefaultTargetDate();
-  }
-
-  return date.toISOString().slice(0, 10);
-};
-
-const createInitialForm = (goal) => ({
+const createInitialForm = (goal, timezone) => ({
   name: goal?.name || "",
   targetAmount: goal ? String(goal.targetAmount ?? "") : "",
   currentAmount: goal ? String(goal.currentAmount ?? 0) : "0",
-  targetDate: toDateInputValue(goal?.targetDate),
+  targetDate: toDateInputValue(goal?.targetDate, timezone),
   note: goal?.note || "",
   color: goal?.color || "emerald",
   icon: goal?.icon || "target",
@@ -67,16 +53,17 @@ const GoalModal = ({
   isSaving,
   onClose,
   onSubmit,
+  timezone,
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(goal));
+  const [form, setForm] = useState(() => createInitialForm(goal, timezone));
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createInitialForm(goal));
+      setForm(createInitialForm(goal, timezone));
       setError("");
     }
-  }, [goal, isOpen]);
+  }, [goal, isOpen, timezone]);
 
   if (!isOpen) {
     return null;

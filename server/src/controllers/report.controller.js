@@ -1,14 +1,11 @@
 import { getMonthlyReportData } from "../services/monthlyReport.service.js";
 import { renderMonthlyReportPdf } from "../services/monthlyPdf.service.js";
-
-const getCurrentMonth = () => {
-  const now = new Date();
-
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-};
+import { getMonthKeyInTimeZone } from "../utils/dateOnly.js";
 
 const downloadMonthlyPdf = async (req, res) => {
-  const month = req.validatedData.query.month || getCurrentMonth();
+  const month =
+    req.validatedData.query.month ||
+    getMonthKeyInTimeZone(new Date(), req.user.timezone);
   const reportData = await getMonthlyReportData({
     user: req.user,
     month,
