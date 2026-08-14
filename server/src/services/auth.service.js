@@ -8,6 +8,7 @@ import {
 } from "../utils/otp.js";
 import { sendOtpEmail } from "./email.service.js";
 import { seedDefaultCategoriesForUser } from "./category.service.js";
+import { recordSecurityEventSafe } from "./security.service.js";
 
 const getOtpSettings = () => ({
   maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS) || 5,
@@ -240,7 +241,10 @@ const resendRegistrationOtp = async ({ email }) => {
   };
 };
 
-const requestLoginOtp = async ({ email, password }) => {
+const requestLoginOtp = async (
+  { email, password },
+  securityContext = {},
+) => {
   const user = await User.findOne({ email }).select(
     "+password " +
       "+loginOtpHash " +
@@ -260,6 +264,12 @@ const requestLoginOtp = async ({ email, password }) => {
   const passwordMatches = await user.comparePassword(password);
 
   if (!passwordMatches) {
+    await recordSecurityEventSafe({
+      userId: user._id,
+      type: "LOGIN_PASSWORD_FAILED",
+      securityContext,
+    });
+
     throw new AppError("Invalid email or password", 401);
   }
 
@@ -285,7 +295,10 @@ const requestLoginOtp = async ({ email, password }) => {
   };
 };
 
-const verifyLoginOtp = async ({ email, otp }) => {
+const verifyLoginOtp = async (
+  { email, otp },
+  securityContext = {},
+) => {
   const user = await User.findOne({ email }).select(
     "+loginOtpHash " +
       "+loginOtpExpiresAt " +
@@ -337,6 +350,12 @@ const verifyLoginOtp = async ({ email, otp }) => {
 
     await user.save({
       validateModifiedOnly: true,
+    });
+
+    await recordSecurityEventSafe({
+      userId: user._id,
+      type: "LOGIN_OTP_FAILED",
+      securityContext,
     });
 
     const remainingAttempts =

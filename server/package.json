@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "backfill:categories": "node src/scripts/backfillCategoryOrder.js",
     "test:assistant": "node src/scripts/testAssistantIntelligence.js",
-    "test:report-pdf": "node src/scripts/testMonthlyPdfLayout.js"
+    "test:report-pdf": "node src/scripts/testMonthlyPdfLayout.js",
+    "test:security": "node src/scripts/testSecurityPhase.js"
   },
   "keywords": [
     "finance",

@@ -5,6 +5,10 @@ import {
   clearAuthCookie,
 } from "../utils/authCookie.js";
 import { verifyAccessToken } from "../utils/jwt.js";
+import {
+  findActiveSession,
+  touchSessionActivity,
+} from "../services/security.service.js";
 
 const protect = async (req, res, next) => {
   try {
@@ -20,11 +24,31 @@ const protect = async (req, res, next) => {
 
     const decoded = verifyAccessToken(token);
 
-    const user = await User.findById(decoded.sub);
+    if (!decoded.sid) {
+      throw new AppError(
+        "Your session was created before FinTrack session management was enabled. Please log in again.",
+        401,
+      );
+    }
+
+    const [user, session] = await Promise.all([
+      User.findById(decoded.sub),
+      findActiveSession({
+        userId: decoded.sub,
+        sessionId: decoded.sid,
+      }),
+    ]);
 
     if (!user || !user.isActive) {
       throw new AppError(
         "The account associated with this session was not found",
+        401,
+      );
+    }
+
+    if (!session) {
+      throw new AppError(
+        "Your session has been revoked or has expired. Please log in again.",
         401,
       );
     }
@@ -44,6 +68,15 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
+    req.authSession = session;
+
+    void touchSessionActivity(session).catch((error) => {
+      console.error(
+        "Could not update FinTrack session activity:",
+        error.message,
+      );
+    });
+
     next();
   } catch (error) {
     let normalizedError = error;

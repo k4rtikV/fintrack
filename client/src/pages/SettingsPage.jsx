@@ -5,11 +5,17 @@ import {
   Eye,
   EyeOff,
   LockKeyhole,
+  LogOut,
   MonitorCog,
+  RefreshCw,
   Save,
   UserRound,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import toast from "react-hot-toast";
 
 import DashboardCard from "../components/layout/DashboardCard";
@@ -17,6 +23,12 @@ import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
 import useAuth from "../hooks/useAuth";
 import useTheme from "../hooks/useTheme";
+import {
+  getActiveSessions,
+  getSecurityActivity,
+  revokeOtherSessions,
+  revokeSession,
+} from "../services/securityService";
 import {
   changePassword,
   getSettings,
@@ -64,19 +76,53 @@ const Toggle = ({ checked, onChange, label, description, disabled = false }) => 
   </label>
 );
 
-const SettingsSectionTitle = ({ icon: Icon, title, description }) => (
-  <div className="mb-5 flex items-start gap-3">
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-      <Icon size={19} />
+const SettingsSectionTitle = ({ icon: Icon, title, description, action = null }) => (
+  <div className="mb-5 flex items-start justify-between gap-3">
+    <div className="flex min-w-0 items-start gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+        <Icon size={19} />
+      </div>
+      <div>
+        <h2 className="font-bold text-slate-900 dark:text-white">{title}</h2>
+        <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">
+          {description}
+        </p>
+      </div>
     </div>
-    <div>
-      <h2 className="font-bold text-slate-900 dark:text-white">{title}</h2>
-      <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">
-        {description}
-      </p>
-    </div>
+    {action}
   </div>
 );
+
+const formatSecurityTime = (value, timezone = "Asia/Kolkata") => {
+  if (!value) {
+    return "Unknown";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: timezone,
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
+};
+
+const activityTone = {
+  success:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
+  warning:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
+  info:
+    "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300",
+};
 
 const SettingsPage = () => {
   const { user, refreshUser, clearAuthentication } = useAuth();
@@ -87,6 +133,9 @@ const SettingsPage = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [securityLoading, setSecurityLoading] = useState(true);
+  const [securityRefreshing, setSecurityRefreshing] = useState(false);
+  const [securityActionId, setSecurityActionId] = useState("");
 
   const [profile, setProfile] = useState({
     fullName: "",
@@ -108,9 +157,35 @@ const SettingsPage = () => {
     confirmPassword: "",
   });
 
+  const [sessions, setSessions] = useState([]);
+  const [securityActivity, setSecurityActivity] = useState([]);
+
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const loadSecurityData = useCallback(async ({ silent = false } = {}) => {
+    if (silent) {
+      setSecurityRefreshing(true);
+    } else {
+      setSecurityLoading(true);
+    }
+
+    try {
+      const [sessionsResponse, activityResponse] = await Promise.all([
+        getActiveSessions(),
+        getSecurityActivity(20),
+      ]);
+
+      setSessions(sessionsResponse.data.sessions);
+      setSecurityActivity(activityResponse.data.activity);
+    } catch (error) {
+      toast.error(getApiError(error, "Could not load account security activity"));
+    } finally {
+      setSecurityLoading(false);
+      setSecurityRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -126,7 +201,8 @@ const SettingsPage = () => {
     };
 
     load();
-  }, []);
+    loadSecurityData();
+  }, [loadSecurityData]);
 
   const handleProfileSave = async (event) => {
     event.preventDefault();
@@ -185,6 +261,63 @@ const SettingsPage = () => {
       toast.error(getApiError(error, "Could not change password"));
     } finally {
       setPasswordSaving(false);
+    }
+  };
+
+  const handleRevokeSession = async (session) => {
+    if (session.current) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Revoke ${session.deviceLabel || "this session"}? That device will need to log in again.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSecurityActionId(session.id);
+
+    try {
+      const response = await revokeSession(session.id);
+      toast.success(response.message);
+      await loadSecurityData({ silent: true });
+    } catch (error) {
+      toast.error(getApiError(error, "Could not revoke that session"));
+    } finally {
+      setSecurityActionId("");
+    }
+  };
+
+  const handleRevokeOtherSessions = async () => {
+    const otherSessionCount = sessions.filter((session) => !session.current).length;
+
+    if (!otherSessionCount) {
+      toast("No other active sessions to revoke");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Log out ${otherSessionCount} other active session${
+        otherSessionCount === 1 ? "" : "s"
+      }?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSecurityActionId("revoke-others");
+
+    try {
+      const response = await revokeOtherSessions();
+      toast.success(response.message);
+      await loadSecurityData({ silent: true });
+    } catch (error) {
+      toast.error(getApiError(error, "Could not revoke other sessions"));
+    } finally {
+      setSecurityActionId("");
     }
   };
 
@@ -361,8 +494,8 @@ const SettingsPage = () => {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-slate-400">
-            Disabling an alert type stops new in-app alerts and their email copies. Existing
-            notifications remain in your history.
+            Security login alerts are always sent to your verified email and are not
+            controlled by these financial-alert preferences.
           </p>
 
           <div className="mt-5 flex justify-end">
@@ -421,7 +554,7 @@ const SettingsPage = () => {
           <SettingsSectionTitle
             icon={LockKeyhole}
             title="Security"
-            description="Change your password without affecting your verified email or OTP login."
+            description="Change your password and invalidate every existing FinTrack session."
           />
 
           <form className="space-y-4" onSubmit={handlePasswordSave}>
@@ -474,6 +607,7 @@ const SettingsPage = () => {
 
             <p className="text-xs leading-5 text-slate-400">
               Use at least 8 characters with an uppercase letter, lowercase letter, and number.
+              A successful password change logs out every active device.
             </p>
 
             <div className="flex justify-end">
@@ -494,9 +628,187 @@ const SettingsPage = () => {
         </DashboardCard>
       </div>
 
+      <div className="mt-5 grid items-start gap-5 xl:grid-cols-2">
+        <DashboardCard>
+          <SettingsSectionTitle
+            icon={MonitorCog}
+            title="Active sessions"
+            description="Devices currently allowed to use your FinTrack account."
+            action={
+              <button
+                type="button"
+                onClick={() => loadSecurityData({ silent: true })}
+                disabled={securityLoading || securityRefreshing}
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                aria-label="Refresh security sessions"
+                title="Refresh"
+              >
+                <RefreshCw
+                  size={17}
+                  className={securityRefreshing ? "animate-spin" : ""}
+                />
+              </button>
+            }
+          />
+
+          {securityLoading ? (
+            <div className="space-y-3">
+              {[1, 2].map((item) => (
+                <div
+                  key={item}
+                  className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                />
+              ))}
+            </div>
+          ) : sessions.length ? (
+            <div className="space-y-3">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-900 dark:text-white">
+                          {session.deviceLabel}
+                        </p>
+                        {session.current && (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {session.deviceType} · {session.ipAddress}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Last active{" "}
+                        {formatSecurityTime(session.lastSeenAt, profile.timezone)}
+                      </p>
+                    </div>
+
+                    {!session.current && (
+                      <Button
+                        variant="danger"
+                        className="px-3 py-2"
+                        onClick={() => handleRevokeSession(session)}
+                        disabled={Boolean(securityActionId)}
+                      >
+                        <LogOut size={15} />
+                        {securityActionId === session.id ? "Revoking…" : "Revoke"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex justify-end pt-1">
+                <Button
+                  variant="secondary"
+                  onClick={handleRevokeOtherSessions}
+                  disabled={
+                    Boolean(securityActionId) ||
+                    !sessions.some((session) => !session.current)
+                  }
+                >
+                  <LogOut size={16} />
+                  {securityActionId === "revoke-others"
+                    ? "Revoking…"
+                    : "Log out other devices"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              No active FinTrack sessions were found.
+            </p>
+          )}
+
+          <p className="mt-4 text-xs leading-5 text-slate-400">
+            Session revocation is enforced server-side. A revoked device cannot keep using
+            a previously issued FinTrack token.
+          </p>
+        </DashboardCard>
+
+        <DashboardCard>
+          <SettingsSectionTitle
+            icon={LockKeyhole}
+            title="Security activity"
+            description="Recent authentication and session-security events for your account."
+          />
+
+          {securityLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                />
+              ))}
+            </div>
+          ) : securityActivity.length ? (
+            <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+              {securityActivity.map((event) => (
+                <div
+                  key={event.id}
+                  className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {event.title}
+                        </p>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            activityTone[event.severity] || activityTone.info
+                          }`}
+                        >
+                          {event.severity}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        {event.description}
+                      </p>
+                    </div>
+                    <span className="whitespace-nowrap text-[11px] text-slate-400">
+                      {formatSecurityTime(event.createdAt, profile.timezone)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    {event.deviceLabel} · {event.ipAddress}
+                  </p>
+                  {event.metadata?.targetDeviceLabel && (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Target: {event.metadata.targetDeviceLabel}
+                    </p>
+                  )}
+                  {Number.isFinite(event.metadata?.revokedCount) && (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Sessions revoked: {event.metadata.revokedCount}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              No security activity has been recorded yet.
+            </p>
+          )}
+
+          <p className="mt-4 text-xs leading-5 text-slate-400">
+            FinTrack records security events only. Passwords, OTP values, JWTs, and
+            financial transaction contents are never written to this activity log.
+          </p>
+        </DashboardCard>
+      </div>
+
       <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
-        Signed in as <span className="font-semibold">{user?.email}</span>. Sensitive account
-        actions remain protected by your existing verified-email and OTP authentication flow.
+        Signed in as <span className="font-semibold">{user?.email}</span>. New authenticated
+        logins generate a security email showing the browser, operating system, device type,
+        time, and network address.
       </div>
     </PageContainer>
   );

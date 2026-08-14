@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { buildNotificationEmail } from "../emails/notificationEmail.js";
+import { buildLoginAlertEmail } from "../emails/securityEmail.js";
 
 const sendTransactionalEmail = async ({ to, subject, htmlContent }) => {
   if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_EMAIL) {
@@ -66,6 +67,23 @@ const sendOtpEmail = async ({ email, fullName, otp, purpose }) => {
   });
 };
 
+
+const sendLoginAlertEmail = async ({
+  user,
+  securityContext,
+  loginAt,
+}) => {
+  await sendTransactionalEmail({
+    to: user.email,
+    subject: "FinTrack security: new login",
+    htmlContent: buildLoginAlertEmail({
+      user,
+      securityContext,
+      loginAt,
+    }),
+  });
+};
+
 const sendNotificationEmail = async ({ user, notification }) => {
   await sendTransactionalEmail({
     to: user.email,
@@ -74,4 +92,9 @@ const sendNotificationEmail = async ({ user, notification }) => {
   });
 };
 
-export { sendNotificationEmail, sendOtpEmail, sendTransactionalEmail };
+export {
+  sendLoginAlertEmail,
+  sendNotificationEmail,
+  sendOtpEmail,
+  sendTransactionalEmail,
+};

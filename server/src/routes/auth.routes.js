@@ -97,7 +97,7 @@ router.post(
   resendLogin,
 );
 
-router.post("/logout", logout);
+router.post("/logout", protect, logout);
 
 router.get("/me", protect, getCurrentUser);
 
