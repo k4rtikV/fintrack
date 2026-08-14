@@ -34,11 +34,15 @@ textarea {
 
 /* Keep native date controls readable in both themes. Chromium uses
    color-scheme to choose the calendar-picker indicator color. */
-input[type="date"] {
+input[type="date"],
+input[type="month"],
+input[type="datetime-local"] {
   color-scheme: light;
 }
 
-.dark input[type="date"] {
+.dark input[type="date"],
+.dark input[type="month"],
+.dark input[type="datetime-local"] {
   color-scheme: dark;
 }
 

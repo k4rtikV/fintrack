@@ -1,212 +1,112 @@
 FinTrack
 
-FinTrack is a full-stack personal finance management platform built with the MERN stack. It combines day-to-day money tracking with budgeting, goals, recurring transactions, analytics, notifications, AI-assisted financial analysis, anomaly-aware forecasting, professional monthly PDF reports, and production-oriented security controls.
+Personal finance, analytics, AI insights, reporting, and account security — in one dashboard.
 
-The project is designed to go beyond a basic CRUD finance tracker. FinTrack treats financial data as an integrated system: transactions update account balances, budgets react to spending, goals are evaluated against saving pace, recurring transactions generate real records, reports share the same analytical engine as the AI Assistant, and authentication is backed by revocable server-side sessions and security activity logging.
+FinTrack is a full-stack MERN personal finance platform for managing accounts, transactions, budgets, savings goals, recurring payments, analytics, reports, and financial health with a grounded AI Assistant.
 
-Table of Contents
+Tech stack: React 19 · Vite · Node.js · Express 5 · MongoDB Atlas · Mongoose · TanStack React Query · Tailwind CSS · Recharts · Gemini · Brevo · PDFKit
 
-Project Status
+Security: Email OTP · HttpOnly cookies · Server-side sessions · Session revocation · Security audit logs · CSRF protection · CORS allowlisting · Rate limiting
 
-Highlights
+Overview
 
-Feature Overview
+FinTrack was built to go beyond a basic CRUD finance tracker.
 
-Authentication and Account Security
+It combines:
 
-Dashboard and Analytics
+account and balance management
 
-Accounts
+income and expense tracking
 
-Transactions
+custom categories
 
-Categories
+monthly budgets
 
-Budgets
+savings goals
 
-Savings Goals
+recurring transactions
 
-Recurring Transactions
+analytics and reports
+
+notifications
+
+CSV export
+
+AI-powered financial insights
+
+anomaly-aware forecasting
+
+what-if financial simulations
+
+professional monthly PDF reports
+
+light and dark modes
+
+timezone-safe financial dates
+
+server-side session revocation
+
+security activity logging
+
+new-login email alerts
+
+production security hardening
+
+Key Highlights
+
+Area
+
+What FinTrack Provides
+
+Finance
+
+Accounts, transactions, categories, balances
+
+Analytics
+
+Cash flow, category breakdowns, savings rate
+
+Planning
+
+Budgets, savings goals, recurring transactions
+
+AI
+
+Grounded financial Assistant powered by Gemini
+
+Intelligence
+
+Spending anomalies, forecasts, simulations
+
+Reporting
+
+Downloadable monthly PDF financial reports
+
+Security
+
+OTP, session revocation, audit history
 
 Notifications
 
-Reports
+In-app alerts and security emails
 
-AI Assistant
+UX
 
-Monthly PDF Financial Report
+Responsive UI, light/dark mode, timezone-aware dates
 
-Settings and Personalization
+Production
 
-Security Architecture
+CORS, CSRF, rate limiting, health checks
 
-AI and Financial Intelligence
+Features
 
-System Architecture
+Dashboard
 
-Technology Stack
+The Dashboard gives a quick overview of the user's financial position.
 
-Project Structure
+Summary metrics
 
-Core Data Model
-
-API Reference
-
-Getting Started
-
-Environment Variables
-
-Available Scripts
-
-Testing and Verification
-
-Production Deployment
-
-Important Implementation Details
-
-Known Constraints
-
-Future Ideas
-
-Author
-
-Project Status
-
-Status: Feature-complete and deployment-ready after final regression/security hardening.
-
-FinTrack currently includes:
-
-Complete finance-management workflow
-
-Email OTP authentication
-
-Server-tracked revocable sessions
-
-Security activity logging
-
-New-login security alerts
-
-Analytics dashboard
-
-Budgeting and savings goals
-
-Recurring transaction automation
-
-Notification system
-
-AI financial assistant
-
-Spending anomaly detection
-
-Month-end financial forecasting
-
-What-if financial simulation
-
-Monthly PDF reporting
-
-Dark/light themes
-
-Timezone-aware financial date handling
-
-Production CORS, CSRF, rate limiting, environment validation, and health checks
-
-Highlights
-
-Grounded AI Assistant — answers questions using the authenticated user's real FinTrack data through controlled server-side financial tools.
-
-Anomaly-aware forecasting — avoids blindly extrapolating large one-off spending through the rest of the month.
-
-Cross-feature consistency — Transactions, Accounts, Budgets, Reports, Assistant calculations, Notifications, and PDF reports share the same underlying financial data.
-
-Server-side session revocation — a browser can be remotely logged out even if it still holds a previously issued JWT.
-
-Security activity timeline — successful logins, failed password attempts, failed OTP attempts, password changes, logout events, and session revocations are recorded without logging credentials or financial contents.
-
-Professional PDF reports — downloadable monthly financial documents with summaries, budget performance, goal snapshots, recurring activity, anomaly insights, and current-month forecasts.
-
-Timezone-safe finance dates — calendar dates are handled separately from timestamps to prevent transactions shifting days across timezones.
-
-Production hardening — Helmet, CORS allowlisting, CSRF protection, rate limiting, secure cookies, request-size limits, input validation, environment fail-fast checks, and MongoDB-aware health checks.
-
-Feature Overview
-
-Authentication and Account Security
-
-FinTrack uses a multi-stage email-based authentication flow.
-
-Registration
-
-User submits name, email, and password.
-
-Password is hashed with bcrypt.
-
-A registration OTP is generated.
-
-Only the OTP hash is stored.
-
-The verification code is sent through Brevo.
-
-Registration is completed after valid OTP verification.
-
-A server-managed authenticated session is created.
-
-Login
-
-User enters email and password.
-
-Password is verified.
-
-FinTrack sends a login OTP through email.
-
-The user submits the OTP.
-
-A server-side session is created.
-
-A JWT containing the session identifier is issued through a secure cookie.
-
-A new-login security email is sent.
-
-OTP Protections
-
-Configurable OTP expiration
-
-Resend cooldown
-
-Maximum OTP attempts
-
-Hashed OTP storage
-
-Authentication endpoint rate limiting
-
-Failed login OTP activity logging
-
-Password Management
-
-Users can change their password from Settings.
-
-A successful password change:
-
-updates the password hash
-
-updates passwordChangedAt
-
-revokes all existing active sessions
-
-clears the current auth cookie
-
-clears private frontend query state
-
-redirects the user to login
-
-records a security activity event
-
-Dashboard and Analytics
-
-The dashboard provides an overview of the user's financial position.
-
-Summary cards
-
-Total account balance
+Total balance
 
 Total income
 
@@ -214,27 +114,25 @@ Total expenses
 
 Overall savings rate
 
-Analytics visualizations
+Visual analytics
 
-Monthly cash-flow trend
+Cash-flow trend
 
-Income vs. expenses
+Income vs expenses
 
 Expense-category breakdown
 
 Category percentages
 
-Top expenses
-
 Account summary
 
-The category donut preserves the real financial percentages while giving extremely small categories a minimum visual slice so values such as ₹600 / 0.15% remain visible.
+Top expenses
+
+Very small categories remain visible in the expense donut without changing their real percentages.
 
 Accounts
 
-FinTrack supports multiple financial accounts.
-
-Supported account types
+FinTrack supports multiple account types:
 
 Bank
 
@@ -246,9 +144,9 @@ Wallet
 
 Investment
 
-Each account includes:
+Each account stores:
 
-name
+account name
 
 account type
 
@@ -262,21 +160,17 @@ color
 
 archive state
 
-Account integrity behavior
+Transaction creation, editing, and deletion update account balances consistently.
 
-Transaction mutations update account balances consistently.
+Archive safety
 
-When editing or deleting historical transactions, FinTrack correctly reverses previous balance effects before applying new ones.
+An account cannot be archived while an active recurring transaction still depends on it.
 
-An account cannot be archived while an active recurring transaction still depends on it. The recurring schedule must first be paused, updated, or removed.
-
-Historical transactions attached to an account remain editable even if that account is later archived.
+Historical transactions remain valid even if their original account is later archived.
 
 Transactions
 
-Transactions are the core financial records in FinTrack.
-
-Each transaction supports:
+Transactions support:
 
 Income or expense
 
@@ -288,7 +182,7 @@ Account
 
 Category
 
-Transaction date
+Date
 
 Payment method
 
@@ -296,41 +190,19 @@ Tags
 
 Notes
 
-Optional recurring-transaction linkage
-
-Supported payment methods
-
-Cash
-
-UPI
-
-Card
-
-Bank transfer
-
-Cheque
-
-Other
-
-Transaction features
-
-Add transaction
-
-Edit transaction
-
-Delete transaction
+Transaction tools
 
 Search
 
-Filter by type
+Type filters
 
-Filter by account
+Account filters
 
-Filter by category
+Category filters
 
-Date-range filtering
+Date ranges
 
-Sort controls
+Sorting
 
 Pagination
 
@@ -338,49 +210,27 @@ Quick date ranges
 
 CSV export
 
-Quick transaction templates
+Saved quick templates
 
-Search and pagination behavior
+Search is debounced to avoid unnecessary API requests.
 
-Search is debounced to avoid one server request per keystroke.
-
-Pagination automatically corrects itself if deleting records removes the current last page.
-
-Bulk selections are cleared when filters/pages change to avoid hidden selected records.
-
-The UI shows explicit result ranges such as:
-
-Showing 21–30 of 46 · Page 3 of 5
+Pagination automatically repairs itself when deleting records makes the current page invalid.
 
 CSV export
 
-CSV export fetches all matching transaction pages, not only the first 100 records.
+CSV export fetches all matching records, not only the first 100.
 
-The export also neutralizes spreadsheet formula prefixes in user-controlled text to reduce CSV formula-injection risk when opened in spreadsheet software.
-
-Quick Templates
-
-Transaction templates are stored locally and scoped by authenticated user ID:
-
-fintrack_transaction_templates:<user-id>
-
-This prevents templates from one FinTrack account appearing in another account on the same browser.
+User-controlled text is also protected against spreadsheet formula injection.
 
 Categories
 
-FinTrack includes income and expense categories.
+FinTrack includes default and custom categories for income and expenses.
 
-Default income categories
+Examples include:
 
 Salary
 
 Freelance
-
-Investment
-
-Refund
-
-Default expense categories
 
 Food
 
@@ -402,21 +252,17 @@ Investment
 
 Other
 
-Users can also create custom categories.
+Categories support:
 
-Categories include:
+custom names
 
-name
+icons
 
-income/expense type
+colors
 
-icon
-
-color
+type
 
 display order
-
-default/custom state
 
 archive state
 
@@ -424,25 +270,15 @@ A category cannot be archived while an active recurring schedule still depends o
 
 Budgets
 
-Budgets are monthly, category-specific spending limits.
-
-Each budget includes:
-
-category
-
-month
-
-amount
-
-note
+Users can create monthly category-specific spending limits.
 
 FinTrack calculates:
 
-amount spent
+spent amount
 
-amount remaining
+remaining amount
 
-percentage used
+usage percentage
 
 over-budget state
 
@@ -450,41 +286,39 @@ unbudgeted spending
 
 projected month-end usage
 
+projected overage
+
 pace risk
 
 projection confidence
 
 Anomaly-aware budget pace
 
-Budget forecasting does not blindly repeat anomalous spending.
+FinTrack does not blindly extrapolate large one-time expenses.
 
-Example:
+For example:
 
 Investment budget: ₹5,00,000
 Current spend:     ₹4,00,000
-Actual usage:      80%
+Usage:             80%
 
-If the ₹4,00,000 expense is identified as a one-off/anomalous outlay, FinTrack can keep the projected usage near the actual 80% rather than linearly extrapolating that expense into an unrealistic >200% month-end projection.
+If the ₹4,00,000 expense is identified as a one-off event, FinTrack can include it once instead of repeating that spending pace through the rest of the month.
 
-Budget pace risk is recalculated after anomaly adjustment, ensuring:
+This keeps budget risk consistent across:
 
-Budgets page
+Budgets
+
+Reports
 
 Financial Health
 
-AI Assistant
+AI forecasts
 
-Forecasting
-
-Monthly PDF report
-
-all describe the same projected risk state.
+PDF reports
 
 Savings Goals
 
-Users can create financial goals with:
-
-name
+Savings goals support:
 
 target amount
 
@@ -494,33 +328,27 @@ target date
 
 note
 
-color
-
 icon
+
+color
 
 FinTrack calculates:
 
 completion percentage
 
-remaining amount
+amount remaining
 
 days remaining
 
 overdue status
 
-estimated contribution requirements
+required saving pace
 
-portfolio-level goal progress
-
-Goal calculations use the user's configured FinTrack timezone.
-
-Goal milestone events can also create notifications.
+Goal date calculations use the user's configured timezone.
 
 Recurring Transactions
 
-Recurring transactions automate repeated income and expense records.
-
-Supported frequencies
+Supported frequencies:
 
 Daily
 
@@ -536,19 +364,13 @@ account
 
 category
 
-type
-
 amount
 
-title
-
-notes
+transaction type
 
 payment method
 
 tags
-
-interval
 
 start date
 
@@ -558,99 +380,131 @@ next run date
 
 last run date
 
-active/paused state
+active or paused state
 
-Processing
+Recurring safety
 
-FinTrack supports:
+FinTrack includes:
 
-Process all due recurring transactions
+process-all-due support
 
-Process an individual recurring schedule
+process-one support
 
-Pause/update/delete recurring schedules
-
-Generated transactions are linked back to the recurring schedule.
-
-A unique recurring-occurrence constraint prevents the same scheduled occurrence from being generated twice.
-
-Calendar correctness
-
-Recurring schedule arithmetic uses calendar-safe date logic, including:
+duplicate-occurrence protection
 
 month-end clamping
 
 leap-year handling
 
-timezone-aware "today"
-
-compatibility normalization for older local-midnight recurring dates
+timezone-aware due dates
 
 Notifications
 
-FinTrack has an in-app notification system with:
+FinTrack supports:
 
 Budget alerts
 
 Goal alerts
 
-Recurring transaction alerts
+Recurring alerts
 
 System notifications
 
-Notifications support:
+Notifications can include:
 
-unread state
+title
 
-mark one as read
+message
 
-mark all as read
+action URL
 
-action URLs
+read/unread status
 
 metadata
 
 deduplication keys
 
-The notification bell can refresh immediately after relevant actions rather than waiting only for the periodic polling fallback.
-
-Email copies can be configured from Settings for normal financial notifications.
-
-Security login emails are intentionally independent of the normal finance-email preference.
+The notification bell can refresh immediately after relevant actions, while polling remains a fallback.
 
 Reports
 
-The Reports module provides analytical views over financial activity.
+The Reports workspace supports:
 
-Report functionality includes:
+This month
 
-period-based financial summaries
+Last month
 
-spending by category
+Last 3 months
 
-cash-flow analytics
+Year to date
 
-budget performance
+Custom ranges
 
-account summaries
+Report analytics include:
 
-transaction comparisons
+Income
 
-historical period analysis
+Expenses
 
-Report and Dashboard queries are invalidated when upstream financial data changes so users do not need a hard refresh to see updated values.
+Net savings
+
+Savings rate
+
+Spending by category
+
+Budget performance
+
+Account summaries
+
+Historical comparisons
+
+Monthly PDF Financial Report
+
+FinTrack generates downloadable monthly PDF reports using PDFKit.
+
+Reports can include:
+
+Executive summary
+
+Income and expense totals
+
+Net savings
+
+Savings rate
+
+Category breakdown
+
+Budget performance
+
+Unbudgeted spending
+
+Transaction highlights
+
+Account snapshot
+
+Goal progress
+
+Recurring activity
+
+Spending anomalies
+
+Current-month forecast
+
+Financial insights
+
+Report limitations
+
+Current-month PDF forecasts use the same financial intelligence logic as the AI Assistant.
 
 AI Assistant
 
-FinTrack includes a grounded AI Assistant powered through Gemini.
+FinTrack includes a grounded AI Assistant powered by Google Gemini.
 
-The Assistant does not receive unrestricted database access.
+Gemini does not receive unrestricted database access.
 
-Instead, the server exposes controlled financial tools that return scoped data for the authenticated user.
+Instead, FinTrack exposes controlled tools that retrieve authenticated financial data and perform deterministic calculations.
 
-Assistant toolset
-
-FinTrack currently supports tools for:
+Assistant tools
 
 get_financial_overview
 get_account_balances
@@ -670,9 +524,11 @@ Example questions
 
 How am I doing financially this month?
 
+Where am I spending the most?
+
 Am I on track with my current budgets?
 
-What spending looks unusual or out of pattern this month?
+What spending looks unusual this month?
 
 How am I projected to finish this month?
 
@@ -680,167 +536,135 @@ What if I spend ₹25,000 more this month?
 
 Review my savings goals and priorities.
 
-Where am I spending the most?
+Grounded response flow
 
-How does this month compare with last month?
+User question
+     ↓
+Assistant API
+     ↓
+FinTrack financial tools
+     ↓
+Deterministic calculations
+     ↓
+Gemini explanation
+     ↓
+Response normalization
+     ↓
+Readable answer + FinTrack metric cards
 
-Grounded response design
+The financial numbers come from FinTrack's own calculations. Gemini is used to explain and contextualize the results.
 
-The Assistant combines:
+Financial Intelligence
 
-deterministic FinTrack calculations
+Spending anomaly detection
 
-controlled financial tools
+FinTrack can detect signals such as:
 
-Gemini-generated explanation
+unusually large expenses
 
-The application builds authoritative metric cards from FinTrack data instead of trusting the model to invent financial metrics.
+category concentration
 
-Structured model responses are normalized defensively so raw JSON/code-fenced payloads are not exposed directly in the chat interface.
+new category activity
 
-Assistant rate limiting
+spending changes
 
-Assistant requests are rate-limited per authenticated FinTrack account.
+sparse historical baselines
 
-Monthly PDF Financial Report
+unusual activity relative to comparable periods
 
-FinTrack can generate a professional monthly financial report using PDFKit.
+An anomaly means unusual compared with available FinTrack history. It does not automatically mean fraud.
 
-Reports can be generated for current or historical months.
+Anomaly-aware forecasting
 
-The PDF can include:
+A basic financial forecast might use:
 
-Executive summary
+month-to-date spending
+÷ elapsed days
+× days in month
 
-Income / expense / savings overview
+That can produce unrealistic results when a large one-time purchase occurs early in a month.
 
-Category spending breakdown
+FinTrack instead considers:
 
-Budget performance
+already-incurred spending
 
-Unbudgeted spending
+high-severity unusual transactions
 
-Transaction highlights
+routine non-anomalous spending pace
 
-Account snapshot
+historical expense baselines
 
-Goal snapshot
+recurring items still due
 
-Recurring activity
+Large one-off expenses are included once instead of automatically being repeated through the remaining days.
 
-Current-month forecast
+What-if simulations
 
-Spending anomalies/pattern signals
+The Assistant can evaluate hypothetical scenarios without changing real records.
 
-Financial insights
+Example:
 
-Report notes and analytical limitations
+What if I spend ₹25,000 more this month?
 
-Shared forecast engine
+FinTrack can estimate the effect on:
 
-For the current month, the PDF uses the same hardened forecast engine used by the AI Assistant.
+Expenses
 
-This prevents the Assistant and PDF report from producing unrelated month-end forecasts.
+Net savings
 
-Historical-report transparency
+Savings rate
 
-FinTrack explicitly distinguishes true historical records from current snapshots.
+Budget pressure
 
-For example:
-
-transactions can be reconstructed historically
-
-account balances are current snapshots unless historical balance snapshots exist
-
-goal progress is a generation-time snapshot
-
-forecasts are directional estimates
-
-These limitations are stated in the generated report instead of implying unavailable historical data exists.
-
-Settings and Personalization
-
-Settings include:
-
-Profile
-
-Full name
-
-Preferred currency
-
-Timezone
-
-Locale-related formatting
-
-Supported currencies currently include:
-
-INR
-
-USD
-
-EUR
-
-GBP
-
-Theme
-
-Light mode
-
-Dark mode
-
-Theme preference is saved locally and applied across FinTrack.
-
-Native date inputs use theme-aware browser color schemes so the calendar picker icon remains visible in both light and dark mode.
-
-Notification preferences
-
-Users can configure finance-related notification behavior.
-
-Password
-
-Secure password-change flow with global session invalidation.
+Month-end projection
 
 Security
 
-Phase 16 adds:
+Security is a major part of FinTrack's final architecture.
+
+Authentication
+
+FinTrack uses:
+
+Password authentication
+
+bcrypt password hashing
+
+Email OTP verification
+
+Hashed OTP storage
+
+OTP expiry
+
+OTP resend cooldown
+
+OTP attempt limits
+
+Secure authentication cookies
+
+Server-side authenticated sessions
+
+Login flow
+
+Email + password
+        ↓
+Password verification
+        ↓
+Email OTP
+        ↓
+OTP verification
+        ↓
+Server-managed session
+        ↓
+JWT cookie
 
 Active Sessions
 
-Current-device identification
+Every authenticated login creates a server-side session containing:
 
-Individual session revocation
+session identifier
 
-Log out all other devices
-
-Security Activity timeline
-
-New-login security alerts
-
-Security Architecture
-
-Security is a major part of the final FinTrack design.
-
-Password Security
-
-Passwords are hashed using:
-
-bcrypt cost factor: 12
-
-Passwords are never returned through normal User JSON serialization.
-
-JWT + Server-Side Session Model
-
-FinTrack combines signed JWT authentication with a server-maintained UserSession.
-
-A successful authenticated login creates a session containing:
-
-random session ID
-
-user ID
-
-IP/network address
-
-user agent
+user
 
 browser
 
@@ -848,57 +672,43 @@ operating system
 
 device type
 
-creation time
+network address
 
-last-seen time
+created time
 
-expiration
+last active time
 
-revocation state
+expiry
 
-The JWT contains the session identifier.
+revocation status
 
-Every protected request verifies:
+Every protected request verifies both:
 
-JWT validity
+the signed JWT
 
-authenticated user existence
+the matching active server session
 
-password-change validity
+This means an already-issued JWT becomes unusable once its server session is revoked.
 
-server-side session existence
+Users can
 
-server-side session active state
+view active devices
 
-session expiration
+identify the current session
 
-This means a server-side session revocation invalidates an already-issued JWT on the next protected request.
-
-Active Session Management
-
-Settings shows active authenticated devices.
-
-Users can:
-
-identify the current browser/session
-
-revoke another individual session
+revoke another device
 
 log out all other devices
 
-A revoked browser is redirected to login when it next accesses a protected resource.
+Security Activity
 
-MongoDB TTL indexing automatically removes expired session records.
+FinTrack records non-sensitive authentication and session events.
 
-Security Activity Log
-
-Security events include:
-
-Registration success
+Examples:
 
 Successful login
 
-Failed password login
+Failed password attempt
 
 Failed login OTP
 
@@ -910,331 +720,103 @@ Other sessions revoked
 
 Logout
 
-Security records include operational context such as:
+Security events can include:
 
-browser
+Browser
 
-operating system
+Operating system
 
-device type
+Device type
 
-network address
+Network address
 
-timestamp
+Time
 
-Sensitive values are intentionally excluded.
+FinTrack does not log:
 
-FinTrack does not write these into security event records:
-
-password values
+Password values
 
 OTP values
 
 JWT strings
 
-transaction contents
+Transaction contents
 
-financial notes/details
+Private financial notes
 
-Login Security Alerts
+Login Security Emails
 
-Every successful password + OTP login can send a Brevo security email containing:
+Successful authenticated logins trigger a Brevo security alert.
 
-device type
+The email can include:
 
-browser
+Browser
 
-operating system
+Operating system
 
-network address
+Device type
 
-login time
+Network address
 
-link to FinTrack Settings
+Login time
 
-A temporary email-provider failure does not invalidate an otherwise successful authenticated login.
+Link to Security Settings
 
-Secure Cookies
+A temporary email-provider failure does not block an otherwise valid login.
 
-Production authentication uses an HttpOnly secure cookie.
+Additional Security Hardening
 
-This reduces direct JavaScript access to authentication credentials.
+FinTrack also includes:
 
-Production requires HTTPS because secure cookies are enabled.
+HttpOnly auth cookies
 
-CSRF Protection
+Secure production cookies
 
-FinTrack validates the Origin / Referer of unsafe cookie-authenticated requests.
+CSRF Origin/Referer validation
 
-Protected mutation methods include:
+CORS allowlisting
 
-POST
-PATCH
-PUT
-DELETE
+Helmet security headers
 
-Trusted frontend origins come from the configured client-origin allowlist.
+Zod request validation
 
-This complements CORS rather than assuming CORS alone prevents cross-site cookie submissions.
+Request-body limits
 
-CORS
+Auth rate limiting
 
-Frontend origins are normalized and allowlisted.
+AI Assistant rate limiting
 
-CLIENT_URL can contain one or multiple comma-separated origins.
+PDF report rate limiting
 
-Example:
+Production environment validation
 
-CLIENT_URL=https://fintrack.example.com,https://preview.fintrack.example.com
+Password-change session revocation
 
-HTTP Hardening
+Private frontend cache clearing after authentication changes
 
-The Express application uses:
+MongoDB-aware API health checks
 
-helmet
+Light and Dark Mode
 
-disabled X-Powered-By
+FinTrack includes light and dark themes across the application.
 
-JSON body-size limits
+Theme preference is stored locally.
 
-URL-encoded body-size limits
+The UI includes theme-specific fixes for:
 
-centralized validation
+Native date-picker icons
 
-centralized error handling
+Month-picker icons
 
-Current request-body limit:
+Chart contrast
 
-10 KB
+Small category donut slices
 
-Rate Limiting
+Borders
 
-Authentication
+Surface colors
 
-Public registration/login/OTP endpoints are network/IP rate-limited.
-
-Defaults:
-
-60 requests / 15 minutes
-
-AI Assistant
-
-Authenticated AI requests are rate-limited per FinTrack account.
-
-Defaults:
-
-120 requests / 15 minutes
-
-PDF Reports
-
-Monthly report downloads are rate-limited per authenticated account.
-
-Validation
-
-FinTrack uses Zod schemas for API validation.
-
-Validation covers areas such as:
-
-Object IDs
-
-transaction types
-
-dates
-
-pagination
-
-sorting
-
-account/category data
-
-budget months
-
-goal values
-
-recurring schedules
-
-Assistant prompts
-
-security activity queries
-
-Settings updates
-
-Production Environment Validation
-
-The backend fails fast when required production configuration is missing.
-
-Important production variables include:
-
-MongoDB URI
-
-sufficiently strong JWT secret
-
-client frontend origin
-
-Brevo credentials
-
-Gemini API key
-
-Frontend Cache Isolation
-
-Private React Query state is cleared when authentication boundaries change, including:
-
-logout
-
-password invalidation
-
-protected-request 401
-
-transition to a different authenticated user
-
-This prevents cached finance data from Account A being briefly reused after Account B logs in within the same SPA/browser.
-
-AI and Financial Intelligence
-
-FinTrack's AI layer is designed around deterministic financial calculations first and natural-language explanation second.
-
-Spending Pattern Analysis
-
-The spending-pattern engine can identify:
-
-large spending concentrations
-
-new category activity
-
-unusual amounts
-
-changes relative to comparable historical windows
-
-categories without sufficient historical baselines
-
-Signals are contextualized relative to the actual FinTrack history available.
-
-A signal marked unusual does not imply fraud or unauthorized activity.
-
-Anomaly-Aware Forecasting
-
-A naive forecast could use:
-
-month-to-date spending / elapsed days × days in month
-
-That works poorly when a large one-time purchase occurs early in a month.
-
-FinTrack instead separates:
-
-already incurred spending
-
-anomalous / high-severity one-off spending
-
-routine non-anomalous pace
-
-historical expense baselines where meaningful
-
-known recurring items still due
-
-One-off spending is included in the month exactly once rather than automatically repeated through every remaining day.
-
-Forecast ranges also respect already-recorded totals.
-
-Forecast Confidence
-
-Forecasts expose confidence rather than presenting an estimate as certainty.
-
-Confidence can be reduced when:
-
-limited history exists
-
-unusual spending dominates the current period
-
-baseline months are sparse
-
-spending patterns are structurally different
-
-What-If Simulation
-
-The Assistant can evaluate hypothetical financial changes without altering real records.
-
-Example:
-
-What if I spend ₹25,000 more this month?
-
-Scenario results can estimate effects on:
-
-total expenses
-
-net savings
-
-savings rate
-
-budget pressure
-
-projected month-end outcome
-
-System Architecture
-
-flowchart LR
-    Browser[React + Vite Client]
-    API[Express API]
-    Auth[Auth / Session Layer]
-    Services[Domain Services]
-    AI[Assistant Orchestrator]
-    Gemini[Gemini API]
-    Email[Brevo Email]
-    PDF[PDFKit]
-    DB[(MongoDB Atlas)]
-
-    Browser -->|Axios + credentials| API
-    API --> Auth
-    Auth --> DB
-    API --> Services
-    Services --> DB
-    API --> AI
-    AI --> Services
-    AI --> Gemini
-    Services --> Email
-    API --> PDF
-    PDF --> Services
-
-Request Flow
-
-A typical protected finance request follows:
-
-React UI
-  ↓
-Axios API client
-  ↓
-Express route
-  ↓
-JWT + server-session authentication
-  ↓
-Zod validation
-  ↓
-Controller
-  ↓
-Domain service
-  ↓
-MongoDB
-  ↓
-Structured API response
-  ↓
-React Query cache/UI
-
-AI requests add a controlled tool-orchestration layer:
-
-User question
-  ↓
-Assistant route
-  ↓
-Authenticated FinTrack user
-  ↓
-Intent/tool routing
-  ↓
-Authoritative FinTrack tool data
-  ↓
-Gemini explanation
-  ↓
-Response normalization
-  ↓
-Structured cards + readable narrative
+Text contrast
 
 Technology Stack
 
@@ -1246,39 +828,39 @@ Purpose
 
 React 19
 
-Component-based UI
+UI
 
 Vite
 
-Development server and production build
+Development and builds
 
 React Router
 
-SPA routing
+Routing
 
 TanStack React Query
 
-Server-state caching/invalidation
+Server-state caching
 
 Axios
 
-HTTP client
+API requests
 
 React Hook Form
 
-Form state
+Forms
 
 Zod
 
-Client validation
+Validation
 
 Recharts
 
-Charts and analytics
+Charts
 
 Tailwind CSS
 
-Styling utility pipeline
+Styling
 
 Lucide React
 
@@ -1286,7 +868,7 @@ Icons
 
 React Hot Toast
 
-User feedback
+Feedback
 
 date-fns
 
@@ -1300,59 +882,47 @@ Purpose
 
 Node.js
 
-Server runtime
+Runtime
 
 Express 5
 
 REST API
 
-MongoDB
+MongoDB Atlas
 
-Primary database
+Database
 
 Mongoose
 
-ODM and schema/index management
-
-JWT
-
-Signed authentication token
+ODM
 
 bcryptjs
 
 Password hashing
 
+jsonwebtoken
+
+JWT authentication
+
 Zod
 
-Request validation
+API validation
 
 Helmet
 
 HTTP security headers
 
-CORS
-
-Frontend origin control
-
-cookie-parser
-
-Auth-cookie parsing
-
 express-rate-limit
 
-Abuse/rate protection
+Rate limiting
 
 PDFKit
 
-Monthly PDF generation
-
-Axios
-
-External API requests
+PDF reports
 
 Morgan
 
-Development request logging
+Development logging
 
 External Services
 
@@ -1360,28 +930,28 @@ Service
 
 Purpose
 
-MongoDB Atlas
+Google Gemini
 
-Managed database
+AI explanations
 
 Brevo
 
-OTP, notification and security emails
+OTP and security emails
 
-Google Gemini
+MongoDB Atlas
 
-AI Assistant language generation
+Cloud database
 
 Project Structure
 
 fintrack/
+│
 ├── client/
 │   ├── public/
 │   │   └── fintrack-logo.png
+│   │
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── axios.js
-│   │   ├── assets/
 │   │   ├── components/
 │   │   │   ├── dashboard/
 │   │   │   ├── goals/
@@ -1390,24 +960,13 @@ fintrack/
 │   │   │   ├── reports/
 │   │   │   └── transactions/
 │   │   ├── context/
-│   │   │   ├── AuthContext.jsx
-│   │   │   └── ThemeContext.jsx
 │   │   ├── hooks/
 │   │   ├── layouts/
 │   │   ├── pages/
-│   │   │   ├── AccountsPage.jsx
-│   │   │   ├── AssistantPage.jsx
-│   │   │   ├── BudgetsPage.jsx
-│   │   │   ├── CategoriesPage.jsx
-│   │   │   ├── DashboardPage.jsx
-│   │   │   ├── GoalsPage.jsx
-│   │   │   ├── RecurringPage.jsx
-│   │   │   ├── ReportsPage.jsx
-│   │   │   ├── SettingsPage.jsx
-│   │   │   └── TransactionsPage.jsx
 │   │   ├── routes/
 │   │   ├── services/
 │   │   └── utils/
+│   │
 │   ├── .env.example
 │   └── package.json
 │
@@ -1423,651 +982,13 @@ fintrack/
 │   │   ├── scripts/
 │   │   ├── services/
 │   │   ├── utils/
-│   │   ├── validators/
-│   │   ├── app.js
-│   │   └── server.js
+│   │   └── validators/
+│   │
 │   ├── .env.example
 │   └── package.json
 │
-├── .gitignore
 ├── package.json
 └── README.md
-
-Core Data Model
-
-User
-
-Stores:
-
-profile identity
-
-email
-
-password hash
-
-preferred currency
-
-timezone
-
-locale
-
-notification preferences
-
-email-verification state
-
-OTP hashes/expiration/attempt counters
-
-last login
-
-password-change timestamp
-
-Account
-
-Stores:
-
-owner
-
-name
-
-account type
-
-balance
-
-currency
-
-visual metadata
-
-archive state
-
-Category
-
-Stores:
-
-owner
-
-name
-
-income/expense type
-
-icon/color
-
-display order
-
-default/custom state
-
-archive state
-
-Transaction
-
-Stores:
-
-owner
-
-account
-
-category
-
-income/expense type
-
-amount
-
-title
-
-note
-
-calendar date
-
-payment method
-
-tags
-
-recurring link
-
-Budget
-
-Stores one category budget per user/month.
-
-Unique constraint:
-
-user + category + month
-
-Goal
-
-Stores:
-
-target amount
-
-current amount
-
-target date
-
-note
-
-presentation metadata
-
-RecurringTransaction
-
-Stores:
-
-account/category
-
-amount/type
-
-schedule frequency
-
-interval
-
-next run date
-
-last run date
-
-active state
-
-Notification
-
-Stores:
-
-notification type
-
-title/message
-
-action route
-
-metadata
-
-deduplication key
-
-read state
-
-UserSession
-
-Stores the server-managed authenticated session.
-
-Expired sessions are removed using a TTL index.
-
-SecurityEvent
-
-Stores non-sensitive authentication and session security events.
-
-API Reference
-
-Base development URL:
-
-http://localhost:5000/api
-
-All finance/security/settings routes require authentication unless explicitly noted.
-
-Authentication
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/auth/register
-
-Begin registration
-
-POST
-
-/auth/verify-registration-otp
-
-Verify registration OTP
-
-POST
-
-/auth/resend-registration-otp
-
-Resend registration OTP
-
-POST
-
-/auth/login
-
-Verify email/password and begin login OTP
-
-POST
-
-/auth/verify-login-otp
-
-Verify login OTP and create managed session
-
-POST
-
-/auth/resend-login-otp
-
-Resend login OTP
-
-POST
-
-/auth/logout
-
-Revoke current session and logout
-
-GET
-
-/auth/me
-
-Get current authenticated user
-
-Accounts
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/accounts
-
-Create account
-
-GET
-
-/accounts
-
-List accounts
-
-GET
-
-/accounts/:accountId
-
-Get one account
-
-PATCH
-
-/accounts/:accountId
-
-Update account
-
-PATCH
-
-/accounts/:accountId/archive
-
-Archive account
-
-Categories
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/categories
-
-Create category
-
-GET
-
-/categories
-
-List categories
-
-GET
-
-/categories/:categoryId
-
-Get category
-
-PATCH
-
-/categories/:categoryId
-
-Update category
-
-PATCH
-
-/categories/:categoryId/archive
-
-Archive category
-
-Transactions
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/transactions
-
-Create transaction
-
-GET
-
-/transactions
-
-List/search/filter/paginate transactions
-
-GET
-
-/transactions/:transactionId
-
-Get transaction
-
-PATCH
-
-/transactions/:transactionId
-
-Update transaction
-
-DELETE
-
-/transactions/:transactionId
-
-Delete transaction
-
-Analytics
-
-Method
-
-Endpoint
-
-Description
-
-GET
-
-/analytics/overview
-
-Financial overview
-
-GET
-
-/analytics/category-breakdown
-
-Category spending data
-
-GET
-
-/analytics/monthly-trend
-
-Monthly income/expense trend
-
-GET
-
-/analytics/top-expenses
-
-Top expense transactions
-
-GET
-
-/analytics/account-summary
-
-Account summary
-
-Budgets
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/budgets
-
-Create monthly category budget
-
-GET
-
-/budgets
-
-List budgets
-
-GET
-
-/budgets/:budgetId
-
-Get budget
-
-PATCH
-
-/budgets/:budgetId
-
-Update budget
-
-DELETE
-
-/budgets/:budgetId
-
-Delete budget
-
-Goals
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/goals
-
-Create goal
-
-GET
-
-/goals
-
-List goals
-
-GET
-
-/goals/:goalId
-
-Get goal
-
-PATCH
-
-/goals/:goalId
-
-Update goal
-
-DELETE
-
-/goals/:goalId
-
-Delete goal
-
-Recurring Transactions
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/recurring
-
-Create recurring schedule
-
-GET
-
-/recurring
-
-List recurring schedules
-
-POST
-
-/recurring/process
-
-Process all due schedules
-
-POST
-
-/recurring/:recurringId/process
-
-Process one schedule
-
-GET
-
-/recurring/:recurringId
-
-Get schedule
-
-PATCH
-
-/recurring/:recurringId
-
-Update schedule
-
-DELETE
-
-/recurring/:recurringId
-
-Delete schedule
-
-Notifications
-
-Method
-
-Endpoint
-
-Description
-
-GET
-
-/notifications
-
-List notifications
-
-PATCH
-
-/notifications/read-all
-
-Mark all as read
-
-PATCH
-
-/notifications/:notificationId/read
-
-Mark one as read
-
-AI Assistant
-
-Method
-
-Endpoint
-
-Description
-
-POST
-
-/assistant/chat
-
-Ask a grounded financial question
-
-Assistant requests are authenticated and account-rate-limited.
-
-Reports
-
-Method
-
-Endpoint
-
-Description
-
-GET
-
-/reports/monthly-pdf
-
-Download a monthly financial PDF
-
-Security
-
-Method
-
-Endpoint
-
-Description
-
-GET
-
-/security/sessions
-
-Get active sessions
-
-DELETE
-
-/security/sessions/:sessionId
-
-Revoke another session
-
-POST
-
-/security/sessions/revoke-others
-
-Revoke all sessions except current
-
-GET
-
-/security/activity
-
-Get security activity
-
-Settings
-
-Method
-
-Endpoint
-
-Description
-
-GET
-
-/settings
-
-Get settings
-
-PATCH
-
-/settings/profile
-
-Update profile preferences
-
-PATCH
-
-/settings/notifications
-
-Update notification preferences
-
-PATCH
-
-/settings/password
-
-Change password and revoke all sessions
-
-Health Check
-
-GET /api/health
-
-Healthy response requires MongoDB connectivity.
-
-Example:
-
-{
-  "success": true,
-  "message": "FinTrack API is working",
-  "environment": "production",
-  "database": "connected",
-  "timestamp": "..."
-}
-
-If the API process is alive but MongoDB is unavailable, the endpoint returns HTTP 503.
 
 Getting Started
 
@@ -2081,9 +1002,9 @@ npm
 
 Git
 
-MongoDB Atlas account or compatible MongoDB instance
+MongoDB Atlas access
 
-Brevo account with verified sender
+Brevo account
 
 Gemini API key
 
@@ -2094,21 +1015,14 @@ cd fintrack
 
 2. Install dependencies
 
-Install everything from the root:
-
 npm run install-all
 
-Or install each workspace separately:
+Or:
 
 npm install --prefix client
 npm install --prefix server
 
-For reproducible CI/deployment installs:
-
-npm ci --prefix client
-npm ci --prefix server
-
-3. Configure the frontend
+3. Configure frontend environment
 
 Create:
 
@@ -2118,13 +1032,13 @@ Development:
 
 VITE_API_URL=http://localhost:5000/api
 
-4. Configure the backend
+4. Configure backend environment
 
 Create:
 
 server/.env
 
-Example development configuration:
+Example:
 
 NODE_ENV=development
 PORT=5000
@@ -2133,6 +1047,7 @@ CLIENT_URL=http://localhost:5173
 TRUST_PROXY_HOPS=1
 
 MONGO_URI=your_mongodb_connection_string
+
 JWT_SECRET=replace_with_a_long_random_secret_at_least_32_characters
 JWT_EXPIRES_IN=30d
 
@@ -2148,186 +1063,34 @@ AUTH_RATE_LIMIT_MAX=60
 AUTH_RATE_LIMIT_WINDOW_MINUTES=15
 
 GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=your_primary_gemini_model
-GEMINI_FALLBACK_MODEL=your_fallback_gemini_model
+GEMINI_MODEL=your_primary_model
+GEMINI_FALLBACK_MODEL=your_fallback_model
 GEMINI_ENABLE_FALLBACK=true
 
 ASSISTANT_RATE_LIMIT_MAX=120
 ASSISTANT_RATE_LIMIT_WINDOW_MINUTES=15
 
-Never commit real .env credentials.
+Never commit real credentials.
 
 5. Start FinTrack
 
-From the root:
-
 npm run dev
 
-This starts both:
+Local services:
 
 Frontend: http://localhost:5173
 Backend:  http://localhost:5000
-
-You can also run them independently:
-
-npm run client
-npm run server
-
-Environment Variables
-
-Frontend
-
-VITE_API_URL
-
-Base API URL used by the React application.
-
-Development:
-
-VITE_API_URL=http://localhost:5000/api
-
-Production:
-
-VITE_API_URL=https://your-backend-domain.example/api
-
-Production builds intentionally fail clearly if this variable is missing.
-
-Backend
-
-Core
-
-Variable
-
-Description
-
-NODE_ENV
-
-development or production
-
-PORT
-
-Express server port
-
-CLIENT_URL
-
-Allowed frontend origin(s)
-
-TRUST_PROXY_HOPS
-
-Reverse proxy hop count in production
-
-MONGO_URI
-
-MongoDB connection string
-
-JWT_SECRET
-
-JWT signing secret
-
-JWT_EXPIRES_IN
-
-JWT/session lifetime
-
-Email / OTP
-
-Variable
-
-Description
-
-BREVO_API_KEY
-
-Brevo API key
-
-BREVO_SENDER_EMAIL
-
-Verified sender email
-
-BREVO_SENDER_NAME
-
-Sender display name
-
-OTP_EXPIRES_MINUTES
-
-OTP validity
-
-OTP_RESEND_COOLDOWN_SECONDS
-
-Minimum resend delay
-
-OTP_MAX_ATTEMPTS
-
-Maximum invalid attempts
-
-Authentication Rate Limits
-
-Variable
-
-Description
-
-AUTH_RATE_LIMIT_MAX
-
-Allowed auth attempts per window
-
-AUTH_RATE_LIMIT_WINDOW_MINUTES
-
-Auth limiter window
-
-AI Assistant
-
-Variable
-
-Description
-
-GEMINI_API_KEY
-
-Gemini API credential
-
-GEMINI_MODEL
-
-Primary model
-
-GEMINI_FALLBACK_MODEL
-
-Optional fallback model
-
-GEMINI_ENABLE_FALLBACK
-
-Enable/disable model fallback
-
-ASSISTANT_RATE_LIMIT_MAX
-
-AI request limit
-
-ASSISTANT_RATE_LIMIT_WINDOW_MINUTES
-
-AI rate window
 
 Available Scripts
 
 Root
 
 npm run install-all
-
-Installs client and server dependencies.
-
 npm run dev
-
-Runs frontend and backend concurrently.
-
 npm run client
-
-Runs Vite frontend.
-
 npm run server
-
-Runs backend with Nodemon.
-
 npm run build
-
-Builds the frontend.
-
 npm start
-
-Runs the production backend server.
 
 Client
 
@@ -2345,126 +1108,110 @@ npm run test:assistant --prefix server
 npm run test:report-pdf --prefix server
 npm run test:security --prefix server
 
-Testing and Verification
+Testing
 
-Before deployment, run:
+Before deployment:
 
 npm ci --prefix client
 npm ci --prefix server
 
 npm run build --prefix client
 npm run lint --prefix client
+
 npm run test:assistant --prefix server
 npm run test:report-pdf --prefix server
 npm run test:security --prefix server
 
-Assistant Regression Suite
+Test suites
 
-The Assistant suite verifies core financial-intelligence behavior, including anomaly-aware forecasting and budget risk consistency.
+Command
 
-Run:
+Coverage
 
-npm run test:assistant --prefix server
+test:assistant
 
-Monthly PDF Layout Test
+AI, forecast, anomaly, budget-risk regressions
 
-Run:
+test:report-pdf
 
-npm run test:report-pdf --prefix server
+Monthly PDF layout
 
-This is intended to catch report layout/clipping regressions.
+test:security
 
-Security Phase Test
+Sessions and security behavior
 
-Run:
+API Overview
 
-npm run test:security --prefix server
+All backend routes use:
 
-Phase 16 was also designed for live multi-browser verification.
+/api
 
-Useful manual tests:
+Authentication
 
-Individual session revocation
+POST /auth/register
+POST /auth/verify-registration-otp
+POST /auth/resend-registration-otp
 
-Login in Browser A.
+POST /auth/login
+POST /auth/verify-login-otp
+POST /auth/resend-login-otp
 
-Login in Browser B.
+POST /auth/logout
+GET  /auth/me
 
-Open Settings in Browser A.
+Finance
 
-Revoke Browser B.
+/accounts
+/categories
+/transactions
+/budgets
+/goals
+/recurring
+/analytics
+/notifications
 
-Navigate to a protected page in Browser B.
+Assistant and Reports
 
-Browser B should be returned to login.
+POST /assistant/chat
+GET  /reports/monthly-pdf
 
-Browser A should remain logged in.
+Settings and Security
 
-Log out other devices
+GET    /settings
+PATCH  /settings/profile
+PATCH  /settings/notifications
+PATCH  /settings/password
 
-Maintain multiple active sessions.
+GET    /security/sessions
+DELETE /security/sessions/:sessionId
+POST   /security/sessions/revoke-others
+GET    /security/activity
 
-Click Log out other devices.
+Health
 
-The current browser remains authenticated.
+GET /api/health
 
-Every other session becomes invalid.
-
-Failed password activity
-
-Attempt login using a valid account email and incorrect password.
-
-Login correctly afterward.
-
-Settings → Security Activity should show a warning event.
-
-Failed OTP activity
-
-Begin a valid login.
-
-Submit an incorrect OTP.
-
-Complete authentication with the correct OTP.
-
-Security Activity should contain the failed OTP event.
-
-Password global revocation
-
-Maintain two active sessions.
-
-Change password in one browser.
-
-Both sessions should become invalid.
-
-Login with the new password.
-
-Security Activity should show the password-change event.
+The health endpoint returns HTTP 503 if MongoDB is unavailable.
 
 Production Deployment
 
-FinTrack is structured as a separate frontend and backend deployment.
+FinTrack is designed for separate frontend and backend deployment.
 
 Recommended order
 
-Provision production MongoDB.
+1. Provision MongoDB Atlas
+2. Configure backend environment variables
+3. Deploy backend
+4. Verify /api/health
+5. Configure frontend VITE_API_URL
+6. Build and deploy frontend
+7. Run production smoke tests
 
-Configure backend environment variables.
+Production frontend
 
-Deploy backend.
+VITE_API_URL=https://your-backend-domain.example/api
 
-Verify:
-
-/api/health
-
-Configure frontend VITE_API_URL with the production backend /api URL.
-
-Build/deploy frontend.
-
-Verify registration/login/email/Assistant/PDF flows.
-
-Backend Production Variables
-
-At minimum, configure:
+Production backend
 
 NODE_ENV=production
 CLIENT_URL=https://your-frontend-domain.example
@@ -2472,344 +1219,137 @@ TRUST_PROXY_HOPS=1
 
 MONGO_URI=...
 JWT_SECRET=...
-JWT_EXPIRES_IN=30d
 
 BREVO_API_KEY=...
 BREVO_SENDER_EMAIL=...
-BREVO_SENDER_NAME=FinTrack
 
 GEMINI_API_KEY=...
 GEMINI_MODEL=...
 
-The production server performs fail-fast validation for critical configuration.
+Deployment requirements
 
-Frontend Production Variable
+Use HTTPS.
 
-VITE_API_URL=https://your-backend-domain.example/api
+Configure SPA rewrites to /index.html.
 
-HTTPS
+Set CLIENT_URL to the frontend origin.
 
-Production frontend and backend should both use HTTPS.
+Use /api/health as the backend health check.
 
-The production auth cookie is secure and should not be expected to work correctly over plain HTTP.
-
-SPA Rewrite
-
-The frontend uses React Router with browser routes including:
-
-/dashboard
-/accounts
-/categories
-/transactions
-/recurring
-/budgets
-/goals
-/reports
-/assistant
-/settings
-
-Your static hosting platform must rewrite unknown frontend routes to:
-
-/index.html
-
-Otherwise refreshing /assistant, /reports, etc. may produce a host-level 404.
-
-CORS
-
-CLIENT_URL must contain the frontend origin, not a page path.
-
-Correct:
-
-CLIENT_URL=https://fintrack.example.com
-
-Incorrect:
-
-CLIENT_URL=https://fintrack.example.com/dashboard
-
-Multiple trusted frontends can be comma-separated.
-
-Reverse Proxy
-
-When deploying behind a managed reverse proxy, configure:
-
-TRUST_PROXY_HOPS=1
-
-Adjust only if your host architecture requires a different number of trusted proxy hops.
-
-This matters for:
-
-rate limiting
-
-client IP context
-
-security activity information
+Deploy the backend before building the final frontend.
 
 Production Smoke Test
 
-After deployment verify:
+After deployment, verify:
 
-Register account
+Registration
 
-Receive registration OTP
+Registration OTP
 
-Login with password
+Login
 
-Receive login OTP
+Login OTP
 
-Receive new-login security email
+Login security email
 
-Create account
+Account CRUD
 
-Add transaction
-
-Edit transaction
-
-Delete transaction
-
-Create budget
-
-Create savings goal
-
-Process recurring transaction
-
-Trigger notification
-
-Ask AI Assistant question
-
-Generate current-month PDF
-
-Generate historical PDF
-
-Open Settings security sessions
-
-Revoke another session
-
-Refresh a protected route directly
-
-Verify /api/health
-
-Important Implementation Details
-
-Timezone and Date Handling
-
-Financial calendar dates are not treated as arbitrary UTC timestamps.
-
-FinTrack uses calendar-date utilities so a transaction entered for a specific date stays on that date when:
-
-displayed
-
-filtered
-
-exported
-
-reported
-
-viewed in another configured timezone
-
-The configured user timezone determines concepts such as:
-
-today
-
-current financial month
-
-goal time remaining
-
-recurring-due processing
-
-report current-month selection
-
-MongoDB Indexes and Integrity
-
-FinTrack uses targeted indexes for common user/date queries.
-
-Examples include:
-
-transactions by user/date
-
-transactions by account/date
-
-transactions by category/date
-
-active recurring schedules by next run
-
-notifications by user/time
-
-security events by user/time
-
-active sessions
-
-unique monthly category budgets
-
-Recurring occurrences also use a uniqueness constraint to reduce accidental duplicate processing.
-
-Archive Safety
-
-Accounts/categories used by active recurring schedules cannot be archived until the dependency is resolved.
-
-Historical transactions remain usable after archival.
-
-This separates:
-
-"Cannot be chosen for new activity"
-
-from:
-
-"Existing historical record becomes invalid"
-
-which protects historical integrity.
-
-React Query Invalidation
-
-Financial mutations invalidate dependent caches.
-
-Examples:
-
-Transaction changes can invalidate:
-
-Transactions
-
-Accounts
-
-Dashboard
+Transaction CRUD
 
 Budgets
 
-Reports
+Goals
 
-Account/category changes also invalidate relevant recurring/report/financial views.
+Recurring processing
 
-This avoids waiting for stale-time expiration before related pages reflect changes.
+Notification updates
 
-Assistant Timeout Design
+AI Assistant
 
-Normal API calls retain the standard shorter Axios timeout.
+Monthly PDF
 
-The /assistant/chat request has a longer endpoint-specific ceiling because grounded AI operations may involve:
+Active sessions
 
-financial tool calculation
+Remote session revocation
 
-provider inference
+Direct SPA route refresh
 
-response synthesis
+/api/health
 
-The entire application does not receive an unnecessarily large global timeout.
+Current Scope
 
-Notification Refresh
+FinTrack currently does not include:
 
-The frontend dispatches lightweight internal notification-change events after actions capable of generating alerts.
+Direct bank API synchronization
 
-The bell can therefore refresh immediately while polling remains a fallback.
+Live investment market data
 
-Known Constraints
+Receipt OCR
 
-These are intentional current limitations rather than hidden defects.
+Historical daily account balance snapshots
 
-No Bank API Synchronization
+Shared household accounts
 
-FinTrack currently uses user-entered financial records.
+Native mobile application
 
-It does not directly connect to bank accounts or card-provider APIs.
+These are intentionally outside the current v1 scope.
 
-No Historical Account-Balance Snapshots
+Possible Future Extensions
 
-Current account balances are available, but the system does not reconstruct a guaranteed historical month-end account balance for every past month.
-
-Monthly reports explicitly disclose this.
-
-Historical Goal State
-
-Goals are mutable records.
-
-Past reports therefore treat goal information as a report-generation snapshot rather than claiming an unavailable historical goal state.
-
-AI Forecasts Are Estimates
-
-Forecasts are directional financial estimates, not guarantees.
-
-They can change when:
-
-new transactions are added
-
-recurring transactions become due
-
-anomalies occur
-
-historical patterns change
-
-Security Device Information Is Lightweight
-
-Browser/device detection uses request metadata.
-
-FinTrack deliberately does not implement invasive browser fingerprinting or precise device geolocation.
-
-Local development may show:
-
-::1
-
-or:
-
-127.0.0.1
-
-as the network address.
-
-Future Ideas
-
-FinTrack is already feature-complete for its current scope, but possible future extensions could include:
+Possible v2 ideas:
 
 Bank/Open Banking integrations
 
-Investment portfolio market-price synchronization
+Receipt OCR
 
-Multi-currency conversion using live FX rates
+Investment market-price synchronization
 
-Receipt upload and OCR
-
-Data import from bank CSV formats
+Live multi-currency FX
 
 Passkeys/WebAuthn
 
 TOTP authenticator MFA
 
-Historical daily account-balance snapshots
+Docker support
+
+CI/CD
+
+Automated security scanning
 
 Shared household finance spaces
 
-Native/mobile client
-
-Docker deployment
-
-CI security scanning and automated deployment pipeline
-
-These are better treated as a future FinTrack version rather than prerequisites for the current release.
+Native mobile application
 
 Author
 
 Kartik Varma
 
-FinTrack was built as a full-stack portfolio project focused on practical software-engineering concerns beyond standard CRUD functionality, including:
+FinTrack was built as a portfolio-grade full-stack project focused on:
 
-authentication
+Architecture
 
-financial domain modeling
+Data integrity
 
-analytics
+Security
 
-data integrity
+Authentication
+
+Analytics
 
 AI grounding
 
-forecasting
+Forecasting
 
-reporting
+Reporting
 
-caching
+Caching
 
-security
+Session management
 
-session management
+Production readiness
 
-production hardening
+FinTrack
 
-Final Note
+Track smarter. Understand your finances. Make better decisions.
 
-FinTrack is intended as a personal-finance management and analytical tool. AI-generated explanations and forecasts are informational and should not be treated as professional financial advice.
+AI-generated explanations and forecasts are informational and should not be treated as professional financial advice.
