@@ -2,10 +2,14 @@ import axios from "axios";
 
 import { announceAuthSessionInvalidated } from "../utils/authEvents";
 
+const defaultApiUrl = import.meta.env.PROD
+  ? "/api"
+  : "http://localhost:5000/api";
+
 const api = axios.create({
   baseURL:
     import.meta.env.VITE_API_URL ||
-    "http://localhost:5000/api",
+    defaultApiUrl,
 
   withCredentials: true,
 

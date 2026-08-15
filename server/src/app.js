@@ -4,6 +4,8 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import mongoose from "mongoose";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import {
   getAllowedClientOrigins,
@@ -30,6 +32,13 @@ import settingsRoutes from "./routes/settings.routes.js";
 import transactionRoutes from "./routes/transaction.routes.js";
 
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(
+  __dirname,
+  "../../client/dist",
+);
 
 if (process.env.NODE_ENV === "production") {
   const configuredHops = Number.parseInt(
@@ -111,6 +120,16 @@ app.use("/api/recurring", recurringRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/security", securityRoutes);
 app.use("/api/settings", settingsRoutes);
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(clientDistPath));
+
+  app.get(/^(?!\/api(?:\/|$)).*/, (req, res) => {
+    res.sendFile(
+      path.join(clientDistPath, "index.html"),
+    );
+  });
+}
 
 app.use(notFound);
 app.use(errorHandler);
