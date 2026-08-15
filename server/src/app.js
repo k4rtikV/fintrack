@@ -86,12 +86,14 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "FinTrack backend is running",
+if (process.env.NODE_ENV === "development") {
+  app.get("/", (req, res) => {
+    res.status(200).json({
+      success: true,
+      message: "FinTrack backend is running",
+    });
   });
-});
+}
 
 app.get("/api/health", (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
