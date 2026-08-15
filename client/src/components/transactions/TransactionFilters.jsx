@@ -1,6 +1,7 @@
 import { CalendarDays, RotateCcw, Search } from "lucide-react";
 
 import Button from "../ui/Button";
+import NativeDateInput from "../ui/NativeDateInput";
 import {
   addDaysToDateKey,
   getDateKeyInTimeZone,
@@ -10,7 +11,6 @@ import {
 
 const fieldClassName =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
-
 
 const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, timezone }) => {
   const updateFilter = (key, value) => {
@@ -105,13 +105,36 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, 
           <span className="lg:sr-only">Reset</span>
         </Button>
 
-        <input aria-label="Start date" type="date" value={filters.startDate} max={filters.endDate || undefined} onChange={(event) => updateFilter("startDate", event.target.value)} className={`${fieldClassName} lg:col-span-2`} />
-        <input aria-label="End date" type="date" value={filters.endDate} min={filters.startDate || undefined} onChange={(event) => updateFilter("endDate", event.target.value)} className={`${fieldClassName} lg:col-span-2`} />
-        <select aria-label="Rows per page" value={filters.limit} onChange={(event) => updateFilter("limit", Number(event.target.value))} className={`${fieldClassName} lg:col-span-2`}>
-          <option value={10}>10 per page</option>
-          <option value={20}>20 per page</option>
-          <option value={50}>50 per page</option>
-        </select>
+        <label className="flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-slate-500 lg:col-span-2 dark:text-slate-400">
+          Start date
+          <NativeDateInput
+            type="date"
+            value={filters.startDate}
+            max={filters.endDate || undefined}
+            onChange={(event) => updateFilter("startDate", event.target.value)}
+            pickerLabel="Choose transaction start date"
+          />
+        </label>
+
+        <label className="flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-slate-500 lg:col-span-2 dark:text-slate-400">
+          End date
+          <NativeDateInput
+            type="date"
+            value={filters.endDate}
+            min={filters.startDate || undefined}
+            onChange={(event) => updateFilter("endDate", event.target.value)}
+            pickerLabel="Choose transaction end date"
+          />
+        </label>
+
+        <label className="flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-slate-500 lg:col-span-2 dark:text-slate-400">
+          Rows
+          <select aria-label="Rows per page" value={filters.limit} onChange={(event) => updateFilter("limit", Number(event.target.value))} className={fieldClassName}>
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
+          </select>
+        </label>
       </div>
     </div>
   );

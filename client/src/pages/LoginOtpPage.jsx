@@ -10,6 +10,7 @@ import OtpVerificationForm from "../components/forms/OtpVerificationForm";
 import useAuth from "../hooks/useAuth";
 
 import {
+  getCurrentUser,
   resendLoginOtp,
   verifyLoginOtp,
 } from "../services/authService";
@@ -37,6 +38,8 @@ const LoginOtpPage = () => {
   }
 
   const handleVerify = async (otp) => {
+    let otpAccepted = false;
+
     try {
       setIsSubmitting(true);
 
@@ -45,18 +48,41 @@ const LoginOtpPage = () => {
         otp,
       });
 
-      completeAuthentication(response.data.user);
+      otpAccepted = true;
+
+      // Do not report a completed login until the browser proves that it
+      // retained the HttpOnly session cookie and can use it on a protected
+      // request. This also catches browsers that block cross-site cookies.
+      const sessionResponse = await getCurrentUser();
+
+      completeAuthentication(sessionResponse.data.user);
 
       sessionStorage.removeItem(
         "fintrack_login_email",
       );
 
-      toast.success(response.message);
-
       navigate("/dashboard", {
         replace: true,
       });
+
+      toast.success(response.message);
     } catch (error) {
+      if (otpAccepted) {
+        sessionStorage.removeItem(
+          "fintrack_login_email",
+        );
+
+        navigate("/login", {
+          replace: true,
+        });
+
+        toast.error(
+          "Your OTP was accepted, but this browser did not retain the FinTrack session. Please try again after allowing site cookies.",
+        );
+
+        return;
+      }
+
       toast.error(
         getApiError(error, "OTP verification failed"),
       );

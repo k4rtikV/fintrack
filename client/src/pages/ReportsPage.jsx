@@ -13,6 +13,7 @@ import Button from "../components/ui/Button";
 import CategoryIcon from "../components/ui/CategoryIcon";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
+import NativeDateInput from "../components/ui/NativeDateInput";
 import useAuth from "../hooks/useAuth";
 import { downloadMonthlyPdf, getReportAnalytics } from "../services/reportService";
 import {
@@ -141,19 +142,22 @@ const ReportsPage = () => {
       title="Reports"
       description="Analyse financial activity across custom periods and download a professional monthly PDF report."
       action={
-        <div className="flex flex-wrap items-end justify-end gap-2">
-          <label className="flex flex-col gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
+          <label className="flex w-full flex-col gap-1 text-[11px] font-semibold text-slate-500 sm:w-auto dark:text-slate-400">
             Monthly PDF
-            <input
+            <NativeDateInput
               type="month"
               value={pdfMonth}
               max={getMonthKeyInTimeZone(new Date(), timezone)}
               onChange={(event) => setPdfMonth(event.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              className="w-full sm:w-[13.5rem]"
+              inputClassName="font-medium text-slate-700 dark:text-slate-200"
+              pickerLabel="Choose monthly PDF report month"
             />
           </label>
 
           <Button
+            className="w-full sm:w-auto"
             onClick={handleDownloadPdf}
             disabled={!pdfMonth || isDownloadingPdf}
           >
@@ -162,6 +166,7 @@ const ReportsPage = () => {
           </Button>
 
           <Button
+            className="w-full sm:w-auto"
             variant="secondary"
             onClick={() => reportQuery.refetch()}
             disabled={reportQuery.isFetching}

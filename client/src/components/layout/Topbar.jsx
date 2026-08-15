@@ -56,13 +56,26 @@ const Topbar = ({ onMenuClick }) => {
 
   useEffect(() => {
     if (!notificationsOpen) return undefined;
+
     const handlePointerDown = (event) => {
       if (!notificationAreaRef.current?.contains(event.target)) {
         setNotificationsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [notificationsOpen]);
 
   const handleMarkRead = async (notificationId) => {

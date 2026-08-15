@@ -42,16 +42,16 @@ const NotificationPanel = ({
   };
 
   return (
-    <div className="absolute right-0 top-12 z-50 w-[min(92vw,420px)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-        <div>
-          <div className="font-semibold text-slate-950 dark:text-white">Notifications</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">
+    <div className="fixed inset-x-3 top-[4.75rem] z-50 flex max-h-[calc(100dvh-5.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:max-h-none sm:w-[min(92vw,420px)]">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="min-w-0">
+          <div className="truncate font-semibold text-slate-950 dark:text-white">Notifications</div>
+          <div className="truncate text-xs text-slate-500 dark:text-slate-400">
             {unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="ml-2 flex shrink-0 items-center gap-1">
           {unreadCount > 0 && (
             <button
               type="button"
@@ -59,7 +59,7 @@ const NotificationPanel = ({
               className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
             >
               <CheckCheck size={15} />
-              Read all
+              <span>Read all</span>
             </button>
           )}
           <button
@@ -73,7 +73,7 @@ const NotificationPanel = ({
         </div>
       </div>
 
-      <div className="max-h-[480px] overflow-y-auto">
+      <div className="notification-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y sm:max-h-[480px]">
         {loading ? (
           <div className="px-4 py-10 text-center text-sm text-slate-500">Loading notifications...</div>
         ) : notifications.length === 0 ? (
@@ -103,14 +103,14 @@ const NotificationPanel = ({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start gap-2">
-                    <div className="flex-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <div className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {notification.title}
                     </div>
                     {!notification.isRead && (
                       <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                     )}
                   </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                  <div className="mt-1 break-words text-xs leading-5 text-slate-600 dark:text-slate-400">
                     {notification.message}
                   </div>
                   <div className="mt-1.5 text-[11px] text-slate-400">

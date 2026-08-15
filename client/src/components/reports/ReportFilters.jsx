@@ -1,5 +1,4 @@
-const inputClass =
-  "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
+import NativeDateInput from "../ui/NativeDateInput";
 
 const ReportFilters = ({ preset, startDate, endDate, onPresetChange, onDateChange }) => {
   return (
@@ -27,26 +26,28 @@ const ReportFilters = ({ preset, startDate, endDate, onPresetChange, onDateChang
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+      <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto">
+        <label className="flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
           From
-          <input
+          <NativeDateInput
             type="date"
             value={startDate}
             max={endDate || undefined}
             onChange={(event) => onDateChange("startDate", event.target.value)}
-            className={inputClass}
+            inputClassName="font-medium text-slate-700 dark:text-slate-200"
+            pickerLabel="Choose report start date"
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <label className="flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
           To
-          <input
+          <NativeDateInput
             type="date"
             value={endDate}
             min={startDate || undefined}
             onChange={(event) => onDateChange("endDate", event.target.value)}
-            className={inputClass}
+            inputClassName="font-medium text-slate-700 dark:text-slate-200"
+            pickerLabel="Choose report end date"
           />
         </label>
       </div>

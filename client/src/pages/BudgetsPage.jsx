@@ -18,6 +18,7 @@ import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
+import NativeDateInput from "../components/ui/NativeDateInput";
 import useAuth from "../hooks/useAuth";
 import {
   createBudget,
@@ -171,11 +172,13 @@ const BudgetsPage = () => {
           </div>
         </div>
 
-        <input
+        <NativeDateInput
           type="month"
           value={selectedMonth}
           onChange={(event) => setSelectedMonth(event.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+          className="w-full sm:w-[13.5rem]"
+          inputClassName="font-semibold text-slate-700 dark:text-slate-200"
+          pickerLabel="Choose budget month"
         />
       </div>
 

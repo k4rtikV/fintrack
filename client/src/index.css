@@ -69,3 +69,25 @@ button {
   background-clip: padding-box;
   background-color: #94a3b8;
 }
+
+/* Mobile-friendly native date/month controls. The visible calendar button is
+   rendered by NativeDateInput; keep the browser's own indicator available but
+   visually hidden so the control remains natively operable. */
+.native-date-input {
+  min-height: 44px;
+  min-width: 0;
+}
+
+.native-date-input::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+.native-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+}
+
+.notification-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}

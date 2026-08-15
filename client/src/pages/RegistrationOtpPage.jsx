@@ -10,6 +10,7 @@ import OtpVerificationForm from "../components/forms/OtpVerificationForm";
 import useAuth from "../hooks/useAuth";
 
 import {
+  getCurrentUser,
   resendRegistrationOtp,
   verifyRegistrationOtp,
 } from "../services/authService";
@@ -39,6 +40,8 @@ const RegistrationOtpPage = () => {
   }
 
   const handleVerify = async (otp) => {
+    let otpAccepted = false;
+
     try {
       setIsSubmitting(true);
 
@@ -47,17 +50,40 @@ const RegistrationOtpPage = () => {
         otp,
       });
 
-      completeAuthentication(response.data.user);
+      otpAccepted = true;
+
+      // Confirm that the browser retained the new authenticated session
+      // before mounting protected routes.
+      const sessionResponse = await getCurrentUser();
+
+      completeAuthentication(sessionResponse.data.user);
 
       sessionStorage.removeItem(
         "fintrack_registration_email",
       );
 
-      toast.success(response.message);
       navigate("/dashboard", {
         replace: true,
       });
+
+      toast.success(response.message);
     } catch (error) {
+      if (otpAccepted) {
+        sessionStorage.removeItem(
+          "fintrack_registration_email",
+        );
+
+        navigate("/login", {
+          replace: true,
+        });
+
+        toast.error(
+          "Your account was verified, but this browser did not retain the FinTrack session. Please log in again after allowing site cookies.",
+        );
+
+        return;
+      }
+
       toast.error(
         getApiError(error, "OTP verification failed"),
       );
