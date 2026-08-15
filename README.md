@@ -4,6 +4,9 @@
 
 **MERN Stack** · **React 19** · **Express 5** · **MongoDB** · **Gemini AI** · **Brevo** · **PDFKit**
 
+**Live App:** https://fintrack-api-impd.onrender.com  
+**GitHub:** https://github.com/k4rtikV/fintrack
+
 ---
 
 ## 📌 About FinTrack
