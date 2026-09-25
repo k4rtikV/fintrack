@@ -44,11 +44,15 @@ const userSchema = new mongoose.Schema(
       maxlength: [120, "Email address is too long"],
     },
 
+    // Transitional legacy credential only. Google is the sole primary
+    // authentication provider in v2; this field exists temporarily so a
+    // verified v1 account can perform a one-time, explicit Google migration.
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: false,
       minlength: [8, "Password must contain at least 8 characters"],
       select: false,
+      default: undefined,
     },
 
     preferredCurrency: {
@@ -161,7 +165,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre("save", async function () {
-  if (!this.isModified("password")) {
+  if (!this.isModified("password") || !this.password) {
     return;
   }
 
@@ -173,6 +177,10 @@ userSchema.pre("save", async function () {
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password || typeof candidatePassword !== "string") {
+    return false;
+  }
+
   return bcrypt.compare(candidatePassword, this.password);
 };
 

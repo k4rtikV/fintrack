@@ -57,4 +57,24 @@ const protectCookieAuthenticatedMutation = (req, res, next) => {
   );
 };
 
+const requireApprovedBrowserOrigin = (req, res, next) => {
+  const sourceOrigin = getRequestSourceOrigin(req);
+
+  if (!sourceOrigin && process.env.NODE_ENV !== "production") {
+    return next();
+  }
+
+  if (getAllowedClientOrigins().includes(sourceOrigin)) {
+    return next();
+  }
+
+  return next(
+    new AppError(
+      "This request did not originate from an approved FinTrack client",
+      403,
+    ),
+  );
+};
+
+export { requireApprovedBrowserOrigin };
 export default protectCookieAuthenticatedMutation;

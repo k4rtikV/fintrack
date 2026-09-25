@@ -1,15 +1,8 @@
 import {
-  changePasswordForUser,
   getSettingsForUser,
   updateNotificationSettingsForUser,
   updateProfileSettingsForUser,
 } from "../services/settings.service.js";
-import {
-  recordSecurityEventSafe,
-  revokeAllSessionsForUser,
-} from "../services/security.service.js";
-import { clearAuthCookie } from "../utils/authCookie.js";
-import { getRequestSecurityContext } from "../utils/securityContext.js";
 
 const getSettings = async (req, res) => {
   const settings = await getSettingsForUser(req.user._id);
@@ -50,37 +43,7 @@ const updateNotificationSettings = async (req, res) => {
   });
 };
 
-const changePassword = async (req, res) => {
-  await changePasswordForUser({
-    userId: req.user._id,
-    currentPassword: req.validatedData.body.currentPassword,
-    newPassword: req.validatedData.body.newPassword,
-  });
-
-  const securityContext = getRequestSecurityContext(req);
-
-  await revokeAllSessionsForUser({
-    userId: req.user._id,
-    reason: "PASSWORD_CHANGED",
-  });
-
-  await recordSecurityEventSafe({
-    userId: req.user._id,
-    type: "PASSWORD_CHANGED",
-    sessionId: req.authSession.sessionId,
-    securityContext,
-  });
-
-  clearAuthCookie(res);
-
-  res.status(200).json({
-    success: true,
-    message: "Password changed successfully",
-  });
-};
-
 export {
-  changePassword,
   getSettings,
   updateNotificationSettings,
   updateProfileSettings,

@@ -8,30 +8,29 @@ import BudgetsPage from "./pages/BudgetsPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import DashboardPage from "./pages/DashboardPage";
 import GoalsPage from "./pages/GoalsPage";
-import LoginOtpPage from "./pages/LoginOtpPage";
 import LoginPage from "./pages/LoginPage";
 import RecurringPage from "./pages/RecurringPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
-import RegisterPage from "./pages/RegisterPage";
-import RegistrationOtpPage from "./pages/RegistrationOtpPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicOnlyRoute from "./routes/PublicOnlyRoute";
-
 
 const App = () => {
   return (
     <Routes>
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AuthLayout />}>
-          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<Navigate to="/login" replace />} />
           <Route
             path="/verify-registration"
-            element={<RegistrationOtpPage />}
+            element={<Navigate to="/login" replace />}
           />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/verify-login" element={<LoginOtpPage />} />
+          <Route
+            path="/verify-login"
+            element={<Navigate to="/login" replace />}
+          />
         </Route>
       </Route>
 

@@ -2,7 +2,9 @@ import mongoose from "mongoose";
 
 import Account from "../models/Account.js";
 import RecurringTransaction from "../models/RecurringTransaction.js";
+import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
+import { isAccountCurrencyChangeLocked } from "../utils/financialPolicy.js";
 
 const ensureValidObjectId = (id) => {
   if (!mongoose.isValidObjectId(id)) {
@@ -112,6 +114,36 @@ const updateAccountForUser = async ({
       throw new AppError(
         "You already have an active account with this name",
         409,
+      );
+    }
+  }
+
+  if (updates.currency && updates.currency !== account.currency) {
+    const [transactionReference, recurringReference] = await Promise.all([
+      Transaction.exists({
+        user: userId,
+        account: account._id,
+      }),
+      RecurringTransaction.exists({
+        user: userId,
+        account: account._id,
+      }),
+    ]);
+
+    if (
+      isAccountCurrencyChangeLocked({
+        currentCurrency: account.currency,
+        nextCurrency: updates.currency,
+        hasFinancialReferences: Boolean(
+          transactionReference || recurringReference,
+        ),
+        currentBalance: account.balance,
+      })
+    ) {
+      throw new AppError(
+        "Account currency can only be changed while the account is unused and has a zero balance. Archive this account and create a new account for a different currency.",
+        409,
+        { code: "ACCOUNT_CURRENCY_LOCKED" },
       );
     }
   }

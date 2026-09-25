@@ -9,6 +9,7 @@ import {
 const getOverview = async (req, res) => {
   const overview = await getOverviewForUser({
     userId: req.user._id,
+    currency: req.user.preferredCurrency || "INR",
     ...req.validatedData.query,
   });
 
@@ -23,6 +24,7 @@ const getOverview = async (req, res) => {
 const getCategoryBreakdown = async (req, res) => {
   const categories = await getCategoryBreakdownForUser({
     userId: req.user._id,
+    currency: req.user.preferredCurrency || "INR",
     ...req.validatedData.query,
   });
 
@@ -39,6 +41,7 @@ const getMonthlyTrend = async (req, res) => {
   const trend = await getMonthlyTrendForUser({
     userId: req.user._id,
     timezone: req.user.timezone,
+    currency: req.user.preferredCurrency || "INR",
     ...req.validatedData.query,
   });
 
@@ -54,6 +57,7 @@ const getMonthlyTrend = async (req, res) => {
 const getTopExpenses = async (req, res) => {
   const expenses = await getTopExpensesForUser({
     userId: req.user._id,
+    currency: req.user.preferredCurrency || "INR",
     ...req.validatedData.query,
   });
 

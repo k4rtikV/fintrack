@@ -104,9 +104,10 @@ const addDaysDateOnly = (value, days) => {
   return date;
 };
 
-const addMonthsDateOnlyClamped = (value, months) => {
+const addMonthsDateOnlyClamped = (value, months, anchorValue = value) => {
   const source = toUtcDateOnly(value);
-  const originalDay = source.getUTCDate();
+  const anchor = toUtcDateOnly(anchorValue) || source;
+  const anchorDay = anchor.getUTCDate();
   const targetYear = source.getUTCFullYear();
   const targetMonth = source.getUTCMonth() + Number(months || 0);
   const lastDay = new Date(
@@ -114,15 +115,16 @@ const addMonthsDateOnlyClamped = (value, months) => {
   ).getUTCDate();
 
   return new Date(
-    Date.UTC(targetYear, targetMonth, Math.min(originalDay, lastDay)),
+    Date.UTC(targetYear, targetMonth, Math.min(anchorDay, lastDay)),
   );
 };
 
-const addYearsDateOnlyClamped = (value, years) => {
+const addYearsDateOnlyClamped = (value, years, anchorValue = value) => {
   const source = toUtcDateOnly(value);
+  const anchor = toUtcDateOnly(anchorValue) || source;
   const targetYear = source.getUTCFullYear() + Number(years || 0);
-  const month = source.getUTCMonth();
-  const day = source.getUTCDate();
+  const month = anchor.getUTCMonth();
+  const day = anchor.getUTCDate();
   const lastDay = new Date(Date.UTC(targetYear, month + 1, 0)).getUTCDate();
 
   return new Date(Date.UTC(targetYear, month, Math.min(day, lastDay)));

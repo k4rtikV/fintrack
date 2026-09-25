@@ -15,13 +15,7 @@ const updateNotificationSettings = async (payload) => {
   return response.data;
 };
 
-const changePassword = async (payload) => {
-  const response = await api.patch("/settings/password", payload);
-  return response.data;
-};
-
 export {
-  changePassword,
   getSettings,
   updateNotificationSettings,
   updateProfileSettings,

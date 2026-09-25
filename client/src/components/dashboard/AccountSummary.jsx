@@ -13,7 +13,7 @@ const AccountSummary = ({ accounts = [], currency = "INR" }) => {
         </h2>
 
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Balance distribution across active accounts.
+          Each balance bar is relative to active accounts in the same currency.
         </p>
       </div>
 

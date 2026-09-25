@@ -55,7 +55,39 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.disable("x-powered-by");
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginOpenerPolicy: {
+      policy: "same-origin-allow-popups",
+    },
+    contentSecurityPolicy: {
+      directives: {
+        "script-src": [
+          "'self'",
+          "https://accounts.google.com/gsi/client",
+        ],
+        "connect-src": [
+          "'self'",
+          "https://accounts.google.com/gsi/",
+        ],
+        "frame-src": [
+          "'self'",
+          "https://accounts.google.com/gsi/",
+        ],
+        "style-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "https://accounts.google.com/gsi/style",
+        ],
+        "img-src": [
+          "'self'",
+          "data:",
+          "https://*.googleusercontent.com",
+        ],
+      },
+    },
+  }),
+);
 
 const allowedClientOrigins = getAllowedClientOrigins();
 

@@ -1,50 +1,22 @@
 import api from "../api/axios";
 
-const register = async (formData) => {
-  const response = await api.post("/auth/register", formData);
+const getGoogleAuthConfig = async () => {
+  const response = await api.get("/auth/google/config");
   return response.data;
 };
 
-const verifyRegistrationOtp = async ({ email, otp }) => {
-  const response = await api.post(
-    "/auth/verify-registration-otp",
-    {
-      email,
-      otp,
-    },
-  );
-
-  return response.data;
-};
-
-const resendRegistrationOtp = async (email) => {
-  const response = await api.post(
-    "/auth/resend-registration-otp",
-    {
-      email,
-    },
-  );
-
-  return response.data;
-};
-
-const login = async (credentials) => {
-  const response = await api.post("/auth/login", credentials);
-  return response.data;
-};
-
-const verifyLoginOtp = async ({ email, otp }) => {
-  const response = await api.post("/auth/verify-login-otp", {
-    email,
-    otp,
+const authenticateWithGoogle = async (credential) => {
+  const response = await api.post("/auth/google", {
+    credential,
   });
 
   return response.data;
 };
 
-const resendLoginOtp = async (email) => {
-  const response = await api.post("/auth/resend-login-otp", {
-    email,
+const linkLegacyGoogleAccount = async ({ credential, password }) => {
+  const response = await api.post("/auth/google/link-legacy", {
+    credential,
+    password,
   });
 
   return response.data;
@@ -61,12 +33,9 @@ const logout = async () => {
 };
 
 export {
+  authenticateWithGoogle,
   getCurrentUser,
-  login,
+  getGoogleAuthConfig,
+  linkLegacyGoogleAccount,
   logout,
-  register,
-  resendLoginOtp,
-  resendRegistrationOtp,
-  verifyLoginOtp,
-  verifyRegistrationOtp,
 };

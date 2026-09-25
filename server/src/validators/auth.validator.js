@@ -1,94 +1,27 @@
 import { z } from "zod";
 
-const nameSchema = z
+const googleCredentialSchemaValue = z
   .string({
-    required_error: "Full name is required",
+    required_error: "Google credential is required",
   })
   .trim()
-  .min(2, "Full name must contain at least 2 characters")
-  .max(60, "Full name cannot exceed 60 characters");
+  .min(100, "Google credential is invalid")
+  .max(16_384, "Google credential is invalid");
 
-const emailSchema = z
-  .string({
-    required_error: "Email address is required",
-  })
-  .trim()
-  .email("Enter a valid email address")
-  .max(120, "Email address is too long")
-  .transform((email) => email.toLowerCase());
-
-const passwordSchema = z
-  .string({
-    required_error: "Password is required",
-  })
-  .min(8, "Password must contain at least 8 characters")
-  .max(128, "Password cannot exceed 128 characters")
-  .regex(/[a-z]/, "Password must contain a lowercase letter")
-  .regex(/[A-Z]/, "Password must contain an uppercase letter")
-  .regex(/[0-9]/, "Password must contain a number");
-
-export const registerSchema = z.object({
-  body: z
-    .object({
-      fullName: nameSchema,
-      email: emailSchema,
-      password: passwordSchema,
-
-      confirmPassword: z.string({
-        required_error: "Please confirm your password",
-      }),
-
-      preferredCurrency: z
-        .enum(["INR", "USD", "EUR", "GBP"])
-        .default("INR"),
-    })
-    .refine((data) => data.password === data.confirmPassword, {
-      message: "Passwords do not match",
-      path: ["confirmPassword"],
-    }),
+export const googleAuthenticationSchema = z.object({
+  body: z.object({
+    credential: googleCredentialSchemaValue,
+  }),
 });
 
-export const loginSchema = z.object({
+export const legacyGoogleLinkSchema = z.object({
   body: z.object({
-    email: emailSchema,
-
+    credential: googleCredentialSchemaValue,
     password: z
       .string({
-        required_error: "Password is required",
+        required_error: "Current FinTrack password is required for migration",
       })
-      .min(1, "Password is required"),
-  }),
-});
-
-const otpSchema = z
-  .string({
-    required_error: "OTP is required",
-  })
-  .trim()
-  .regex(/^\d{6}$/, "OTP must contain exactly 6 digits");
-
-export const verifyRegistrationOtpSchema = z.object({
-  body: z.object({
-    email: emailSchema,
-    otp: otpSchema,
-  }),
-});
-
-export const resendRegistrationOtpSchema = z.object({
-  body: z.object({
-    email: emailSchema,
-  }),
-});
-
-export const verifyLoginOtpSchema = z.object({
-  body: z.object({
-    email: emailSchema,
-    otp: otpSchema,
-  }),
-});
-
-export const resendLoginOtpSchema = z.object({
-  body: z.object({
-    email: emailSchema,
+      .min(1, "Current FinTrack password is required for migration")
+      .max(128, "Password is too long"),
   }),
 });

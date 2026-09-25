@@ -1,7 +1,6 @@
 import express from "express";
 
 import {
-  changePassword,
   getSettings,
   updateNotificationSettings,
   updateProfileSettings,
@@ -9,7 +8,6 @@ import {
 import protect from "../middleware/auth.middleware.js";
 import validate from "../middleware/validate.js";
 import {
-  changePasswordSchema,
   updateNotificationSettingsSchema,
   updateProfileSettingsSchema,
 } from "../validators/settings.validator.js";
@@ -30,12 +28,6 @@ router.patch(
   "/notifications",
   validate(updateNotificationSettingsSchema),
   updateNotificationSettings,
-);
-
-router.patch(
-  "/password",
-  validate(changePasswordSchema),
-  changePassword,
 );
 
 export default router;

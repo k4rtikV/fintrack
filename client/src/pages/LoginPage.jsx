@@ -1,195 +1,192 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ArrowRight,
-  Eye,
-  EyeOff,
-} from "lucide-react";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { LockKeyhole, ShieldCheck } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { z } from "zod";
 
-import { login as loginRequest } from "../services/authService";
+import GoogleSignInButton from "../components/auth/GoogleSignInButton";
+import useAuth from "../hooks/useAuth";
+import {
+  authenticateWithGoogle,
+  getCurrentUser,
+  linkLegacyGoogleAccount,
+} from "../services/authService";
 import getApiError from "../utils/getApiError";
-
-const loginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .email("Enter a valid email address"),
-
-  password: z
-    .string()
-    .min(1, "Password is required"),
-});
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
+  const { completeAuthentication } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [legacyMigration, setLegacyMigration] = useState(null);
+  const [legacyPassword, setLegacyPassword] = useState("");
 
-  const {
-    register,
-    handleSubmit,
-    formState: {
-      errors,
-      isSubmitting,
+  const finishAuthentication = useCallback(
+    async (message) => {
+      const sessionResponse = await getCurrentUser();
+      completeAuthentication(sessionResponse.data.user);
+      navigate("/dashboard", { replace: true });
+      toast.success(message);
     },
-  } = useForm({
-    resolver: zodResolver(loginSchema),
+    [completeAuthentication, navigate],
+  );
 
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
+  const handleGoogleCredential = useCallback(
+    async (credential, nonce) => {
+      setIsSubmitting(true);
 
-  const onSubmit = async (values) => {
-    try {
-      const response = await loginRequest(values);
+      try {
+        const response = await authenticateWithGoogle(credential);
+        await finishAuthentication(response.message);
+      } catch (error) {
+        const code = error?.response?.data?.errors?.code;
+        const email = error?.response?.data?.errors?.email;
 
-      sessionStorage.setItem(
-        "fintrack_login_email",
-        response.data.email,
-      );
+        if (code === "LEGACY_ACCOUNT_REQUIRES_LINK") {
+          setLegacyMigration({
+            credential,
+            nonce,
+            email: email || "your existing FinTrack account",
+          });
+          setLegacyPassword("");
+          toast(
+            "One-time migration required. Confirm your existing FinTrack password to replace legacy login with Google.",
+          );
+          return;
+        }
 
-      toast.success(response.message);
-
-      navigate("/verify-login", {
-        state: {
-          email: response.data.email,
-        },
-      });
-    } catch (error) {
-      const code =
-        error?.response?.data?.errors?.code;
-
-      const email =
-        error?.response?.data?.errors?.email;
-
-      if (code === "EMAIL_NOT_VERIFIED" && email) {
-        sessionStorage.setItem(
-          "fintrack_registration_email",
-          email,
-        );
-
-        navigate("/verify-registration", {
-          state: {
-            email,
-          },
-        });
+        toast.error(getApiError(error, "Google sign-in failed"));
+      } finally {
+        setIsSubmitting(false);
       }
+    },
+    [finishAuthentication],
+  );
 
+  const handleLegacyMigration = async (event) => {
+    event.preventDefault();
+
+    if (
+      !legacyMigration?.credential ||
+      !legacyMigration?.nonce ||
+      !legacyPassword
+    ) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await linkLegacyGoogleAccount({
+        credential: legacyMigration.credential,
+        password: legacyPassword,
+      });
+
+      setLegacyMigration(null);
+      setLegacyPassword("");
+      await finishAuthentication(response.message);
+    } catch (error) {
       toast.error(
-        getApiError(error, "Login failed"),
+        getApiError(error, "Could not migrate the existing FinTrack account"),
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const inputClass =
-    "mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100";
 
   return (
     <section className="rounded-3xl bg-white p-7 shadow-xl shadow-slate-200/70 sm:p-9">
       <p className="text-sm font-semibold text-emerald-600">
-        Welcome back
+        Secure access
       </p>
 
       <h1 className="mt-2 text-3xl font-bold text-slate-950">
-        Log in to FinTrack
+        Continue to FinTrack
       </h1>
 
       <p className="mt-3 text-sm leading-6 text-slate-500">
-        After verifying your password, we’ll send a login code to your email.
+        Sign in or create your FinTrack account with Google. FinTrack does not
+        receive or store your Google password.
       </p>
 
-      <form
-        className="mt-8 space-y-5"
-        onSubmit={handleSubmit(onSubmit)}
-      >
-        <label className="block text-sm font-medium">
-          Email address
+      <div className="mt-8">
+        <GoogleSignInButton
+          onCredential={handleGoogleCredential}
+          disabled={isSubmitting}
+        />
+      </div>
 
-          <input
-            {...register("email")}
-            type="email"
-            className={inputClass}
-            placeholder="you@example.com"
-          />
+      {isSubmitting && !legacyMigration && (
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Verifying your Google identity and creating a secure FinTrack session…
+        </p>
+      )}
 
-          {errors.email && (
-            <span className="mt-1 block text-xs text-red-600">
-              {errors.email.message}
-            </span>
-          )}
-        </label>
-
-        <label className="block text-sm font-medium">
-          Password
-
-          <div className="relative mt-2">
-            <input
-              {...register("password")}
-              type={showPassword ? "text" : "password"}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 pr-12 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-              placeholder="Enter your password"
-            />
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowPassword((current) => !current)
-              }
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-              aria-label={
-                showPassword
-                  ? "Hide password"
-                  : "Show password"
-              }
-              title={
-                showPassword
-                  ? "Hide password"
-                  : "Show password"
-              }
-            >
-              {showPassword ? (
-                <EyeOff size={20} />
-              ) : (
-                <Eye size={20} />
-              )}
-            </button>
+      {legacyMigration && (
+        <form
+          className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 p-5"
+          onSubmit={handleLegacyMigration}
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-xl bg-amber-100 p-2 text-amber-700">
+              <LockKeyhole size={18} />
+            </div>
+            <div>
+              <h2 className="font-semibold text-slate-900">
+                One-time v1 account migration
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                A verified FinTrack v1 account already exists for
+                {" "}
+                <span className="font-semibold">{legacyMigration.email}</span>.
+                Confirm its current FinTrack password once. After migration,
+                the legacy password and OTP credentials are removed and Google
+                becomes the only primary sign-in method.
+              </p>
+            </div>
           </div>
 
-          {errors.password && (
-            <span className="mt-1 block text-xs text-red-600">
-              {errors.password.message}
-            </span>
-          )}
-        </label>
+          <label className="mt-4 block text-sm font-medium text-slate-700">
+            Current FinTrack password
+            <input
+              type="password"
+              value={legacyPassword}
+              onChange={(event) => setLegacyPassword(event.target.value)}
+              autoComplete="current-password"
+              className="mt-2 w-full rounded-xl border border-amber-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+              placeholder="Used only for this migration"
+            />
+          </label>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3.5 font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting
-            ? "Sending login code…"
-            : "Continue"}
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLegacyMigration(null);
+                setLegacyPassword("");
+              }}
+              disabled={isSubmitting}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-500 transition hover:bg-white disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !legacyPassword}
+              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? "Migrating…" : "Migrate securely"}
+            </button>
+          </div>
+        </form>
+      )}
 
-          {!isSubmitting && <ArrowRight size={18} />}
-        </button>
-      </form>
-
-      <p className="mt-7 text-center text-sm text-slate-500">
-        New to FinTrack?{" "}
-
-        <Link
-          to="/register"
-          className="font-semibold text-emerald-600 hover:text-emerald-700"
-        >
-          Create an account
-        </Link>
-      </p>
+      <div className="mt-7 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
+        <p className="text-xs leading-5 text-slate-500">
+          Google proves your external identity; FinTrack still creates and
+          validates its own server-side session. Existing accounts are never
+          silently claimed by email alone.
+        </p>
+      </div>
     </section>
   );
 };

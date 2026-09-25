@@ -21,12 +21,8 @@ const api = axios.create({
 });
 
 const publicAuthPaths = [
-  "/auth/register",
-  "/auth/verify-registration-otp",
-  "/auth/resend-registration-otp",
-  "/auth/login",
-  "/auth/verify-login-otp",
-  "/auth/resend-login-otp",
+  "/auth/google",
+  "/auth/google/link-legacy",
 ];
 
 const isPublicAuthRequest = (url = "") =>

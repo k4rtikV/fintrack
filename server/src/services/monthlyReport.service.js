@@ -1,6 +1,7 @@
 import Account from "../models/Account.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
+import { summarizeRecurringAggregateRows } from "../utils/financialPolicy.js";
 import {
   endOfUtcDateOnly,
   getDateKeyInTimeZone,
@@ -143,31 +144,40 @@ const unwrapTool = (result) => {
 };
 
 const getRecordedRecurringActivity = async ({ userId, startDate, endDate }) => {
-  const items = await Transaction.find({
+  const match = {
     user: userId,
     recurringTransaction: { $ne: null },
     transactionDate: {
       $gte: startDate,
       $lte: endDate,
     },
-  })
-    .populate("account", "name currency")
-    .populate("category", "name")
-    .sort({ transactionDate: -1, createdAt: -1 })
-    .limit(30);
+  };
 
-  const income = items
-    .filter((item) => item.type === "INCOME")
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const expense = items
-    .filter((item) => item.type === "EXPENSE")
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const [totals, items] = await Promise.all([
+    Transaction.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$type",
+          count: { $sum: 1 },
+          amount: { $sum: "$amount" },
+        },
+      },
+    ]),
+    Transaction.find(match)
+      .populate("account", "name currency")
+      .populate("category", "name")
+      .sort({ transactionDate: -1, createdAt: -1 })
+      .limit(10),
+  ]);
+
+  const summary = summarizeRecurringAggregateRows(totals);
 
   return {
-    count: items.length,
-    income: round2(income),
-    expense: round2(expense),
-    items: items.slice(0, 10).map((item) => ({
+    count: summary.count,
+    income: round2(summary.income),
+    expense: round2(summary.expense),
+    items: items.map((item) => ({
       title: item.title,
       type: item.type,
       amount: round2(item.amount),
@@ -335,33 +345,39 @@ const getMonthlyReportData = async ({ user, month: requestedMonth }) => {
     getAccountSummaryForUser({ userId: user._id }),
     getOverviewForUser({
       userId: user._id,
+      currency: user.preferredCurrency || "INR",
       startDate: monthDates.start,
       endDate: analysisEnd,
     }),
     getCategoryBreakdownForUser({
       userId: user._id,
+      currency: user.preferredCurrency || "INR",
       startDate: monthDates.start,
       endDate: analysisEnd,
     }),
     getTopExpensesForUser({
       userId: user._id,
+      currency: user.preferredCurrency || "INR",
       limit: 10,
       startDate: monthDates.start,
       endDate: analysisEnd,
     }),
     getMonthlyTrendForUser({
       userId: user._id,
+      currency: user.preferredCurrency || "INR",
       startDate: trendStart,
       endDate: analysisEnd,
       timezone,
     }),
     getOverviewForUser({
       userId: user._id,
+      currency: user.preferredCurrency || "INR",
       startDate: previousRange.start,
       endDate: previousRange.end,
     }),
     getCategoryBreakdownForUser({
       userId: user._id,
+      currency: user.preferredCurrency || "INR",
       startDate: previousRange.start,
       endDate: previousRange.end,
     }),

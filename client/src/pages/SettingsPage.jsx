@@ -2,8 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   BellRing,
   CheckCircle2,
-  Eye,
-  EyeOff,
   LockKeyhole,
   LogOut,
   MonitorCog,
@@ -18,6 +16,7 @@ import {
 } from "react";
 import toast from "react-hot-toast";
 
+import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import DashboardCard from "../components/layout/DashboardCard";
 import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
@@ -30,11 +29,14 @@ import {
   revokeSession,
 } from "../services/securityService";
 import {
-  changePassword,
   getSettings,
   updateNotificationSettings,
   updateProfileSettings,
 } from "../services/settingsService";
+import {
+  getCurrentUser,
+  linkLegacyGoogleAccount,
+} from "../services/authService";
 import getApiError from "../utils/getApiError";
 
 const inputClass =
@@ -125,14 +127,14 @@ const activityTone = {
 };
 
 const SettingsPage = () => {
-  const { user, refreshUser, clearAuthentication } = useAuth();
+  const { user, refreshUser, completeAuthentication } = useAuth();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
-  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [migrationSaving, setMigrationSaving] = useState(false);
   const [securityLoading, setSecurityLoading] = useState(true);
   const [securityRefreshing, setSecurityRefreshing] = useState(false);
   const [securityActionId, setSecurityActionId] = useState("");
@@ -151,18 +153,16 @@ const SettingsPage = () => {
     recurringAlerts: true,
   });
 
-  const [passwords, setPasswords] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+  const [authentication, setAuthentication] = useState({
+    provider: "LEGACY_MIGRATION_REQUIRED",
+    googleLinked: false,
+    googleEmail: "",
+    linkedAt: null,
   });
+  const [legacyMigrationPassword, setLegacyMigrationPassword] = useState("");
 
   const [sessions, setSessions] = useState([]);
   const [securityActivity, setSecurityActivity] = useState([]);
-
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const loadSecurityData = useCallback(async ({ silent = false } = {}) => {
     if (silent) {
@@ -193,6 +193,7 @@ const SettingsPage = () => {
         const response = await getSettings();
         setProfile(response.data.profile);
         setNotifications(response.data.notifications);
+        setAuthentication(response.data.authentication);
       } catch (error) {
         toast.error(getApiError(error, "Could not load settings"));
       } finally {
@@ -238,29 +239,44 @@ const SettingsPage = () => {
     }
   };
 
-  const handlePasswordSave = async (event) => {
-    event.preventDefault();
-
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      toast.error("New passwords do not match");
+  const handleGoogleMigrationCredential = async (credential, nonce) => {
+    if (!legacyMigrationPassword) {
+      toast.error(
+        "Enter your current FinTrack password before verifying Google for the one-time migration.",
+      );
       return;
     }
 
-    setPasswordSaving(true);
+    if (!nonce) {
+      toast.error("Google sign-in session expired. Please try again.");
+      return;
+    }
+
+    setMigrationSaving(true);
 
     try {
-      const response = await changePassword(passwords);
-      setPasswords({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
+      const response = await linkLegacyGoogleAccount({
+        credential,
+        password: legacyMigrationPassword,
       });
-      clearAuthentication();
-      toast.success(`${response.message}. Please log in again.`);
+      const sessionResponse = await getCurrentUser();
+
+      completeAuthentication(sessionResponse.data.user);
+      setLegacyMigrationPassword("");
+      setAuthentication({
+        provider: "GOOGLE",
+        googleLinked: true,
+        googleEmail: response.data.user.email,
+        linkedAt: new Date().toISOString(),
+      });
+      await loadSecurityData({ silent: true });
+      toast.success(response.message);
     } catch (error) {
-      toast.error(getApiError(error, "Could not change password"));
+      toast.error(
+        getApiError(error, "Could not migrate this FinTrack account to Google"),
+      );
     } finally {
-      setPasswordSaving(false);
+      setMigrationSaving(false);
     }
   };
 
@@ -553,78 +569,62 @@ const SettingsPage = () => {
         <DashboardCard>
           <SettingsSectionTitle
             icon={LockKeyhole}
-            title="Security"
-            description="Change your password and invalidate every existing FinTrack session."
+            title="Authentication"
+            description="Google is FinTrack v2's primary identity provider. FinTrack still enforces its own server-side sessions."
           />
 
-          <form className="space-y-4" onSubmit={handlePasswordSave}>
-            {[
-              [
-                "currentPassword",
-                "Current password",
-                showCurrentPassword,
-                setShowCurrentPassword,
-              ],
-              ["newPassword", "New password", showNewPassword, setShowNewPassword],
-              [
-                "confirmPassword",
-                "Confirm new password",
-                showConfirmPassword,
-                setShowConfirmPassword,
-              ],
-            ].map(([key, label, visible, setVisible]) => (
-              <label
-                key={key}
-                className="block text-sm font-medium text-slate-700 dark:text-slate-200"
-              >
-                {label}
-                <div className="relative">
-                  <input
-                    type={visible ? "text" : "password"}
-                    value={passwords[key]}
-                    onChange={(event) =>
-                      setPasswords((current) => ({
-                        ...current,
-                        [key]: event.target.value,
-                      }))
-                    }
-                    className={`${inputClass} pr-11`}
-                    autoComplete={
-                      key === "currentPassword" ? "current-password" : "new-password"
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setVisible((current) => !current)}
-                    className="absolute right-3 top-1/2 mt-1 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    aria-label={visible ? `Hide ${label}` : `Show ${label}`}
-                  >
-                    {visible ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
+          {authentication.googleLinked ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="text-emerald-600 dark:text-emerald-300" size={20} />
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    Google authentication connected
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {authentication.googleEmail || profile.email}
+                  </p>
                 </div>
-              </label>
-            ))}
-
-            <p className="text-xs leading-5 text-slate-400">
-              Use at least 8 characters with an uppercase letter, lowercase letter, and number.
-              A successful password change logs out every active device.
-            </p>
-
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                disabled={
-                  passwordSaving ||
-                  !passwords.currentPassword ||
-                  !passwords.newPassword ||
-                  !passwords.confirmPassword
-                }
-              >
-                <LockKeyhole size={17} />
-                {passwordSaving ? "Changing…" : "Change password"}
-              </Button>
+              </div>
+              <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                Password and email-OTP login are disabled. Device/session revocation below remains enforced by FinTrack independently of Google.
+              </p>
             </div>
-          </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  One-time v1 migration required
+                </p>
+                <p className="mt-1 text-xs leading-5 text-amber-700/80 dark:text-amber-200/70">
+                  Enter your existing FinTrack password, then verify the Google account using the same email. The local password/OTP credentials are removed after migration.
+                </p>
+              </div>
+
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Current FinTrack password
+                <input
+                  type="password"
+                  value={legacyMigrationPassword}
+                  onChange={(event) => setLegacyMigrationPassword(event.target.value)}
+                  className={inputClass}
+                  autoComplete="current-password"
+                  placeholder="Used only for this migration"
+                />
+              </label>
+
+              <GoogleSignInButton
+                onCredential={handleGoogleMigrationCredential}
+                disabled={migrationSaving}
+              />
+
+              {migrationSaving && (
+                <p className="text-center text-xs text-slate-400">
+                  Verifying Google identity and rotating FinTrack sessions…
+                </p>
+              )}
+            </div>
+          )}
         </DashboardCard>
       </div>
 
@@ -799,8 +799,8 @@ const SettingsPage = () => {
           )}
 
           <p className="mt-4 text-xs leading-5 text-slate-400">
-            FinTrack records security events only. Passwords, OTP values, JWTs, and
-            financial transaction contents are never written to this activity log.
+            FinTrack records security events only. Google credentials, session tokens,
+            and financial transaction contents are never written to this activity log.
           </p>
         </DashboardCard>
       </div>

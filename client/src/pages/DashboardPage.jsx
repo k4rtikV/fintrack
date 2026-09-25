@@ -40,20 +40,21 @@ const DashboardPage = () => {
   const firstName = user?.fullName?.split(" ")[0] || "there";
   const currency = user?.preferredCurrency || "INR";
   const overview = data?.overview;
+  const analyticsCurrency = overview?.currency || currency;
 
   const stats = [
     {
       label: "Total balance",
-      value: formatCurrency(overview?.totalBalance, currency),
-      note: `${overview?.accountCount || 0} active account${
-        overview?.accountCount === 1 ? "" : "s"
-      }`,
+      value: formatCurrency(overview?.totalBalance, analyticsCurrency),
+      note: `${overview?.balanceAccountCount || 0} ${analyticsCurrency} account${
+        overview?.balanceAccountCount === 1 ? "" : "s"
+      } · ${overview?.accountCount || 0} active total`,
       icon: Landmark,
       tone: "blue",
     },
     {
       label: "Total income",
-      value: formatCurrency(overview?.totalIncome, currency),
+      value: formatCurrency(overview?.totalIncome, analyticsCurrency),
       note: `${overview?.incomeTransactionCount || 0} income transaction${
         overview?.incomeTransactionCount === 1 ? "" : "s"
       }`,
@@ -62,7 +63,7 @@ const DashboardPage = () => {
     },
     {
       label: "Total expenses",
-      value: formatCurrency(overview?.totalExpense, currency),
+      value: formatCurrency(overview?.totalExpense, analyticsCurrency),
       note: `${overview?.expenseTransactionCount || 0} expense transaction${
         overview?.expenseTransactionCount === 1 ? "" : "s"
       }`,
@@ -77,7 +78,10 @@ const DashboardPage = () => {
           : "—",
       note:
         overview?.totalIncome > 0
-          ? `${formatCurrency(overview?.netSavings, currency)} net savings`
+          ? `${formatCurrency(
+              overview?.netSavings,
+              analyticsCurrency,
+            )} net savings`
           : "No income recorded",
       icon: PiggyBank,
       tone: "violet",
@@ -134,8 +138,11 @@ const DashboardPage = () => {
           </div>
 
           <div className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_0.55fr]">
-            <CashFlowChart data={data?.trend} currency={currency} />
-            <CategoryBreakdown data={data?.categories} currency={currency} />
+            <CashFlowChart data={data?.trend} currency={analyticsCurrency} />
+            <CategoryBreakdown
+              data={data?.categories}
+              currency={analyticsCurrency}
+            />
           </div>
 
           <div className="mt-6 grid gap-6 xl:grid-cols-2">

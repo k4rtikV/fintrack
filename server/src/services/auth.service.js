@@ -1,264 +1,466 @@
+import mongoose from "mongoose";
+
+import Account from "../models/Account.js";
+import Budget from "../models/Budget.js";
+import Category from "../models/Category.js";
+import ExternalIdentity from "../models/ExternalIdentity.js";
+import Goal from "../models/Goal.js";
+import RecurringTransaction from "../models/RecurringTransaction.js";
+import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
+import UserSession from "../models/UserSession.js";
 import AppError from "../utils/AppError.js";
-import {
-  generateOtp,
-  getOtpExpiryDate,
-  hashOtp,
-  verifyOtpHash,
-} from "../utils/otp.js";
-import { sendOtpEmail } from "./email.service.js";
 import { seedDefaultCategoriesForUser } from "./category.service.js";
+import {
+  getGoogleClientId,
+  isGoogleAuthoritativeForEmail,
+  verifyGoogleCredential,
+} from "./googleIdentity.service.js";
 import { recordSecurityEventSafe } from "./security.service.js";
 
-const getOtpSettings = () => ({
-  maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS) || 5,
-  cooldownSeconds:
-    Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 60,
+const GOOGLE_PROVIDER = "GOOGLE";
+
+const legacyAuthUnset = {
+  password: "",
+  registrationOtpHash: "",
+  registrationOtpExpiresAt: "",
+  registrationOtpLastSentAt: "",
+  registrationOtpAttempts: "",
+  loginOtpHash: "",
+  loginOtpExpiresAt: "",
+  loginOtpLastSentAt: "",
+  loginOtpAttempts: "",
+  passwordChangedAt: "",
+};
+
+const getSafeGoogleDisplayName = ({ fullName, email }) => {
+  const candidate = String(fullName || "").trim();
+
+  if (candidate.length >= 2) {
+    return candidate.slice(0, 60);
+  }
+
+  const localPart = String(email || "").split("@")[0].trim();
+
+  if (localPart.length >= 2) {
+    return localPart.slice(0, 60);
+  }
+
+  return "FinTrack User";
+};
+
+const buildIdentityDocument = ({ userId, googleProfile }) => ({
+  user: userId,
+  provider: GOOGLE_PROVIDER,
+  providerSubject: googleProfile.subject,
+  providerEmailSnapshot: googleProfile.email,
+  providerEmailVerified: googleProfile.emailVerified,
+  hostedDomain: googleProfile.hostedDomain,
+  lastAuthenticatedAt: new Date(),
 });
 
-const ensureResendCooldownPassed = (lastSentAt) => {
-  if (!lastSentAt) {
-    return;
-  }
-
-  const { cooldownSeconds } = getOtpSettings();
-  const elapsedMilliseconds = Date.now() - lastSentAt.getTime();
-  const cooldownMilliseconds = cooldownSeconds * 1000;
-
-  if (elapsedMilliseconds < cooldownMilliseconds) {
-    const secondsRemaining = Math.ceil(
-      (cooldownMilliseconds - elapsedMilliseconds) / 1000,
-    );
-
-    throw new AppError(
-      `Please wait ${secondsRemaining} seconds before requesting another OTP`,
-      429,
-    );
+const ensureActiveUser = (user) => {
+  if (!user || !user.isActive) {
+    throw new AppError("This FinTrack account is not available", 403);
   }
 };
 
-const setRegistrationOtp = async (user) => {
-  const otp = generateOtp();
-
-  user.registrationOtpHash = hashOtp(otp);
-  user.registrationOtpExpiresAt = getOtpExpiryDate();
-  user.registrationOtpLastSentAt = new Date();
-  user.registrationOtpAttempts = 0;
-
-  await user.save({
-    validateModifiedOnly: true,
+const findGoogleIdentityForUser = (userId, session = null) => {
+  const query = ExternalIdentity.findOne({
+    user: userId,
+    provider: GOOGLE_PROVIDER,
   });
 
-  await sendOtpEmail({
-    email: user.email,
-    fullName: user.fullName,
-    otp,
-    purpose: "registration",
-  });
-};
-
-const setLoginOtp = async (user) => {
-  const otp = generateOtp();
-
-  user.loginOtpHash = hashOtp(otp);
-  user.loginOtpExpiresAt = getOtpExpiryDate();
-  user.loginOtpLastSentAt = new Date();
-  user.loginOtpAttempts = 0;
-
-  await user.save({
-    validateModifiedOnly: true,
-  });
-
-  await sendOtpEmail({
-    email: user.email,
-    fullName: user.fullName,
-    otp,
-    purpose: "login",
-  });
-};
-
-const registerUser = async ({
-  fullName,
-  email,
-  password,
-  preferredCurrency,
-}) => {
-  const existingUser = await User.findOne({ email }).select(
-    "+registrationOtpHash " +
-      "+registrationOtpExpiresAt " +
-      "+registrationOtpLastSentAt " +
-      "+registrationOtpAttempts",
-  );
-
-  if (existingUser?.emailVerified) {
-    throw new AppError(
-      "An account with this email already exists",
-      409,
-    );
+  if (session) {
+    query.session(session);
   }
 
-  let user = existingUser;
+  return query;
+};
 
-  if (!user) {
-    user = await User.create({
-      fullName,
-      email,
-      password,
-      preferredCurrency,
-      emailVerified: false,
-    });
+const updateIdentityAuthenticationSnapshot = async (
+  identity,
+  googleProfile,
+) => {
+  identity.providerEmailSnapshot = googleProfile.email;
+  identity.providerEmailVerified = googleProfile.emailVerified;
+  identity.hostedDomain = googleProfile.hostedDomain;
+  identity.lastAuthenticatedAt = new Date();
+  await identity.save({ validateModifiedOnly: true });
+};
 
-    user = await User.findById(user._id).select(
-      "+registrationOtpHash " +
-        "+registrationOtpExpiresAt " +
-        "+registrationOtpLastSentAt " +
-        "+registrationOtpAttempts",
-    );
-  } else {
-    ensureResendCooldownPassed(user.registrationOtpLastSentAt);
 
-    user.fullName = fullName;
-    user.password = password;
-    user.preferredCurrency = preferredCurrency;
-
-    await user.save({
-      validateModifiedOnly: true,
-    });
-  }
-
-  await setRegistrationOtp(user);
-
-  return {
-    email: user.email,
-    expiresInMinutes:
-      Number(process.env.OTP_EXPIRES_MINUTES) || 10,
+const synchronizeReturningGoogleUser = async (user, googleProfile) => {
+  const updates = {
+    lastLoginAt: new Date(),
+    emailVerified: true,
   };
-};
 
-const verifyRegistrationOtp = async ({ email, otp }) => {
-  const user = await User.findOne({ email }).select(
-    "+registrationOtpHash " +
-      "+registrationOtpExpiresAt " +
-      "+registrationOtpAttempts",
-  );
-
-  if (!user) {
-    throw new AppError("Registration request not found", 404);
-  }
-
-  if (user.emailVerified) {
-    throw new AppError("This email has already been verified", 409);
+  if (googleProfile.avatarUrl) {
+    updates.avatarUrl = googleProfile.avatarUrl;
   }
 
   if (
-    !user.registrationOtpHash ||
-    !user.registrationOtpExpiresAt
+    user.email !== googleProfile.email &&
+    isGoogleAuthoritativeForEmail(googleProfile)
   ) {
-    throw new AppError(
-      "No registration OTP is active. Request a new OTP.",
-      400,
-    );
-  }
-
-  if (user.registrationOtpExpiresAt.getTime() < Date.now()) {
-    throw new AppError(
-      "The registration OTP has expired. Request a new OTP.",
-      400,
-    );
-  }
-
-  const { maxAttempts } = getOtpSettings();
-
-  if (user.registrationOtpAttempts >= maxAttempts) {
-    throw new AppError(
-      "Too many incorrect attempts. Request a new OTP.",
-      429,
-    );
-  }
-
-  const isValid = verifyOtpHash(
-    otp,
-    user.registrationOtpHash,
-  );
-
-  if (!isValid) {
-    user.registrationOtpAttempts += 1;
-
-    await user.save({
-      validateModifiedOnly: true,
+    const conflict = await User.exists({
+      _id: { $ne: user._id },
+      email: googleProfile.email,
     });
 
-    const remainingAttempts =
-      maxAttempts - user.registrationOtpAttempts;
+    if (conflict) {
+      throw new AppError(
+        "The current Google email is already associated with another FinTrack account",
+        409,
+        {
+          code: "GOOGLE_EMAIL_CONFLICT",
+        },
+      );
+    }
 
-    throw new AppError(
-      `Incorrect OTP. ${remainingAttempts} attempt${
-        remainingAttempts === 1 ? "" : "s"
-      } remaining.`,
-      400,
-    );
+    updates.email = googleProfile.email;
   }
 
-  user.emailVerified = true;
-  user.registrationOtpHash = null;
-  user.registrationOtpExpiresAt = null;
-  user.registrationOtpLastSentAt = null;
-  user.registrationOtpAttempts = 0;
-
-  await user.save({
-    validateModifiedOnly: true,
-  });
-
-  await seedDefaultCategoriesForUser(user._id);
-
-  return User.findById(user._id);
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: updates,
+      // A Google-bound v2 identity must never retain an old password/OTP
+      // authentication path, even if legacy data was partially migrated.
+      $unset: legacyAuthUnset,
+    },
+  );
 };
 
-const resendRegistrationOtp = async ({ email }) => {
-  const user = await User.findOne({ email }).select(
-    "+registrationOtpHash " +
-      "+registrationOtpExpiresAt " +
-      "+registrationOtpLastSentAt " +
-      "+registrationOtpAttempts",
-  );
+const recoverSuccessfulGoogleRace = async (googleProfile) => {
+  const identity = await ExternalIdentity.findOne({
+    provider: GOOGLE_PROVIDER,
+    providerSubject: googleProfile.subject,
+  });
 
-  if (!user) {
-    throw new AppError("Registration request not found", 404);
+  if (!identity) {
+    return null;
   }
 
-  if (user.emailVerified) {
-    throw new AppError("This email has already been verified", 409);
-  }
+  const user = await User.findById(identity.user);
+  ensureActiveUser(user);
 
-  ensureResendCooldownPassed(user.registrationOtpLastSentAt);
-
-  await setRegistrationOtp(user);
+  await Promise.all([
+    updateIdentityAuthenticationSnapshot(identity, googleProfile),
+    synchronizeReturningGoogleUser(user, googleProfile),
+  ]);
 
   return {
-    email: user.email,
-    expiresInMinutes:
-      Number(process.env.OTP_EXPIRES_MINUTES) || 10,
+    user: await User.findById(user._id),
+    securityEventType: "GOOGLE_SIGN_IN",
+    revokeExistingSessions: false,
   };
 };
 
-const requestLoginOtp = async (
-  { email, password },
-  securityContext = {},
-) => {
-  const user = await User.findOne({ email }).select(
-    "+password " +
-      "+loginOtpHash " +
-      "+loginOtpExpiresAt " +
-      "+loginOtpLastSentAt " +
-      "+loginOtpAttempts",
-  );
+const legacyUnverifiedUserHasProtectedState = async (userId) => {
+  const [
+    accounts,
+    transactions,
+    categories,
+    recurring,
+    budgets,
+    goals,
+    sessions,
+  ] = await Promise.all([
+    Account.exists({ user: userId }),
+    Transaction.exists({ user: userId }),
+    Category.exists({ user: userId }),
+    RecurringTransaction.exists({ user: userId }),
+    Budget.exists({ user: userId }),
+    Goal.exists({ user: userId }),
+    UserSession.exists({ user: userId }),
+  ]);
 
-  if (!user) {
-    throw new AppError("Invalid email or password", 401);
+  return Boolean(
+    accounts ||
+      transactions ||
+      categories ||
+      recurring ||
+      budgets ||
+      goals ||
+      sessions,
+  );
+};
+
+const getGoogleAuthConfig = () => ({
+  clientId: getGoogleClientId(),
+});
+
+const authenticateWithGoogle = async (
+  { credential },
+  { expectedNonce } = {},
+) => {
+  const googleProfile = await verifyGoogleCredential(credential, {
+    expectedNonce,
+  });
+
+  const existingIdentity = await ExternalIdentity.findOne({
+    provider: GOOGLE_PROVIDER,
+    providerSubject: googleProfile.subject,
+  });
+
+  if (existingIdentity) {
+    const user = await User.findById(existingIdentity.user);
+    ensureActiveUser(user);
+
+    await Promise.all([
+      updateIdentityAuthenticationSnapshot(existingIdentity, googleProfile),
+      synchronizeReturningGoogleUser(user, googleProfile),
+    ]);
+
+    return {
+      user: await User.findById(user._id),
+      securityEventType: "GOOGLE_SIGN_IN",
+      revokeExistingSessions: false,
+    };
   }
 
-  if (!user.isActive) {
-    throw new AppError("This account has been deactivated", 403);
+  const existingUser = await User.findOne({
+    email: googleProfile.email,
+  }).select(
+    "+password +registrationOtpHash +registrationOtpExpiresAt " +
+      "+registrationOtpLastSentAt +registrationOtpAttempts " +
+      "+loginOtpHash +loginOtpExpiresAt +loginOtpLastSentAt +loginOtpAttempts",
+  );
+
+  if (existingUser) {
+    ensureActiveUser(existingUser);
+
+    const linkedIdentity = await findGoogleIdentityForUser(existingUser._id);
+
+    if (linkedIdentity) {
+      throw new AppError(
+        "This email is already attached to a different Google identity",
+        409,
+        {
+          code: "GOOGLE_IDENTITY_CONFLICT",
+        },
+      );
+    }
+
+    if (existingUser.emailVerified) {
+      throw new AppError(
+        "This existing FinTrack account needs a one-time secure Google migration",
+        409,
+        {
+          code: "LEGACY_ACCOUNT_REQUIRES_LINK",
+          email: existingUser.email,
+        },
+      );
+    }
+
+    // FinTrack v1 created permanent users before registration OTP verification.
+    // Never preserve an attacker-planted local password when the real owner later
+    // arrives through Google. Reclaim only an unused local-only record and only
+    // when Google is authoritative for that email address.
+    if (!isGoogleAuthoritativeForEmail(googleProfile)) {
+      throw new AppError(
+        "This unfinished legacy registration cannot be claimed automatically. Contact support to migrate it safely.",
+        409,
+        {
+          code: "LEGACY_UNVERIFIED_ACCOUNT_REQUIRES_MANUAL_MIGRATION",
+        },
+      );
+    }
+
+    if (await legacyUnverifiedUserHasProtectedState(existingUser._id)) {
+      throw new AppError(
+        "This unfinished legacy registration contains protected account state and cannot be migrated automatically.",
+        409,
+        {
+          code: "LEGACY_UNVERIFIED_ACCOUNT_REQUIRES_MANUAL_MIGRATION",
+        },
+      );
+    }
+
+    let user;
+
+    try {
+      user = await mongoose.connection.transaction(async (session) => {
+        const identityConflict = await ExternalIdentity.findOne({
+          provider: GOOGLE_PROVIDER,
+          providerSubject: googleProfile.subject,
+        }).session(session);
+
+        if (identityConflict) {
+          throw new AppError("This Google account is already linked", 409);
+        }
+
+        const googleName = getSafeGoogleDisplayName(googleProfile);
+
+        await User.updateOne(
+          {
+            _id: existingUser._id,
+            emailVerified: false,
+          },
+          {
+            $set: {
+              fullName: googleName,
+              emailVerified: true,
+              preferredCurrency: "INR",
+              avatarUrl: googleProfile.avatarUrl,
+              lastLoginAt: new Date(),
+            },
+            $unset: legacyAuthUnset,
+          },
+          { session },
+        );
+
+        await ExternalIdentity.create(
+          [buildIdentityDocument({
+            userId: existingUser._id,
+            googleProfile,
+          })],
+          { session },
+        );
+
+        return await User.findById(existingUser._id).session(session);
+      });
+    } catch (error) {
+      if (error?.code === 11000) {
+        const raced = await recoverSuccessfulGoogleRace(googleProfile);
+
+        if (raced) {
+          return raced;
+        }
+
+        throw new AppError(
+          "This unfinished legacy registration is already being migrated to a different Google identity",
+          409,
+          {
+            code: "GOOGLE_IDENTITY_CONFLICT",
+          },
+        );
+      }
+
+      throw error;
+    }
+
+    await seedDefaultCategoriesForUser(user._id);
+
+    return {
+      user,
+      securityEventType: "GOOGLE_UNVERIFIED_ACCOUNT_RECLAIMED",
+      revokeExistingSessions: true,
+    };
+  }
+
+  let user;
+
+  try {
+    user = await mongoose.connection.transaction(async (session) => {
+      const [createdUser] = await User.create(
+        [
+          {
+            fullName: getSafeGoogleDisplayName(googleProfile),
+            email: googleProfile.email,
+            preferredCurrency: "INR",
+            emailVerified: true,
+            avatarUrl: googleProfile.avatarUrl,
+            lastLoginAt: new Date(),
+          },
+        ],
+        { session },
+      );
+
+      await ExternalIdentity.create(
+        [buildIdentityDocument({
+          userId: createdUser._id,
+          googleProfile,
+        })],
+        { session },
+      );
+
+      return createdUser;
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      const raced = await recoverSuccessfulGoogleRace(googleProfile);
+
+      if (raced) {
+        return raced;
+      }
+
+      throw new AppError(
+        "This Google email is already associated with another FinTrack account",
+        409,
+        {
+          code: "GOOGLE_EMAIL_CONFLICT",
+        },
+      );
+    }
+
+    throw error;
+  }
+
+  await seedDefaultCategoriesForUser(user._id);
+
+  return {
+    user,
+    securityEventType: "GOOGLE_ACCOUNT_CREATED",
+    revokeExistingSessions: false,
+  };
+};
+
+const linkLegacyAccountWithGoogle = async (
+  { credential, password },
+  securityContext = {},
+  { expectedNonce } = {},
+) => {
+  const googleProfile = await verifyGoogleCredential(credential, {
+    expectedNonce,
+  });
+
+  const user = await User.findOne({
+    email: googleProfile.email,
+  }).select(
+    "+password +registrationOtpHash +registrationOtpExpiresAt " +
+      "+registrationOtpLastSentAt +registrationOtpAttempts " +
+      "+loginOtpHash +loginOtpExpiresAt +loginOtpLastSentAt +loginOtpAttempts",
+  );
+
+  if (!user || !user.isActive || !user.emailVerified || !user.password) {
+    throw new AppError(
+      "The legacy FinTrack account could not be securely linked to this Google account",
+      401,
+    );
+  }
+
+  const [subjectIdentity, userIdentity] = await Promise.all([
+    ExternalIdentity.findOne({
+      provider: GOOGLE_PROVIDER,
+      providerSubject: googleProfile.subject,
+    }),
+    findGoogleIdentityForUser(user._id),
+  ]);
+
+  if (subjectIdentity && !subjectIdentity.user.equals(user._id)) {
+    throw new AppError("This Google account is already linked", 409, {
+      code: "GOOGLE_IDENTITY_CONFLICT",
+    });
+  }
+
+  if (
+    userIdentity &&
+    userIdentity.providerSubject !== googleProfile.subject
+  ) {
+    throw new AppError(
+      "This FinTrack account is already linked to a different Google identity",
+      409,
+      {
+        code: "GOOGLE_IDENTITY_CONFLICT",
+      },
+    );
+  }
+
+  if (subjectIdentity && userIdentity) {
+    return User.findById(user._id);
   }
 
   const passwordMatches = await user.comparePassword(password);
@@ -266,143 +468,96 @@ const requestLoginOtp = async (
   if (!passwordMatches) {
     await recordSecurityEventSafe({
       userId: user._id,
-      type: "LOGIN_PASSWORD_FAILED",
+      type: "GOOGLE_LEGACY_LINK_FAILED",
       securityContext,
     });
 
-    throw new AppError("Invalid email or password", 401);
-  }
-
-  if (!user.emailVerified) {
     throw new AppError(
-      "Verify your email address before logging in",
-      403,
-      {
-        code: "EMAIL_NOT_VERIFIED",
-        email: user.email,
-      },
+      "The legacy FinTrack account could not be securely linked to this Google account",
+      401,
     );
   }
 
-  ensureResendCooldownPassed(user.loginOtpLastSentAt);
+  try {
+    await mongoose.connection.transaction(async (session) => {
+      const currentSubjectIdentity = await ExternalIdentity.findOne({
+        provider: GOOGLE_PROVIDER,
+        providerSubject: googleProfile.subject,
+      }).session(session);
 
-  await setLoginOtp(user);
+      if (
+        currentSubjectIdentity &&
+        !currentSubjectIdentity.user.equals(user._id)
+      ) {
+        throw new AppError("This Google account is already linked", 409);
+      }
 
-  return {
-    email: user.email,
-    expiresInMinutes:
-      Number(process.env.OTP_EXPIRES_MINUTES) || 10,
-  };
-};
+      const currentUserIdentity = await findGoogleIdentityForUser(
+        user._id,
+        session,
+      );
 
-const verifyLoginOtp = async (
-  { email, otp },
-  securityContext = {},
-) => {
-  const user = await User.findOne({ email }).select(
-    "+loginOtpHash " +
-      "+loginOtpExpiresAt " +
-      "+loginOtpAttempts",
-  );
+      if (
+        currentUserIdentity &&
+        currentUserIdentity.providerSubject !== googleProfile.subject
+      ) {
+        throw new AppError(
+          "This FinTrack account is already linked to a different Google identity",
+          409,
+        );
+      }
 
-  if (!user) {
-    throw new AppError("Login request not found", 404);
-  }
+      if (!currentUserIdentity) {
+        await ExternalIdentity.create(
+          [buildIdentityDocument({
+            userId: user._id,
+            googleProfile,
+          })],
+          { session },
+        );
+      }
 
-  if (!user.isActive) {
-    throw new AppError("This account has been deactivated", 403);
-  }
-
-  if (!user.emailVerified) {
-    throw new AppError(
-      "Verify your email address before logging in",
-      403,
-    );
-  }
-
-  if (!user.loginOtpHash || !user.loginOtpExpiresAt) {
-    throw new AppError(
-      "No login OTP is active. Start the login process again.",
-      400,
-    );
-  }
-
-  if (user.loginOtpExpiresAt.getTime() < Date.now()) {
-    throw new AppError(
-      "The login OTP has expired. Request a new OTP.",
-      400,
-    );
-  }
-
-  const { maxAttempts } = getOtpSettings();
-
-  if (user.loginOtpAttempts >= maxAttempts) {
-    throw new AppError(
-      "Too many incorrect attempts. Request a new OTP.",
-      429,
-    );
-  }
-
-  const isValid = verifyOtpHash(otp, user.loginOtpHash);
-
-  if (!isValid) {
-    user.loginOtpAttempts += 1;
-
-    await user.save({
-      validateModifiedOnly: true,
+      await User.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            lastLoginAt: new Date(),
+          },
+          $unset: legacyAuthUnset,
+        },
+        { session },
+      );
     });
+  } catch (error) {
+    if (error?.code === 11000) {
+      const [subjectIdentityAfterRace, userIdentityAfterRace] = await Promise.all([
+        ExternalIdentity.findOne({
+          provider: GOOGLE_PROVIDER,
+          providerSubject: googleProfile.subject,
+        }),
+        findGoogleIdentityForUser(user._id),
+      ]);
 
-    await recordSecurityEventSafe({
-      userId: user._id,
-      type: "LOGIN_OTP_FAILED",
-      securityContext,
-    });
+      if (
+        subjectIdentityAfterRace?.user?.equals(user._id) &&
+        userIdentityAfterRace?.providerSubject === googleProfile.subject
+      ) {
+        return User.findById(user._id);
+      }
 
-    const remainingAttempts =
-      maxAttempts - user.loginOtpAttempts;
+      throw new AppError(
+        "This Google identity or FinTrack account is already linked elsewhere",
+        409,
+        {
+          code: "GOOGLE_IDENTITY_CONFLICT",
+        },
+      );
+    }
 
-    throw new AppError(
-      `Incorrect OTP. ${remainingAttempts} attempt${
-        remainingAttempts === 1 ? "" : "s"
-      } remaining.`,
-      400,
-    );
+    throw error;
   }
-
-  user.loginOtpHash = null;
-  user.loginOtpExpiresAt = null;
-  user.loginOtpLastSentAt = null;
-  user.loginOtpAttempts = 0;
-  user.lastLoginAt = new Date();
-
-  await user.save({
-    validateModifiedOnly: true,
-  });
 
   return User.findById(user._id);
-};
-
-const resendLoginOtp = async ({ email }) => {
-  const user = await User.findOne({ email }).select(
-    "+loginOtpHash " +
-      "+loginOtpExpiresAt " +
-      "+loginOtpLastSentAt " +
-      "+loginOtpAttempts",
-  );
-
-  if (!user || !user.emailVerified || !user.isActive) {
-    throw new AppError("Login request not found", 404);
-  }
-
-  ensureResendCooldownPassed(user.loginOtpLastSentAt);
-
-  await setLoginOtp(user);
-
-  return {
-    email: user.email,
-    expiresInMinutes:
-      Number(process.env.OTP_EXPIRES_MINUTES) || 10,
-  };
 };
 
 const findUserById = async (userId) => {
@@ -416,11 +571,8 @@ const findUserById = async (userId) => {
 };
 
 export {
+  authenticateWithGoogle,
   findUserById,
-  registerUser,
-  requestLoginOtp,
-  resendLoginOtp,
-  resendRegistrationOtp,
-  verifyLoginOtp,
-  verifyRegistrationOtp,
+  getGoogleAuthConfig,
+  linkLegacyAccountWithGoogle,
 };

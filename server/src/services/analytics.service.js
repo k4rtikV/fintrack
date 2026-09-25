@@ -7,6 +7,10 @@ import {
   getDateKeyInTimeZone,
   toUtcDateOnly,
 } from "../utils/dateOnly.js";
+import {
+  addCurrencyRelativePercentages,
+  buildCurrencyScopedTransactionStages,
+} from "../utils/financialPolicy.js";
 
 const toObjectId = (value) => {
   return new mongoose.Types.ObjectId(value.toString());
@@ -27,85 +31,74 @@ const buildDateMatch = ({ startDate, endDate }) => {
     transactionDate.$lte = endOfUtcDateOnly(endDate);
   }
 
-  return {
-    transactionDate,
-  };
+  return { transactionDate };
 };
 
 const getOverviewForUser = async ({
   userId,
   startDate,
   endDate,
+  currency,
 }) => {
   const userObjectId = toObjectId(userId);
-
   const transactionMatch = {
     user: userObjectId,
-    ...buildDateMatch({
-      startDate,
-      endDate,
-    }),
+    ...buildDateMatch({ startDate, endDate }),
+  };
+  const accountMatch = {
+    user: userObjectId,
+    isArchived: false,
+    ...(currency ? { currency } : {}),
   };
 
-  const [transactionTotals, accountTotals] = await Promise.all([
+  const [transactionTotals, accountTotals, totalActiveAccountCount] =
+    await Promise.all([
     Transaction.aggregate([
-      {
-        $match: transactionMatch,
-      },
+      { $match: transactionMatch },
+      ...buildCurrencyScopedTransactionStages(currency),
       {
         $group: {
           _id: "$type",
-          total: {
-            $sum: "$amount",
-          },
-          count: {
-            $sum: 1,
-          },
+          total: { $sum: "$amount" },
+          count: { $sum: 1 },
         },
       },
     ]),
-
     Account.aggregate([
-      {
-        $match: {
-          user: userObjectId,
-          isArchived: false,
-        },
-      },
+      { $match: accountMatch },
       {
         $group: {
           _id: null,
-          totalBalance: {
-            $sum: "$balance",
-          },
-          accountCount: {
-            $sum: 1,
-          },
+          totalBalance: { $sum: "$balance" },
+          accountCount: { $sum: 1 },
         },
       },
     ]),
+    Account.countDocuments({
+      user: userObjectId,
+      isArchived: false,
+    }),
   ]);
 
   const incomeRecord = transactionTotals.find(
     (item) => item._id === "INCOME",
   );
-
   const expenseRecord = transactionTotals.find(
     (item) => item._id === "EXPENSE",
   );
-
   const totalIncome = incomeRecord?.total || 0;
   const totalExpense = expenseRecord?.total || 0;
   const netSavings = totalIncome - totalExpense;
-
   const savingsRate =
     totalIncome > 0
       ? Number(((netSavings / totalIncome) * 100).toFixed(2))
       : 0;
 
   return {
+    currency: currency || null,
     totalBalance: accountTotals[0]?.totalBalance || 0,
-    accountCount: accountTotals[0]?.accountCount || 0,
+    accountCount: totalActiveAccountCount || 0,
+    balanceAccountCount: accountTotals[0]?.accountCount || 0,
     totalIncome,
     incomeTransactionCount: incomeRecord?.count || 0,
     totalExpense,
@@ -121,29 +114,23 @@ const getCategoryBreakdownForUser = async ({
   userId,
   startDate,
   endDate,
+  currency,
 }) => {
   const userObjectId = toObjectId(userId);
-
   const breakdown = await Transaction.aggregate([
     {
       $match: {
         user: userObjectId,
         type: "EXPENSE",
-        ...buildDateMatch({
-          startDate,
-          endDate,
-        }),
+        ...buildDateMatch({ startDate, endDate }),
       },
     },
+    ...buildCurrencyScopedTransactionStages(currency),
     {
       $group: {
         _id: "$category",
-        amount: {
-          $sum: "$amount",
-        },
-        transactionCount: {
-          $sum: 1,
-        },
+        amount: { $sum: "$amount" },
+        transactionCount: { $sum: 1 },
       },
     },
     {
@@ -154,9 +141,7 @@ const getCategoryBreakdownForUser = async ({
         as: "category",
       },
     },
-    {
-      $unwind: "$category",
-    },
+    { $unwind: "$category" },
     {
       $project: {
         _id: 0,
@@ -168,11 +153,7 @@ const getCategoryBreakdownForUser = async ({
         transactionCount: 1,
       },
     },
-    {
-      $sort: {
-        amount: -1,
-      },
-    },
+    { $sort: { amount: -1 } },
   ]);
 
   const totalExpense = breakdown.reduce(
@@ -182,6 +163,7 @@ const getCategoryBreakdownForUser = async ({
 
   return breakdown.map((item) => ({
     ...item,
+    currency: currency || null,
     percentage:
       totalExpense > 0
         ? Number(((item.amount / totalExpense) * 100).toFixed(2))
@@ -195,10 +177,10 @@ const getMonthlyTrendForUser = async ({
   startDate,
   endDate,
   timezone = "Asia/Kolkata",
+  currency,
 }) => {
   const userObjectId = toObjectId(userId);
   const hasDateRange = Boolean(startDate || endDate);
-
   let rangeStart;
   let rangeEnd;
 
@@ -219,7 +201,6 @@ const getMonthlyTrendForUser = async ({
   }
 
   const inclusiveEndDate = endOfUtcDateOnly(rangeEnd);
-
   const results = await Transaction.aggregate([
     {
       $match: {
@@ -230,20 +211,15 @@ const getMonthlyTrendForUser = async ({
         },
       },
     },
+    ...buildCurrencyScopedTransactionStages(currency),
     {
       $group: {
         _id: {
-          year: {
-            $year: "$transactionDate",
-          },
-          month: {
-            $month: "$transactionDate",
-          },
+          year: { $year: "$transactionDate" },
+          month: { $month: "$transactionDate" },
           type: "$type",
         },
-        total: {
-          $sum: "$amount",
-        },
+        total: { $sum: "$amount" },
       },
     },
     {
@@ -258,16 +234,10 @@ const getMonthlyTrendForUser = async ({
 
   for (const item of results) {
     const key = `${item._id.year}-${String(item._id.month).padStart(2, "0")}`;
-
     if (!resultMap.has(key)) {
-      resultMap.set(key, {
-        income: 0,
-        expense: 0,
-      });
+      resultMap.set(key, { income: 0, expense: 0 });
     }
-
     const monthRecord = resultMap.get(key);
-
     if (item._id.type === "INCOME") {
       monthRecord.income = item.total;
     } else {
@@ -281,7 +251,6 @@ const getMonthlyTrendForUser = async ({
   const lastMonth = new Date(
     Date.UTC(rangeEnd.getUTCFullYear(), rangeEnd.getUTCMonth(), 1),
   );
-
   const trend = [];
   const cursor = new Date(firstMonth);
 
@@ -289,11 +258,7 @@ const getMonthlyTrendForUser = async ({
     const year = cursor.getUTCFullYear();
     const monthNumber = cursor.getUTCMonth() + 1;
     const key = `${year}-${String(monthNumber).padStart(2, "0")}`;
-
-    const totals = resultMap.get(key) || {
-      income: 0,
-      expense: 0,
-    };
+    const totals = resultMap.get(key) || { income: 0, expense: 0 };
 
     trend.push({
       key,
@@ -304,6 +269,7 @@ const getMonthlyTrendForUser = async ({
         year: "numeric",
         timeZone: "UTC",
       }),
+      currency: currency || null,
       income: totals.income,
       expense: totals.expense,
       netSavings: totals.income - totals.expense,
@@ -320,56 +286,40 @@ const getTopExpensesForUser = async ({
   limit = 5,
   startDate,
   endDate,
+  currency,
 }) => {
+  let accountFilter = {};
+
+  if (currency) {
+    const accountIds = await Account.find({
+      user: userId,
+      currency,
+    }).distinct("_id");
+    accountFilter = { account: { $in: accountIds } };
+  }
+
   return Transaction.find({
     user: userId,
     type: "EXPENSE",
-    ...buildDateMatch({
-      startDate,
-      endDate,
-    }),
+    ...accountFilter,
+    ...buildDateMatch({ startDate, endDate }),
   })
     .populate("account", "name type currency")
     .populate("category", "name icon color")
-    .sort({
-      amount: -1,
-      transactionDate: -1,
-    })
+    .sort({ amount: -1, transactionDate: -1 })
     .limit(limit);
 };
 
-const getAccountSummaryForUser = async ({
-  userId,
-}) => {
+const getAccountSummaryForUser = async ({ userId }) => {
   const accounts = await Account.find({
     user: userId,
     isArchived: false,
   })
-    .select(
-      "name type balance currency color icon createdAt",
-    )
-    .sort({
-      balance: -1,
-    });
+    .select("name type balance currency color icon createdAt")
+    .sort({ currency: 1, balance: -1 });
 
-  const totalBalance = accounts.reduce(
-    (total, account) => total + account.balance,
-    0,
-  );
-
-  return accounts.map((account) => ({
-    ...account.toObject(),
-
-    percentage:
-      totalBalance !== 0
-        ? Number(
-            (
-              (account.balance / totalBalance) *
-              100
-            ).toFixed(2),
-          )
-        : 0,
-  }));
+  const normalizedAccounts = accounts.map((account) => account.toObject());
+  return addCurrencyRelativePercentages(normalizedAccounts);
 };
 
 export {

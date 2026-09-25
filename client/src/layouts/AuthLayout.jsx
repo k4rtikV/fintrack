@@ -57,7 +57,7 @@ const AuthLayout = () => {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Password protection with email OTP verification.
+              Google identity verification backed by FinTrack server sessions.
             </p>
           </article>
         </div>

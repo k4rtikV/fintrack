@@ -34,7 +34,7 @@ const buildLoginAlertEmail = ({
       <div style="margin-top:6px"><strong>Network address:</strong> ${escapeHtml(securityContext.ipAddress)}</div>
       <div style="margin-top:6px"><strong>Time:</strong> ${escapeHtml(loginTime)}</div>
     </div>
-    <p style="margin:0">If this was you, no action is needed. If you do not recognize this login, review your active sessions and change your password immediately.</p>`;
+    <p style="margin:0">If this was you, no action is needed. If you do not recognize this login, review and revoke active sessions immediately and secure the Google account used for FinTrack.</p>`;
 
   return emailLayout({
     preheader: "New login to your FinTrack account",

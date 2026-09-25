@@ -259,6 +259,36 @@ const eventPresentation = {
       "Your password was changed and all existing sessions were revoked.",
     severity: "info",
   },
+  GOOGLE_ACCOUNT_CREATED: {
+    title: "Google account created",
+    description:
+      "Your FinTrack account was created after Google identity verification.",
+    severity: "success",
+  },
+  GOOGLE_SIGN_IN: {
+    title: "Google sign-in",
+    description:
+      "A Google identity verification completed and a FinTrack session was created.",
+    severity: "success",
+  },
+  GOOGLE_ACCOUNT_LINKED: {
+    title: "Google identity linked",
+    description:
+      "Your legacy FinTrack login was securely migrated to Google-only authentication.",
+    severity: "info",
+  },
+  GOOGLE_LEGACY_LINK_FAILED: {
+    title: "Failed Google migration attempt",
+    description:
+      "A one-time legacy account migration attempt failed its FinTrack password check.",
+    severity: "warning",
+  },
+  GOOGLE_UNVERIFIED_ACCOUNT_RECLAIMED: {
+    title: "Legacy registration replaced",
+    description:
+      "An unfinished legacy registration was replaced with an authoritative Google identity and its old local credentials were removed.",
+    severity: "info",
+  },
   SESSION_REVOKED: {
     title: "Session revoked",
     description:

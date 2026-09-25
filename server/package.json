@@ -9,7 +9,9 @@
     "backfill:categories": "node src/scripts/backfillCategoryOrder.js",
     "test:assistant": "node src/scripts/testAssistantIntelligence.js",
     "test:report-pdf": "node src/scripts/testMonthlyPdfLayout.js",
-    "test:security": "node src/scripts/testSecurityPhase.js"
+    "test:security": "node src/scripts/testSecurityPhase.js",
+    "test:v2-foundation": "node src/scripts/testV2Foundation.js",
+    "test:v2-auth": "node src/scripts/testV2GoogleAuthMigration.js"
   },
   "keywords": [
     "finance",

@@ -14,7 +14,7 @@ const validateEnvironment = () => {
 
   process.env.NODE_ENV = nodeEnv;
 
-  const alwaysRequired = ["MONGO_URI", "JWT_SECRET"];
+  const alwaysRequired = ["MONGO_URI", "JWT_SECRET", "GOOGLE_CLIENT_ID"];
   const productionRequired = [
     "CLIENT_URL",
     "BREVO_API_KEY",

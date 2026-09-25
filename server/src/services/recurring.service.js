@@ -27,6 +27,7 @@ const getNextOccurrence = ({
   date,
   frequency,
   interval,
+  anchorDate = date,
 }) => {
   if (frequency === "DAILY") {
     return addDaysDateOnly(date, interval);
@@ -37,10 +38,10 @@ const getNextOccurrence = ({
   }
 
   if (frequency === "MONTHLY") {
-    return addMonthsDateOnlyClamped(date, interval);
+    return addMonthsDateOnlyClamped(date, interval, anchorDate);
   }
 
-  return addYearsDateOnlyClamped(date, interval);
+  return addYearsDateOnlyClamped(date, interval, anchorDate);
 };
 
 const ensureValidObjectId = (id) => {
@@ -188,7 +189,9 @@ const getRecurringByIdForUser = async ({
     throw new AppError("Recurring transaction not found", 404);
   }
 
-  return normalizeRecurringCalendarDates(recurring, timezone);
+  normalizeRecurringCalendarDates(recurring, timezone);
+  alignNextRunToAnchor(recurring);
+  return recurring;
 };
 
 const getRecurringForUser = async ({
@@ -212,9 +215,11 @@ const getRecurringForUser = async ({
     }),
   );
 
-  return recurring.map((item) =>
-    normalizeRecurringCalendarDates(item, timezone),
-  );
+  return recurring.map((item) => {
+    normalizeRecurringCalendarDates(item, timezone);
+    alignNextRunToAnchor(item);
+    return item;
+  });
 };
 
 const calculateNextRunAfterEdit = ({
@@ -237,11 +242,33 @@ const calculateNextRunAfterEdit = ({
       date: candidate,
       frequency,
       interval,
+      anchorDate: startDate,
     });
     guard += 1;
   }
 
   return candidate;
+};
+
+
+const alignNextRunToAnchor = (recurring) => {
+  if (!recurring?.startDate) {
+    return recurring?.nextRunDate || null;
+  }
+
+  if (!["MONTHLY", "YEARLY"].includes(recurring.frequency)) {
+    return recurring.nextRunDate;
+  }
+
+  const anchoredNextRun = calculateNextRunAfterEdit({
+    startDate: recurring.startDate,
+    lastRunDate: recurring.lastRunDate,
+    frequency: recurring.frequency,
+    interval: recurring.interval,
+  });
+
+  recurring.nextRunDate = anchoredNextRun;
+  return anchoredNextRun;
 };
 
 const updateRecurringForUser = async ({
@@ -458,6 +485,7 @@ const processSingleRecurringForUser = async ({
   }
 
   normalizeRecurringCalendarDates(recurring, timezone);
+  alignNextRunToAnchor(recurring);
 
   if (!recurring.isActive) {
     throw new AppError("This recurring schedule is paused", 400);
@@ -489,6 +517,7 @@ const processSingleRecurringForUser = async ({
     date: nextRun,
     frequency: recurring.frequency,
     interval: recurring.interval,
+    anchorDate: recurring.startDate,
   });
 
   if (
@@ -528,6 +557,7 @@ const processDueRecurringForUser = async ({
 
   for (const recurring of schedules) {
     normalizeRecurringCalendarDates(recurring, timezone);
+    alignNextRunToAnchor(recurring);
     let processedForSchedule = 0;
 
     while (
@@ -560,6 +590,7 @@ const processDueRecurringForUser = async ({
         date: occurrenceDate,
         frequency: recurring.frequency,
         interval: recurring.interval,
+        anchorDate: recurring.startDate,
       });
 
       processedForSchedule += 1;

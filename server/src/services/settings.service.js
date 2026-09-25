@@ -1,3 +1,4 @@
+import ExternalIdentity from "../models/ExternalIdentity.js";
 import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
 
@@ -12,7 +13,13 @@ const findSettingsUser = async (userId) => {
 };
 
 const getSettingsForUser = async (userId) => {
-  const user = await findSettingsUser(userId);
+  const [user, googleIdentity] = await Promise.all([
+    findSettingsUser(userId),
+    ExternalIdentity.findOne({
+      user: userId,
+      provider: "GOOGLE",
+    }).lean(),
+  ]);
 
   return {
     profile: {
@@ -21,6 +28,12 @@ const getSettingsForUser = async (userId) => {
       preferredCurrency: user.preferredCurrency,
       timezone: user.timezone,
       emailVerified: user.emailVerified,
+    },
+    authentication: {
+      provider: googleIdentity ? "GOOGLE" : "LEGACY_MIGRATION_REQUIRED",
+      googleLinked: Boolean(googleIdentity),
+      googleEmail: googleIdentity?.providerEmailSnapshot || "",
+      linkedAt: googleIdentity?.createdAt || null,
     },
     notifications: {
       emailEnabled: user.notificationPreferences?.emailEnabled ?? true,
@@ -73,41 +86,7 @@ const updateNotificationSettingsForUser = async ({
   return user.notificationPreferences;
 };
 
-const changePasswordForUser = async ({
-  userId,
-  currentPassword,
-  newPassword,
-}) => {
-  const user = await User.findById(userId).select("+password");
-
-  if (!user || !user.isActive) {
-    throw new AppError("User account not found", 404);
-  }
-
-  const currentPasswordMatches = await user.comparePassword(currentPassword);
-
-  if (!currentPasswordMatches) {
-    throw new AppError("Current password is incorrect", 400);
-  }
-
-  const passwordIsUnchanged = await user.comparePassword(newPassword);
-
-  if (passwordIsUnchanged) {
-    throw new AppError(
-      "New password must be different from your current password",
-      400,
-    );
-  }
-
-  user.password = newPassword;
-
-  await user.save({
-    validateModifiedOnly: true,
-  });
-};
-
 export {
-  changePasswordForUser,
   getSettingsForUser,
   updateNotificationSettingsForUser,
   updateProfileSettingsForUser,

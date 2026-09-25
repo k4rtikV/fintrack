@@ -79,6 +79,8 @@ const userSessionSchema = new mongoose.Schema(
         "USER_REVOKED",
         "OTHER_SESSIONS_REVOKED",
         "PASSWORD_CHANGED",
+        "GOOGLE_ACCOUNT_LINKED",
+        "GOOGLE_ACCOUNT_RECLAIMED",
       ],
       default: null,
     },

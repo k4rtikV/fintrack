@@ -3,25 +3,17 @@ import { rateLimit } from "express-rate-limit";
 
 import {
   getCurrentUser,
-  login,
+  googleAuthenticate,
+  googleConfig,
+  linkLegacyGoogle,
   logout,
-  register,
-  resendLogin,
-  resendRegistration,
-  verifyLogin,
-  verifyRegistration,
 } from "../controllers/auth.controller.js";
-
 import protect from "../middleware/auth.middleware.js";
+import { requireApprovedBrowserOrigin } from "../middleware/csrf.middleware.js";
 import validate from "../middleware/validate.js";
-
 import {
-  loginSchema,
-  registerSchema,
-  resendLoginOtpSchema,
-  resendRegistrationOtpSchema,
-  verifyLoginOtpSchema,
-  verifyRegistrationOtpSchema,
+  googleAuthenticationSchema,
+  legacyGoogleLinkSchema,
 } from "../validators/auth.validator.js";
 
 const router = express.Router();
@@ -29,9 +21,7 @@ const router = express.Router();
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
 
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : fallback;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
 const authRateLimitMax = parsePositiveInteger(
@@ -55,50 +45,38 @@ const authAttemptLimiter = rateLimit({
   },
 });
 
+const legacyLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message:
+      "Too many legacy account migration attempts. Please try again later.",
+  },
+});
+
+router.get("/google/config", googleConfig);
+
 router.post(
-  "/register",
+  "/google",
+  requireApprovedBrowserOrigin,
   authAttemptLimiter,
-  validate(registerSchema),
-  register,
+  validate(googleAuthenticationSchema),
+  googleAuthenticate,
 );
 
 router.post(
-  "/verify-registration-otp",
+  "/google/link-legacy",
+  requireApprovedBrowserOrigin,
   authAttemptLimiter,
-  validate(verifyRegistrationOtpSchema),
-  verifyRegistration,
-);
-
-router.post(
-  "/resend-registration-otp",
-  authAttemptLimiter,
-  validate(resendRegistrationOtpSchema),
-  resendRegistration,
-);
-
-router.post(
-  "/login",
-  authAttemptLimiter,
-  validate(loginSchema),
-  login,
-);
-
-router.post(
-  "/verify-login-otp",
-  authAttemptLimiter,
-  validate(verifyLoginOtpSchema),
-  verifyLogin,
-);
-
-router.post(
-  "/resend-login-otp",
-  authAttemptLimiter,
-  validate(resendLoginOtpSchema),
-  resendLogin,
+  legacyLinkLimiter,
+  validate(legacyGoogleLinkSchema),
+  linkLegacyGoogle,
 );
 
 router.post("/logout", protect, logout);
-
 router.get("/me", protect, getCurrentUser);
 
 export default router;
