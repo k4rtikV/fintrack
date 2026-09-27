@@ -10,7 +10,7 @@ import {
 } from "../../utils/dateUtils";
 
 const fieldClassName =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
 const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, timezone }) => {
   const updateFilter = (key, value) => {
@@ -51,7 +51,7 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, 
             key={value}
             type="button"
             onClick={() => applyPreset(value)}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-copper-300 hover:bg-copper-50 hover:text-copper-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-copper-500/40 dark:hover:bg-copper-500/10"
           >
             {label}
           </button>

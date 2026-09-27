@@ -1,36 +1,24 @@
 import { Plus } from "lucide-react";
-import { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
-import Sidebar from "../components/layout/Sidebar";
+import AnimatedOutlet from "../components/layout/AnimatedOutlet";
 import Topbar from "../components/layout/Topbar";
 
 const DashboardLayout = () => {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 transition-colors dark:bg-slate-950 dark:text-white">
-      <Sidebar />
+    <div className="min-h-screen bg-slate-50 text-slate-950 transition-colors dark:bg-slate-950 dark:text-slate-100">
+      <Topbar />
 
-      <Sidebar
-        mobile
-        open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-      />
-
-      <div className="lg:pl-72">
-        <Topbar onMenuClick={() => setMobileOpen(true)} />
-
-        <main className="p-4 pb-24 sm:p-6 lg:p-8">
-          <Outlet />
-        </main>
-      </div>
+      <main className="relative overflow-x-clip px-4 pb-24 pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:pb-10 lg:pt-8">
+        <AnimatedOutlet />
+      </main>
 
       <button
         type="button"
         onClick={() => navigate("/transactions")}
-        className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400 text-slate-950 shadow-xl shadow-emerald-500/25 transition hover:scale-105 hover:bg-emerald-300 lg:hidden"
+        className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-copper-300/45 bg-copper-500 text-white shadow-xl shadow-copper-950/20 transition duration-200 hover:-translate-y-1 hover:bg-copper-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-copper-300 lg:hidden dark:border-copper-300/20 dark:text-slate-950"
         aria-label="Add transaction"
       >
         <Plus size={24} />

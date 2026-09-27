@@ -9,7 +9,7 @@ import { resetPin, unlockPin } from "../../services/securityService";
 import getApiError from "../../utils/getApiError";
 
 const pinInputClass =
-  "w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-center text-2xl font-bold tracking-[0.55em] text-white outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/10";
+  "w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-center text-2xl font-bold tracking-[0.55em] text-white outline-none transition focus:border-copper-400 focus:ring-4 focus:ring-copper-400/10";
 
 const PinLockScreen = () => {
   const { logout, refreshUser, sessionSecurity } = useAuth();
@@ -98,7 +98,7 @@ const PinLockScreen = () => {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-10 text-white">
       <section className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/90 p-7 shadow-2xl shadow-black/30 sm:p-9">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-400 text-slate-950">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-copper-500 text-white">
           <LockKeyhole size={27} />
         </div>
 
@@ -129,7 +129,7 @@ const PinLockScreen = () => {
             <button
               type="submit"
               disabled={busy || pin.length !== 6}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-copper-500 px-4 py-3 font-semibold text-white transition hover:bg-copper-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <KeyRound size={18} />
               {busy ? "Unlocking…" : "Unlock FinTrack"}
@@ -150,7 +150,7 @@ const PinLockScreen = () => {
           <div className="mt-7">
             <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
               <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 shrink-0 text-emerald-300" size={19} />
+                <ShieldCheck className="mt-0.5 shrink-0 text-steel-300" size={19} />
                 <p className="text-xs leading-5 text-slate-400">
                   Resetting the PIN requires fresh Google verification for the exact Google identity linked to this FinTrack account.
                 </p>
@@ -191,7 +191,7 @@ const PinLockScreen = () => {
                 <button
                   type="submit"
                   disabled={busy || newPin.length !== 6 || confirmPin.length !== 6}
-                  className="w-full rounded-2xl bg-emerald-400 px-4 py-3 font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
+                  className="w-full rounded-2xl bg-copper-500 px-4 py-3 font-semibold text-white transition hover:bg-copper-400 disabled:opacity-50"
                 >
                   {busy ? "Resetting…" : "Reset PIN and unlock"}
                 </button>

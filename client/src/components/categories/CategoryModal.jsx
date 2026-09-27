@@ -88,7 +88,7 @@ const CategoryModal = ({ open, category, onClose, onSubmit, saving }) => {
   };
 
   const fieldClassName =
-    "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-3 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-emerald-400 dark:focus:ring-emerald-500/10";
+    "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-copper-400 focus:ring-3 focus:ring-copper-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-copper-400 dark:focus:ring-copper-500/10";
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
@@ -178,7 +178,7 @@ const CategoryModal = ({ open, category, onClose, onSubmit, saving }) => {
                   onClick={() => updateField("icon", value)}
                   className={`flex justify-center rounded-2xl border p-2.5 transition ${
                     form.icon === value
-                      ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100 dark:bg-emerald-500/10 dark:ring-emerald-500/10"
+                      ? "border-copper-400 bg-copper-50 ring-2 ring-copper-100 dark:bg-copper-500/10 dark:ring-copper-500/10"
                       : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
                   }`}
                 >
@@ -202,7 +202,7 @@ const CategoryModal = ({ open, category, onClose, onSubmit, saving }) => {
                   onClick={() => updateField("color", color)}
                   className={`flex justify-center rounded-xl border p-1.5 transition ${
                     form.color === color
-                      ? "border-emerald-400 ring-2 ring-emerald-100 dark:ring-emerald-500/10"
+                      ? "border-copper-400 ring-2 ring-copper-100 dark:ring-copper-500/10"
                       : "border-slate-200 dark:border-slate-700"
                   }`}
                 >
@@ -223,7 +223,7 @@ const CategoryModal = ({ open, category, onClose, onSubmit, saving }) => {
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-400 dark:text-slate-950 dark:hover:bg-emerald-300"
+              className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-copper-400 dark:text-slate-950 dark:hover:bg-copper-300"
             >
               {saving ? "Saving..." : editing ? "Save changes" : "Create category"}
             </button>

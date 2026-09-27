@@ -4,7 +4,7 @@ import { formatCurrency, formatDate } from "../../utils/formatters";
 import CategoryIcon from "../ui/CategoryIcon";
 
 const iconButtonClass =
-  "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-transparent transition focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-transparent transition focus:outline-none focus:ring-2 focus:ring-copper-400/30 disabled:cursor-not-allowed disabled:opacity-50";
 
 const TransactionActions = ({
   transaction,

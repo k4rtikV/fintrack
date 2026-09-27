@@ -1,13 +1,89 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* FinTrack v2 material palette.
+   Dark surfaces use a cool Blue Steel / gunmetal-blue foundation.
+   Copper is brand/action, steel is informational, emerald/red remain money semantics. */
+@theme {
+  --color-slate-50: #f7f3ed;
+  --color-slate-100: #efe8de;
+  --color-slate-200: #ddd3c6;
+  --color-slate-300: #c3b7a8;
+  --color-slate-400: #929ba3;
+  --color-slate-500: #6c7882;
+  --color-slate-600: #455461;
+  --color-slate-700: #2f3e4b;
+  --color-slate-800: #1d2a36;
+  --color-slate-900: #121b25;
+  --color-slate-950: #090f16;
+
+  --color-copper-50: #fbf4ef;
+  --color-copper-100: #f3e3d7;
+  --color-copper-200: #e6c4ad;
+  --color-copper-300: #d79f7b;
+  --color-copper-400: #c68159;
+  --color-copper-500: #b56f46;
+  --color-copper-600: #98583a;
+  --color-copper-700: #7a4632;
+  --color-copper-800: #643a2d;
+  --color-copper-900: #523127;
+  --color-copper-950: #2e1914;
+
+  --color-steel-50: #eff5f5;
+  --color-steel-100: #dce9ea;
+  --color-steel-200: #bfd5d8;
+  --color-steel-300: #98bbc1;
+  --color-steel-400: #769fa8;
+  --color-steel-500: #5e8993;
+  --color-steel-600: #4e727b;
+  --color-steel-700: #415e65;
+  --color-steel-800: #374d52;
+  --color-steel-900: #304145;
+  --color-steel-950: #1d292c;
+
+  /* Existing informational blue/cyan utilities now inherit the v2 grey-blue family. */
+  --color-blue-50: #eff5f5;
+  --color-blue-100: #dce9ea;
+  --color-blue-200: #bfd5d8;
+  --color-blue-300: #98bbc1;
+  --color-blue-400: #769fa8;
+  --color-blue-500: #5e8993;
+  --color-blue-600: #4e727b;
+  --color-blue-700: #415e65;
+  --color-blue-800: #374d52;
+  --color-blue-900: #304145;
+  --color-blue-950: #1d292c;
+
+  --color-cyan-50: #f2f6f6;
+  --color-cyan-100: #e0ebec;
+  --color-cyan-200: #c5d9dc;
+  --color-cyan-300: #a1c0c5;
+  --color-cyan-400: #7fa5ad;
+  --color-cyan-500: #668e97;
+  --color-cyan-600: #52747d;
+  --color-cyan-700: #455f66;
+  --color-cyan-800: #3a4f54;
+  --color-cyan-900: #334347;
+  --color-cyan-950: #202a2c;
+}
+
 :root {
   font-family:
     Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #0f172a;
-  background-color: #f8fafc;
+  color: #17212a;
+  background-color: #f7f3ed;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  --ft-copper: #b56f46;
+  --ft-copper-bright: #c68159;
+  --ft-steel: #5e8993;
+  --ft-ivory: #f7f3ed;
+  --ft-tan: #c3b7a8;
+  --ft-blue-steel: #121b25;
+  --ft-blue-steel-deep: #090f16;
+  /* Compatibility aliases used by the current shell. */
+  --ft-graphite: var(--ft-blue-steel);
+  --ft-graphite-deep: var(--ft-blue-steel-deep);
 }
 
 * {
@@ -17,12 +93,29 @@
 html {
   min-width: 320px;
   min-height: 100%;
+  background: var(--ft-ivory);
+}
+
+html.dark {
+  background: var(--ft-graphite-deep);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(circle at 8% -10%, rgba(181, 111, 70, 0.08), transparent 26rem),
+    radial-gradient(circle at 92% 0%, rgba(94, 137, 147, 0.07), transparent 30rem),
+    var(--ft-ivory);
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 14% -10%, rgba(88, 111, 137, 0.18), transparent 30rem),
+    radial-gradient(circle at 92% -4%, rgba(94, 137, 147, 0.1), transparent 34rem),
+    radial-gradient(circle at 52% 115%, rgba(181, 111, 70, 0.045), transparent 36rem),
+    var(--ft-blue-steel-deep);
 }
 
 button,
@@ -32,8 +125,6 @@ textarea {
   font: inherit;
 }
 
-/* Keep native date controls readable in both themes. Chromium uses
-   color-scheme to choose the calendar-picker indicator color. */
 input[type="date"],
 input[type="month"],
 input[type="datetime-local"] {
@@ -51,7 +142,7 @@ button {
 }
 
 ::selection {
-  background: rgba(52, 211, 153, 0.28);
+  background: rgba(181, 111, 70, 0.27);
 }
 
 ::-webkit-scrollbar {
@@ -67,12 +158,9 @@ button {
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: padding-box;
-  background-color: #94a3b8;
+  background-color: #9c958c;
 }
 
-/* Mobile-friendly native date/month controls. The visible calendar button is
-   rendered by NativeDateInput; keep the browser's own indicator available but
-   visually hidden so the control remains natively operable. */
 .native-date-input {
   min-height: 44px;
   min-width: 0;
@@ -90,4 +178,92 @@ button {
 .notification-scroll {
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+}
+
+.ft-nav-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #98583a, #c68159 62%, #5e8993);
+  box-shadow: 0 0 16px rgba(181, 111, 70, 0.2);
+  transform-origin: left center;
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease;
+  pointer-events: none;
+}
+
+.ft-route-stage {
+  min-height: calc(100vh - 8.5rem);
+  transform-origin: 50% 12%;
+  backface-visibility: hidden;
+}
+
+.ft-route-forward {
+  animation: ft-route-enter-forward 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ft-route-backward {
+  animation: ft-route-enter-backward 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ft-route-neutral {
+  animation: ft-route-enter-neutral 240ms ease-out both;
+}
+
+@keyframes ft-route-enter-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 72px, 0) scale(0.992);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes ft-route-enter-backward {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -72px, 0) scale(0.992);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes ft-route-enter-neutral {
+  from {
+    opacity: 0;
+    transform: scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .ft-route-stage {
+    animation: none !important;
+    filter: none !important;
+    transform: none !important;
+  }
 }

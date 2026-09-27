@@ -335,7 +335,7 @@ const AssistantPage = () => {
         <DashboardCard className="self-start flex h-[calc(100vh-220px)] min-h-[560px] max-h-[760px] flex-col overflow-hidden p-0!">
           <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-400 text-slate-950">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-copper-400 to-steel-500 text-slate-950">
                 <Bot size={20} />
               </div>
               <div>
@@ -369,7 +369,7 @@ const AssistantPage = () => {
                       className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[78%] ${
                         assistant
                           ? "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                          : "bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/20"
+                          : "bg-copper-500 text-white shadow-sm shadow-copper-950/20 dark:text-slate-950"
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{message.content}</p>
@@ -382,7 +382,7 @@ const AssistantPage = () => {
             {isSending && (
               <div className="flex justify-start">
                 <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-                  <Sparkles size={16} className="animate-pulse text-emerald-500" />
+                  <Sparkles size={16} className="animate-pulse text-copper-500" />
                   Analyzing your FinTrack data…
                 </div>
               </div>
@@ -407,7 +407,7 @@ const AssistantPage = () => {
                 maxLength={1200}
                 rows={2}
                 placeholder="Ask about spending, budgets, goals, or cash flow…"
-                className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-copper-400 focus:ring-2 focus:ring-copper-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 disabled={isSending}
               />
 
@@ -459,7 +459,7 @@ const AssistantPage = () => {
                   type="button"
                   onClick={() => handleSend(prompt)}
                   disabled={isSending || isCoolingDown}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-left text-sm leading-5 text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50/60 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-emerald-700 dark:hover:bg-emerald-500/10"
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-left text-sm leading-5 text-slate-700 transition hover:border-copper-300 hover:bg-copper-50/60 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-copper-700 dark:hover:bg-copper-500/10"
                 >
                   {prompt}
                 </button>

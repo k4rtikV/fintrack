@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import CategoryCard from "../components/categories/CategoryCard";
 import CategoryModal from "../components/categories/CategoryModal";
+import TransactionWorkspaceNav from "../components/transactions/TransactionWorkspaceNav";
 import EmptyState from "../components/ui/EmptyState";
 import {
   archiveCategory,
@@ -142,7 +143,7 @@ const CategoriesPage = () => {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">
+          <p className="text-sm font-bold uppercase tracking-[0.14em] text-copper-700 dark:text-copper-300">
             Organization
           </p>
           <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
@@ -157,12 +158,14 @@ const CategoriesPage = () => {
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-emerald-400 dark:text-slate-950 dark:hover:bg-emerald-300"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-copper-400 dark:text-slate-950 dark:hover:bg-copper-300"
         >
           <Plus size={18} />
           Add category
         </button>
       </div>
+
+      <TransactionWorkspaceNav className="mb-0" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -216,7 +219,7 @@ const CategoriesPage = () => {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search categories"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-3 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:ring-emerald-500/10"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-copper-400 focus:ring-3 focus:ring-copper-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:ring-copper-500/10"
           />
         </label>
       </div>
@@ -240,7 +243,7 @@ const CategoriesPage = () => {
               <button
                 type="button"
                 onClick={openCreate}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-emerald-400 dark:text-slate-950 dark:hover:bg-emerald-300"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-copper-400 dark:text-slate-950 dark:hover:bg-copper-300"
               >
                 <Plus size={17} />
                 Add category

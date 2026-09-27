@@ -14,6 +14,7 @@ const pageTitles = {
   "/reports": "Reports",
   "/assistant": "AI Assistant",
   "/settings": "Settings",
+  "/investments": "Investments",
 };
 
 const PlaceholderPage = () => {
@@ -26,7 +27,7 @@ const PlaceholderPage = () => {
       description={`${title} is connected to the new FinTrack application shell and will be implemented in its planned phase.`}
     >
       <DashboardCard className="flex min-h-80 flex-col items-center justify-center text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-copper-100 text-copper-700 dark:bg-copper-500/15 dark:text-copper-300">
           <Construction size={26} />
         </div>
 

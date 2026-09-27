@@ -18,7 +18,7 @@ import { announceAppLocked } from "../../utils/authEvents";
 import getApiError from "../../utils/getApiError";
 
 const inputClass =
-  "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
 const sanitizePin = (value) => value.replace(/\D/g, "").slice(0, 6);
 

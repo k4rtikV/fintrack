@@ -5,7 +5,7 @@ import Button from "../ui/Button";
 import { getDateKey, getDateKeyInTimeZone } from "../../utils/dateUtils";
 
 const fieldClassName =
-  "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
 const createInitialForm = (recurring, timezone) => ({
   title: recurring?.title || "",
@@ -263,7 +263,7 @@ const RecurringModal = ({
                   step="1"
                   value={form.interval}
                   onChange={(event) => updateField("interval", event.target.value)}
-                  className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <span className="text-sm text-slate-500 dark:text-slate-400">
                   {intervalWord}

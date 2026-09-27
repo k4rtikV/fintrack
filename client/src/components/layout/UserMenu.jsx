@@ -21,16 +21,11 @@ const UserMenu = () => {
 
   useEffect(() => {
     const close = (event) => {
-      if (!ref.current?.contains(event.target)) {
-        setOpen(false);
-      }
+      if (!ref.current?.contains(event.target)) setOpen(false);
     };
 
     document.addEventListener("mousedown", close);
-
-    return () => {
-      document.removeEventListener("mousedown", close);
-    };
+    return () => document.removeEventListener("mousedown", close);
   }, []);
 
   const handleLogout = async () => {
@@ -44,13 +39,15 @@ const UserMenu = () => {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 pr-2.5 text-left transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/85 p-1.5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-copper-300/70 dark:border-slate-700 dark:bg-slate-900/85 dark:hover:border-copper-700 sm:pr-2.5"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-400 text-xs font-bold text-slate-950">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-copper-400 to-copper-700 text-xs font-bold text-white dark:text-slate-950">
           {initials}
         </span>
 
-        <span className="hidden max-w-32 sm:block">
+        <span className="hidden max-w-32 lg:block">
           <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
             {user?.fullName}
           </span>
@@ -59,18 +56,25 @@ const UserMenu = () => {
           </span>
         </span>
 
-        <ChevronDown size={14} className="text-slate-400" />
+        <ChevronDown
+          size={14}
+          className={`hidden text-slate-400 transition-transform sm:block ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div
+          role="menu"
+          className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white/98 p-2 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/98 dark:shadow-black/30"
+        >
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
               setOpen(false);
               navigate("/settings");
             }}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <UserRound size={16} />
             Profile
@@ -78,8 +82,12 @@ const UserMenu = () => {
 
           <button
             type="button"
-            onClick={() => navigate("/settings")}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              navigate("/settings");
+            }}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Settings size={16} />
             Settings
@@ -89,8 +97,9 @@ const UserMenu = () => {
 
           <button
             type="button"
+            role="menuitem"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10"
           >
             <LogOut size={16} />
             Log out

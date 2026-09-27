@@ -6,7 +6,7 @@ import Button from "../ui/Button";
 import { getDateKey, getDateKeyInTimeZone } from "../../utils/dateUtils";
 
 const fieldClassName =
-  "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
 const createInitialForm = (transaction, template, timezone) => ({
   type: transaction?.type || template?.type || "EXPENSE",

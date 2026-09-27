@@ -97,7 +97,7 @@ const LoginPage = () => {
 
   return (
     <section className="rounded-3xl bg-white p-7 shadow-xl shadow-slate-200/70 sm:p-9">
-      <p className="text-sm font-semibold text-emerald-600">
+      <p className="text-sm font-semibold text-copper-700">
         Secure access
       </p>
 
@@ -174,7 +174,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={isSubmitting || !legacyPassword}
-              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-copper-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? "Migrating…" : "Migrate securely"}
             </button>
@@ -183,7 +183,7 @@ const LoginPage = () => {
       )}
 
       <div className="mt-7 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
+        <ShieldCheck className="mt-0.5 shrink-0 text-copper-700" size={18} />
         <p className="text-xs leading-5 text-slate-500">
           Google proves your external identity; FinTrack still creates and
           validates its own server-side session. Existing accounts are never

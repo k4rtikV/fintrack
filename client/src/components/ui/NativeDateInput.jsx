@@ -34,7 +34,7 @@ const NativeDateInput = ({
         disabled={disabled}
         onClick={handleClick}
         {...props}
-        className={`native-date-input w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-11 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 ${inputClassName}`}
+        className={`native-date-input w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-11 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 ${inputClassName}`}
         aria-label={props["aria-label"] || pickerLabel}
         title={props.title || pickerLabel}
       />

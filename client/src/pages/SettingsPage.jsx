@@ -41,7 +41,7 @@ import {
 import getApiError from "../utils/getApiError";
 
 const inputClass =
-  "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
 const Toggle = ({ checked, onChange, label, description, disabled = false }) => (
   <label
@@ -60,7 +60,7 @@ const Toggle = ({ checked, onChange, label, description, disabled = false }) => 
 
     <span
       className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-        checked ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"
+        checked ? "bg-copper-500" : "bg-slate-300 dark:bg-slate-700"
       }`}
     >
       <input
@@ -82,7 +82,7 @@ const Toggle = ({ checked, onChange, label, description, disabled = false }) => 
 const SettingsSectionTitle = ({ icon: Icon, title, description, action = null }) => (
   <div className="mb-5 flex items-start justify-between gap-3">
     <div className="flex min-w-0 items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-copper-100 text-copper-700 dark:bg-copper-500/15 dark:text-copper-300">
         <Icon size={19} />
       </div>
       <div>
@@ -547,7 +547,7 @@ const SettingsPage = () => {
                   onClick={() => setTheme(value)}
                   className={`rounded-2xl border p-4 text-left transition ${
                     active
-                      ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-400/15 dark:bg-emerald-500/10"
+                      ? "border-copper-400 bg-copper-50 ring-2 ring-copper-400/15 dark:bg-copper-500/10"
                       : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
                   }`}
                 >
@@ -555,7 +555,7 @@ const SettingsPage = () => {
                     <span className="font-semibold text-slate-900 dark:text-white">
                       {label}
                     </span>
-                    {active && <CheckCircle2 size={18} className="text-emerald-500" />}
+                    {active && <CheckCircle2 size={18} className="text-copper-500" />}
                   </span>
                   <span className="mt-2 block text-xs leading-5 text-slate-500 dark:text-slate-400">
                     {description}

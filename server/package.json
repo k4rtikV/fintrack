@@ -12,7 +12,8 @@
     "test:security": "node src/scripts/testSecurityPhase.js",
     "test:v2-foundation": "node src/scripts/testV2Foundation.js",
     "test:v2-auth": "node src/scripts/testV2GoogleAuthMigration.js",
-    "test:v2-pin": "node src/scripts/testV2TrustedPin.js"
+    "test:v2-pin": "node src/scripts/testV2TrustedPin.js",
+    "test:v2-shell": "node src/scripts/testV2VisualShell.js"
   },
   "keywords": [
     "finance",

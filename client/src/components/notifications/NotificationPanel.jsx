@@ -56,7 +56,7 @@ const NotificationPanel = ({
             <button
               type="button"
               onClick={onMarkAllRead}
-              className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+              className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-steel-700 transition hover:bg-steel-50 dark:text-steel-300 dark:hover:bg-steel-500/10"
             >
               <CheckCheck size={15} />
               <span>Read all</span>
@@ -95,7 +95,7 @@ const NotificationPanel = ({
                 type="button"
                 onClick={() => openNotification(notification)}
                 className={`flex w-full gap-3 border-b border-slate-100 px-4 py-3.5 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/70 ${
-                  notification.isRead ? "bg-white dark:bg-slate-900" : "bg-emerald-50/60 dark:bg-emerald-500/5"
+                  notification.isRead ? "bg-white dark:bg-slate-900" : "bg-steel-50/70 dark:bg-steel-500/8"
                 }`}
               >
                 <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -107,7 +107,7 @@ const NotificationPanel = ({
                       {notification.title}
                     </div>
                     {!notification.isRead && (
-                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-steel-500" />
                     )}
                   </div>
                   <div className="mt-1 break-words text-xs leading-5 text-slate-600 dark:text-slate-400">

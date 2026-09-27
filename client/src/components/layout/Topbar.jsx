@@ -1,4 +1,4 @@
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, WalletCards } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -6,12 +6,13 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "../../services/notificationService";
-import NotificationPanel from "../notifications/NotificationPanel";
 import { NOTIFICATIONS_CHANGED_EVENT } from "../../utils/notificationEvents";
+import NotificationPanel from "../notifications/NotificationPanel";
 import ThemeToggle from "./ThemeToggle";
+import TopNavigation from "./TopNavigation";
 import UserMenu from "./UserMenu";
 
-const Topbar = ({ onMenuClick }) => {
+const Topbar = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -64,9 +65,7 @@ const Topbar = ({ onMenuClick }) => {
     };
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setNotificationsOpen(false);
-      }
+      if (event.key === "Escape") setNotificationsOpen(false);
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -93,65 +92,70 @@ const Topbar = ({ onMenuClick }) => {
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead();
     setNotifications((items) =>
-      items.map((item) => ({ ...item, isRead: true, readAt: item.readAt || new Date().toISOString() })),
+      items.map((item) => ({
+        ...item,
+        isRead: true,
+        readAt: item.readAt || new Date().toISOString(),
+      })),
     );
     setUnreadCount(0);
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-18 items-center gap-3 border-b border-slate-200/80 bg-slate-50/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/90 sm:px-6">
-      <button
-        type="button"
-        onClick={onMenuClick}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 lg:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-        aria-label="Open navigation"
-      >
-        <Menu size={20} />
-      </button>
-
-      <div className="relative hidden max-w-md flex-1 md:block">
-        <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          aria-label="Search transactions"
-          placeholder="Search transactions..."
-          className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-        />
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
-        <ThemeToggle />
-
-        <div ref={notificationAreaRef} className="relative">
-          <button
-            type="button"
-            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
-            onClick={() => {
-              setNotificationsOpen((open) => !open);
-              if (!notificationsOpen) loadNotifications();
-            }}
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white dark:ring-slate-900">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {notificationsOpen && (
-            <NotificationPanel
-              notifications={notifications}
-              unreadCount={unreadCount}
-              loading={notificationsLoading}
-              onClose={() => setNotificationsOpen(false)}
-              onMarkRead={handleMarkRead}
-              onMarkAllRead={handleMarkAllRead}
-            />
-          )}
+    <header className="sticky top-0 z-40 border-b border-slate-200/85 bg-slate-50/92 shadow-[0_1px_0_rgba(14,16,17,0.02)] backdrop-blur-2xl dark:border-slate-800/90 dark:bg-slate-950/92">
+      <div className="mx-auto flex min-h-16 max-w-[1800px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="flex shrink-0 items-center gap-2.5 pr-1">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-copper-300/35 bg-gradient-to-br from-copper-400 via-copper-500 to-copper-700 text-white shadow-sm shadow-copper-950/15 dark:text-slate-950">
+            <WalletCards size={19} />
+          </span>
+          <span className="hidden text-[15px] font-extrabold tracking-[-0.02em] text-slate-950 sm:block dark:text-slate-50">
+            FinTrack
+          </span>
         </div>
 
-        <UserMenu />
+        <div className="hidden min-w-0 flex-1 md:block">
+          <TopNavigation />
+        </div>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <ThemeToggle />
+
+          <div ref={notificationAreaRef} className="relative">
+            <button
+              type="button"
+              aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+              onClick={() => {
+                setNotificationsOpen((open) => !open);
+                if (!notificationsOpen) loadNotifications();
+              }}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/85 text-slate-600 transition duration-200 hover:-translate-y-0.5 hover:border-steel-300 hover:text-steel-700 dark:border-slate-700 dark:bg-slate-900/85 dark:text-slate-300 dark:hover:border-steel-600 dark:hover:text-steel-300"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-steel-600 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white dark:bg-steel-500 dark:ring-slate-900">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <NotificationPanel
+                notifications={notifications}
+                unreadCount={unreadCount}
+                loading={notificationsLoading}
+                onClose={() => setNotificationsOpen(false)}
+                onMarkRead={handleMarkRead}
+                onMarkAllRead={handleMarkAllRead}
+              />
+            )}
+          </div>
+
+          <UserMenu />
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200/70 px-3 md:hidden dark:border-slate-800/80">
+        <TopNavigation />
       </div>
     </header>
   );

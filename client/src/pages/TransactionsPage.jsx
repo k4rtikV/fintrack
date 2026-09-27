@@ -8,6 +8,7 @@ import PageContainer from "../components/layout/PageContainer";
 import TransactionFilters from "../components/transactions/TransactionFilters";
 import TransactionModal from "../components/transactions/TransactionModal";
 import TransactionTable from "../components/transactions/TransactionTable";
+import TransactionWorkspaceNav from "../components/transactions/TransactionWorkspaceNav";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
@@ -260,11 +261,13 @@ const TransactionsPage = () => {
       description="Search, sort, reuse, export, and manage income and expenses. Press N to add or Ctrl/Cmd + K to search."
       action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
     >
+      <TransactionWorkspaceNav />
+
       {templates.length > 0 && (
         <DashboardCard className="mb-5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="mr-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Quick templates</span>
-            {templates.slice(0, 6).map((template) => <button key={template.id} type="button" onClick={() => openCreateModal(template)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-emerald-100 hover:text-emerald-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-emerald-500/15">{template.name}</button>)}
+            {templates.slice(0, 6).map((template) => <button key={template.id} type="button" onClick={() => openCreateModal(template)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-copper-100 hover:text-copper-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-copper-500/15">{template.name}</button>)}
           </div>
         </DashboardCard>
       )}
@@ -288,7 +291,7 @@ const TransactionsPage = () => {
                 {pagination.total > 0 ? `Showing ${firstVisibleResult}–${lastVisibleResult} of ${pagination.total}` : "0 transactions"} · Page {pagination.page} of {Math.max(pagination.pages, 1)}
               </p>
               {isResultsUpdating && (
-                <p className="mt-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">Updating results…</p>
+                <p className="mt-1 text-xs font-semibold text-steel-700 dark:text-steel-300">Updating results…</p>
               )}
             </div>
             <div className="flex gap-2"><Button variant="secondary" disabled={pagination.page <= 1 || isResultsUpdating} onClick={() => goToPage(pagination.page - 1)}><ChevronLeft size={17} />Previous</Button><Button variant="secondary" disabled={pagination.page >= pagination.pages || isResultsUpdating} onClick={() => goToPage(pagination.page + 1)}>Next<ChevronRight size={17} /></Button></div>

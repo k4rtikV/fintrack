@@ -189,7 +189,7 @@ const AccountsPage = () => {
             type="checkbox"
             checked={includeArchived}
             onChange={(event) => setIncludeArchived(event.target.checked)}
-            className="h-4 w-4 accent-emerald-500"
+            className="h-4 w-4 accent-copper-500"
           />
           Show archived
         </label>

@@ -14,6 +14,7 @@ import DashboardCard from "../components/layout/DashboardCard";
 import PageContainer from "../components/layout/PageContainer";
 import RecurringCard from "../components/recurring/RecurringCard";
 import RecurringModal from "../components/recurring/RecurringModal";
+import TransactionWorkspaceNav from "../components/transactions/TransactionWorkspaceNav";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
@@ -216,6 +217,8 @@ const RecurringPage = () => {
         </Button>
       }
     >
+      <TransactionWorkspaceNav />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <DashboardCard>
           <div className="flex items-center gap-3">
