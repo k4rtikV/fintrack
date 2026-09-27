@@ -13,6 +13,14 @@ const authenticateWithGoogle = async (credential) => {
   return response.data;
 };
 
+const reauthenticateWithGoogle = async (credential) => {
+  const response = await api.post("/auth/google/reauth", {
+    credential,
+  });
+
+  return response.data;
+};
+
 const linkLegacyGoogleAccount = async ({ credential, password }) => {
   const response = await api.post("/auth/google/link-legacy", {
     credential,
@@ -38,4 +46,5 @@ export {
   getGoogleAuthConfig,
   linkLegacyGoogleAccount,
   logout,
+  reauthenticateWithGoogle,
 };

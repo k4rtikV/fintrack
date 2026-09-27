@@ -11,7 +11,8 @@
     "test:report-pdf": "node src/scripts/testMonthlyPdfLayout.js",
     "test:security": "node src/scripts/testSecurityPhase.js",
     "test:v2-foundation": "node src/scripts/testV2Foundation.js",
-    "test:v2-auth": "node src/scripts/testV2GoogleAuthMigration.js"
+    "test:v2-auth": "node src/scripts/testV2GoogleAuthMigration.js",
+    "test:v2-pin": "node src/scripts/testV2TrustedPin.js"
   },
   "keywords": [
     "finance",

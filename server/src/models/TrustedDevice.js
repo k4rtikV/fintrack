@@ -1,128 +1,107 @@
 import mongoose from "mongoose";
 
-const userSessionSchema = new mongoose.Schema(
+const trustedDeviceSchema = new mongoose.Schema(
   {
-    sessionId: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true,
-      trim: true,
-    },
-
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
     },
-
-    ipAddress: {
+    deviceKeyHash: {
       type: String,
-      default: "Unknown",
-      maxlength: 96,
+      required: true,
+      unique: true,
       trim: true,
+      minlength: 64,
+      maxlength: 64,
+      select: false,
     },
-
-    userAgent: {
+    pinHash: {
       type: String,
-      default: "Unknown",
-      maxlength: 512,
-      trim: true,
+      required: true,
+      select: false,
     },
-
+    pinSalt: {
+      type: String,
+      required: true,
+      select: false,
+    },
     browser: {
       type: String,
       default: "Unknown browser",
       maxlength: 80,
       trim: true,
     },
-
     os: {
       type: String,
       default: "Unknown OS",
       maxlength: 80,
       trim: true,
     },
-
     deviceType: {
       type: String,
       enum: ["Desktop", "Mobile", "Tablet"],
       default: "Desktop",
     },
-
-    createdAt: {
+    failedAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    cooldownUntil: {
+      type: Date,
+      default: null,
+    },
+    enrolledAt: {
       type: Date,
       default: Date.now,
       immutable: true,
     },
-
+    lastUnlockedAt: {
+      type: Date,
+      default: null,
+    },
     lastSeenAt: {
       type: Date,
       default: Date.now,
     },
-
     expiresAt: {
       type: Date,
       required: true,
     },
-
-    trustedDevice: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "TrustedDevice",
-      default: null,
-      index: true,
-    },
-
-    appLocked: {
-      type: Boolean,
-      default: false,
-    },
-
-    appLockedAt: {
-      type: Date,
-      default: null,
-    },
-
-    strongAuthAt: {
-      type: Date,
-      default: Date.now,
-    },
-
     revokedAt: {
       type: Date,
       default: null,
     },
-
     revokeReason: {
       type: String,
       enum: [
-        "LOGOUT",
-        "USER_REVOKED",
+        "PIN_DISABLED",
+        "SESSION_REVOKED",
         "OTHER_SESSIONS_REVOKED",
-        "PASSWORD_CHANGED",
-        "GOOGLE_ACCOUNT_LINKED",
-        "GOOGLE_ACCOUNT_RECLAIMED",
+        "ALL_SESSIONS_REVOKED",
       ],
       default: null,
     },
   },
   {
+    timestamps: true,
     versionKey: false,
   },
 );
 
-userSessionSchema.index({
+trustedDeviceSchema.index({
   user: 1,
   revokedAt: 1,
   expiresAt: -1,
 });
 
-userSessionSchema.index(
+trustedDeviceSchema.index(
   { expiresAt: 1 },
   { expireAfterSeconds: 0 },
 );
 
-const UserSession = mongoose.model("UserSession", userSessionSchema);
+const TrustedDevice = mongoose.model("TrustedDevice", trustedDeviceSchema);
 
-export default UserSession;
+export default TrustedDevice;

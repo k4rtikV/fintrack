@@ -8,6 +8,7 @@ import {
   updateTransaction,
 } from "../controllers/transaction.controller.js";
 
+import { requireAppUnlocked } from "../middleware/appLock.middleware.js";
 import protect from "../middleware/auth.middleware.js";
 import validate from "../middleware/validate.js";
 
@@ -20,7 +21,7 @@ import {
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, requireAppUnlocked);
 
 router
   .route("/")

@@ -5,6 +5,7 @@ import {
   getCurrentUser,
   googleAuthenticate,
   googleConfig,
+  googleReauthenticate,
   linkLegacyGoogle,
   logout,
 } from "../controllers/auth.controller.js";
@@ -74,6 +75,16 @@ router.post(
   legacyLinkLimiter,
   validate(legacyGoogleLinkSchema),
   linkLegacyGoogle,
+);
+
+
+router.post(
+  "/google/reauth",
+  protect,
+  requireApprovedBrowserOrigin,
+  authAttemptLimiter,
+  validate(googleAuthenticationSchema),
+  googleReauthenticate,
 );
 
 router.post("/logout", protect, logout);

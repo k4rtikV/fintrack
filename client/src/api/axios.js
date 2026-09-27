@@ -1,6 +1,9 @@
 import axios from "axios";
 
-import { announceAuthSessionInvalidated } from "../utils/authEvents";
+import {
+  announceAppLocked,
+  announceAuthSessionInvalidated,
+} from "../utils/authEvents";
 
 const defaultApiUrl = import.meta.env.PROD
   ? "/api"
@@ -23,6 +26,7 @@ const api = axios.create({
 const publicAuthPaths = [
   "/auth/google",
   "/auth/google/link-legacy",
+  "/auth/google/reauth",
 ];
 
 const isPublicAuthRequest = (url = "") =>
@@ -33,8 +37,15 @@ const isPublicAuthRequest = (url = "") =>
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const status = error.response?.status;
+    const code = error.response?.data?.errors?.code;
+
+    if (status === 423 && code === "PIN_LOCKED") {
+      announceAppLocked();
+    }
+
     if (
-      error.response?.status === 401 &&
+      status === 401 &&
       !isPublicAuthRequest(error.config?.url)
     ) {
       announceAuthSessionInvalidated();

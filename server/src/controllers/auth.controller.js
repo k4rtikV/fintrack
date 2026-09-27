@@ -5,18 +5,24 @@ import {
   findUserById,
   getGoogleAuthConfig,
   linkLegacyAccountWithGoogle,
+  reauthenticateCurrentUserWithGoogle,
 } from "../services/auth.service.js";
 import { sendLoginAlertEmail } from "../services/email.service.js";
 import {
   createAuthenticatedSession,
+  getSessionSecurityState,
+  markSessionStrongAuth,
   recordSecurityEventSafe,
   revokeAllSessionsForUser,
   revokeSessionForUser,
 } from "../services/security.service.js";
+import { resolveTrustedDeviceFromCookie } from "../services/pin.service.js";
 import {
   GOOGLE_NONCE_COOKIE_NAME,
+  TRUSTED_DEVICE_COOKIE_NAME,
   clearAuthCookie,
   clearGoogleNonceCookie,
+  clearTrustedDeviceCookie,
   setAuthCookie,
   setGoogleNonceCookie,
 } from "../utils/authCookie.js";
@@ -50,6 +56,7 @@ const sendLoginAlertSafe = ({ user, securityContext, loginAt }) => {
 };
 
 const completeGoogleSession = async ({
+  req,
   res,
   user,
   securityContext,
@@ -64,9 +71,19 @@ const completeGoogleSession = async ({
     });
   }
 
+  const trustedDevice = await resolveTrustedDeviceFromCookie({
+    userId: user._id,
+    deviceToken: req.cookies?.[TRUSTED_DEVICE_COOKIE_NAME],
+  });
+
+  if (req.cookies?.[TRUSTED_DEVICE_COOKIE_NAME] && !trustedDevice) {
+    clearTrustedDeviceCookie(res);
+  }
+
   const { token, session } = await createAuthenticatedSession({
     userId: user._id,
     securityContext,
+    trustedDeviceId: trustedDevice?._id || null,
   });
 
   setAuthCookie(res, token);
@@ -98,6 +115,7 @@ const googleAuthenticate = async (req, res) => {
   );
 
   await completeGoogleSession({
+    req,
     res,
     user: result.user,
     securityContext,
@@ -133,6 +151,7 @@ const linkLegacyGoogle = async (req, res) => {
   );
 
   await completeGoogleSession({
+    req,
     res,
     user,
     securityContext,
@@ -158,6 +177,7 @@ const logout = async (req, res) => {
     userId: req.user._id,
     sessionId: req.authSession.sessionId,
     reason: "LOGOUT",
+    revokeTrustedDevice: false,
   });
 
   await recordSecurityEventSafe({
@@ -175,6 +195,40 @@ const logout = async (req, res) => {
   });
 };
 
+const googleReauthenticate = async (req, res) => {
+  const securityContext = getRequestSecurityContext(req);
+
+  await reauthenticateCurrentUserWithGoogle(
+    req.user._id,
+    req.validatedData.body,
+    {
+      expectedNonce: req.cookies?.[GOOGLE_NONCE_COOKIE_NAME],
+    },
+  );
+
+  const session = await markSessionStrongAuth({
+    userId: req.user._id,
+    sessionId: req.authSession.sessionId,
+  });
+
+  clearGoogleNonceCookie(res);
+
+  await recordSecurityEventSafe({
+    userId: req.user._id,
+    type: "GOOGLE_REAUTHENTICATED",
+    sessionId: req.authSession.sessionId,
+    securityContext,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Google identity reverified",
+    data: {
+      sessionSecurity: getSessionSecurityState(session),
+    },
+  });
+};
+
 const getCurrentUser = async (req, res) => {
   const user = await findUserById(req.user._id);
 
@@ -182,6 +236,7 @@ const getCurrentUser = async (req, res) => {
     success: true,
     data: {
       user,
+      sessionSecurity: getSessionSecurityState(req.authSession),
     },
   });
 };
@@ -190,6 +245,7 @@ export {
   getCurrentUser,
   googleAuthenticate,
   googleConfig,
+  googleReauthenticate,
   linkLegacyGoogle,
   logout,
 };

@@ -4,6 +4,10 @@ const sessionIdSchema = z
   .string()
   .uuid("Session ID is invalid");
 
+const pinSchemaValue = z
+  .string({ required_error: "6-digit PIN is required" })
+  .regex(/^\d{6}$/, "PIN must contain exactly 6 digits");
+
 const revokeSessionSchema = z.object({
   params: z.object({
     sessionId: sessionIdSchema,
@@ -21,7 +25,41 @@ const securityActivitySchema = z.object({
   }),
 });
 
+const pinEnrollSchema = z.object({
+  body: z.object({
+    pin: pinSchemaValue,
+  }),
+});
+
+const pinUnlockSchema = z.object({
+  body: z.object({
+    pin: pinSchemaValue,
+  }),
+});
+
+const pinChangeSchema = z.object({
+  body: z
+    .object({
+      currentPin: pinSchemaValue,
+      newPin: pinSchemaValue,
+    })
+    .refine((value) => value.currentPin !== value.newPin, {
+      path: ["newPin"],
+      message: "New PIN must be different from the current PIN",
+    }),
+});
+
+const pinResetSchema = z.object({
+  body: z.object({
+    newPin: pinSchemaValue,
+  }),
+});
+
 export {
+  pinChangeSchema,
+  pinEnrollSchema,
+  pinResetSchema,
+  pinUnlockSchema,
   revokeSessionSchema,
   securityActivitySchema,
 };

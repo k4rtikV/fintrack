@@ -2,6 +2,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 
 import { chatWithAssistant } from "../controllers/assistant.controller.js";
+import { requireAppUnlocked } from "../middleware/appLock.middleware.js";
 import protect from "../middleware/auth.middleware.js";
 import validate from "../middleware/validate.js";
 import { assistantChatSchema } from "../validators/assistant.validator.js";
@@ -43,7 +44,7 @@ const assistantLimiter = rateLimit({
   },
 });
 
-router.use(protect);
+router.use(protect, requireAppUnlocked);
 router.use(assistantLimiter);
 
 router.post("/chat", validate(assistantChatSchema), chatWithAssistant);

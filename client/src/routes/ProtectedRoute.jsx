@@ -1,11 +1,13 @@
 import { Navigate, Outlet } from "react-router-dom";
 
+import PinLockScreen from "../components/security/PinLockScreen";
 import useAuth from "../hooks/useAuth";
 
 const ProtectedRoute = () => {
   const {
     isAuthenticated,
     isAuthLoading,
+    isPinLocked,
   } = useAuth();
 
   if (isAuthLoading) {
@@ -29,6 +31,10 @@ const ProtectedRoute = () => {
         replace
       />
     );
+  }
+
+  if (isPinLocked) {
+    return <PinLockScreen />;
   }
 
   return <Outlet />;

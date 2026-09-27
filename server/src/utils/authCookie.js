@@ -1,5 +1,6 @@
 const AUTH_COOKIE_NAME = "fintrack_token";
 const GOOGLE_NONCE_COOKIE_NAME = "fintrack_google_nonce";
+const TRUSTED_DEVICE_COOKIE_NAME = "fintrack_device";
 
 const getAuthCookieOptions = () => {
   const isProduction = process.env.NODE_ENV === "production";
@@ -13,7 +14,6 @@ const getAuthCookieOptions = () => {
   };
 };
 
-
 const getGoogleNonceCookieOptions = () => {
   const isProduction = process.env.NODE_ENV === "production";
 
@@ -22,6 +22,18 @@ const getGoogleNonceCookieOptions = () => {
     secure: isProduction,
     sameSite: "lax",
     path: "/api/auth",
+  };
+};
+
+const getTrustedDeviceCookieOptions = () => {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    maxAge: 90 * 24 * 60 * 60 * 1000,
+    path: "/",
   };
 };
 
@@ -55,13 +67,36 @@ const clearAuthCookie = (res) => {
   });
 };
 
+const setTrustedDeviceCookie = (res, token) => {
+  res.cookie(
+    TRUSTED_DEVICE_COOKIE_NAME,
+    token,
+    getTrustedDeviceCookieOptions(),
+  );
+};
+
+const clearTrustedDeviceCookie = (res) => {
+  const options = getTrustedDeviceCookieOptions();
+
+  res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, {
+    httpOnly: options.httpOnly,
+    secure: options.secure,
+    sameSite: options.sameSite,
+    path: options.path,
+  });
+};
+
 export {
   AUTH_COOKIE_NAME,
   GOOGLE_NONCE_COOKIE_NAME,
+  TRUSTED_DEVICE_COOKIE_NAME,
   clearAuthCookie,
   clearGoogleNonceCookie,
+  clearTrustedDeviceCookie,
   getAuthCookieOptions,
   getGoogleNonceCookieOptions,
+  getTrustedDeviceCookieOptions,
   setAuthCookie,
   setGoogleNonceCookie,
+  setTrustedDeviceCookie,
 };

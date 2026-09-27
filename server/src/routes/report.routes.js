@@ -2,6 +2,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 
 import { downloadMonthlyPdf } from "../controllers/report.controller.js";
+import { requireAppUnlocked } from "../middleware/appLock.middleware.js";
 import protect from "../middleware/auth.middleware.js";
 import validate from "../middleware/validate.js";
 import { monthlyReportSchema } from "../validators/report.validator.js";
@@ -20,7 +21,7 @@ const reportLimiter = rateLimit({
   },
 });
 
-router.use(protect);
+router.use(protect, requireAppUnlocked);
 router.use(reportLimiter);
 
 router.get(

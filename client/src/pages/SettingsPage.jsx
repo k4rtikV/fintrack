@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import DashboardCard from "../components/layout/DashboardCard";
+import PinSecurityCard from "../components/security/PinSecurityCard";
 import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
 import useAuth from "../hooks/useAuth";
@@ -261,7 +262,10 @@ const SettingsPage = () => {
       });
       const sessionResponse = await getCurrentUser();
 
-      completeAuthentication(sessionResponse.data.user);
+      completeAuthentication(
+        sessionResponse.data.user,
+        sessionResponse.data.sessionSecurity,
+      );
       setLegacyMigrationPassword("");
       setAuthentication({
         provider: "GOOGLE",
@@ -629,6 +633,8 @@ const SettingsPage = () => {
       </div>
 
       <div className="mt-5 grid items-start gap-5 xl:grid-cols-2">
+        <PinSecurityCard />
+
         <DashboardCard>
           <SettingsSectionTitle
             icon={MonitorCog}
@@ -676,6 +682,11 @@ const SettingsPage = () => {
                         {session.current && (
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                             Current
+                          </span>
+                        )}
+                        {session.pinEnabled && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            PIN protected
                           </span>
                         )}
                       </div>

@@ -7,6 +7,7 @@ import {
 import { verifyAccessToken } from "../utils/jwt.js";
 import {
   findActiveSession,
+  refreshSessionAppLockState,
   touchSessionActivity,
 } from "../services/security.service.js";
 
@@ -67,10 +68,12 @@ const protect = async (req, res, next) => {
       );
     }
 
-    req.user = user;
-    req.authSession = session;
+    const currentSession = await refreshSessionAppLockState(session);
 
-    void touchSessionActivity(session).catch((error) => {
+    req.user = user;
+    req.authSession = currentSession;
+
+    void touchSessionActivity(currentSession).catch((error) => {
       console.error(
         "Could not update FinTrack session activity:",
         error.message,

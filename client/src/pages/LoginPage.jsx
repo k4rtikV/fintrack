@@ -22,7 +22,10 @@ const LoginPage = () => {
   const finishAuthentication = useCallback(
     async (message) => {
       const sessionResponse = await getCurrentUser();
-      completeAuthentication(sessionResponse.data.user);
+      completeAuthentication(
+        sessionResponse.data.user,
+        sessionResponse.data.sessionSecurity,
+      );
       navigate("/dashboard", { replace: true });
       toast.success(message);
     },

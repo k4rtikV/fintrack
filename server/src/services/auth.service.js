@@ -560,6 +560,49 @@ const linkLegacyAccountWithGoogle = async (
   return User.findById(user._id);
 };
 
+
+const reauthenticateCurrentUserWithGoogle = async (
+  userId,
+  { credential },
+  { expectedNonce } = {},
+) => {
+  const googleProfile = await verifyGoogleCredential(credential, {
+    expectedNonce,
+  });
+
+  const identity = await findGoogleIdentityForUser(userId);
+
+  if (!identity) {
+    throw new AppError(
+      "This FinTrack account must complete its Google migration before using strong reauthentication",
+      409,
+      {
+        code: "GOOGLE_MIGRATION_REQUIRED",
+      },
+    );
+  }
+
+  if (identity.providerSubject !== googleProfile.subject) {
+    throw new AppError(
+      "Google reauthentication did not match the Google identity linked to this FinTrack account",
+      403,
+      {
+        code: "GOOGLE_REAUTH_IDENTITY_MISMATCH",
+      },
+    );
+  }
+
+  const user = await User.findById(userId);
+  ensureActiveUser(user);
+
+  await updateIdentityAuthenticationSnapshot(identity, googleProfile);
+
+  return {
+    user,
+    googleProfile,
+  };
+};
+
 const findUserById = async (userId) => {
   const user = await User.findById(userId);
 
@@ -575,4 +618,5 @@ export {
   findUserById,
   getGoogleAuthConfig,
   linkLegacyAccountWithGoogle,
+  reauthenticateCurrentUserWithGoogle,
 };

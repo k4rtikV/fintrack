@@ -13,6 +13,15 @@ const securityEventMetadataSchema = new mongoose.Schema(
       default: null,
       min: 0,
     },
+    failedAttempts: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    cooldownUntil: {
+      type: Date,
+      default: null,
+    },
   },
   {
     _id: false,
@@ -45,6 +54,15 @@ const securityEventSchema = new mongoose.Schema(
         "SESSION_REVOKED",
         "OTHER_SESSIONS_REVOKED",
         "LOGOUT",
+        "GOOGLE_REAUTHENTICATED",
+        "PIN_ENROLLED",
+        "PIN_CHANGED",
+        "PIN_RESET",
+        "PIN_DISABLED",
+        "PIN_UNLOCK_FAILED",
+        "PIN_COOLDOWN",
+        "APP_LOCKED",
+        "TRUSTED_DEVICE_REVOKED",
       ],
     },
 
