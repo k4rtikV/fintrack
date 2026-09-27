@@ -17,7 +17,7 @@ const primaryNavigation = [
   { path: "/investments", label: "Investments", icon: LineChart },
   { path: "/goals", label: "Goals", icon: Goal },
   { path: "/reports", label: "Reports", icon: ChartNoAxesCombined },
-  { path: "/assistant", label: "AI", icon: Bot },
+  { path: "/assistant", label: "AI Assistant", icon: Bot },
 ];
 
 const primaryAliases = new Map([

@@ -141,28 +141,30 @@ const CategoriesPage = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div className="flex flex-col items-center text-center">
+        <div className="mx-auto w-full max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-[0.14em] text-copper-700 dark:text-copper-300">
             Organization
           </p>
           <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
             Categories
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+          <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
             Manage the income and expense categories used across transactions,
             budgets, recurring payments and analytics.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-copper-400 dark:text-slate-950 dark:hover:bg-copper-300"
-        >
-          <Plus size={18} />
-          Add category
-        </button>
+        <div className="mt-4 flex w-full justify-center">
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-copper-400 dark:text-slate-950 dark:hover:bg-copper-300"
+          >
+            <Plus size={18} />
+            Add category
+          </button>
+        </div>
       </div>
 
       <TransactionWorkspaceNav className="mb-0" />

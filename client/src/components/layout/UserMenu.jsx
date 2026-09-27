@@ -1,4 +1,4 @@
-import { ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -67,19 +67,6 @@ const UserMenu = () => {
           role="menu"
           className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white/98 p-2 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/98 dark:shadow-black/30"
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              navigate("/settings");
-            }}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <UserRound size={16} />
-            Profile
-          </button>
-
           <button
             type="button"
             role="menuitem"

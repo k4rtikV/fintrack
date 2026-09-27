@@ -18,6 +18,16 @@ const TopNavigation = () => {
     [activePath],
   );
 
+  const navItemWidth = useMemo(() => {
+    const longestLabelLength = Math.max(
+      ...primaryNavigation.map(({ label }) => label.length),
+    );
+
+    // Give every item the same width, based on the longest navigation label
+    // plus the icon/gap breathing room. This keeps the eight-item rail balanced.
+    return `calc(${longestLabelLength}ch + 2.75rem)`;
+  }, []);
+
   useLayoutEffect(() => {
     const node = itemRefs.current.get(activePath);
     if (!node) {
@@ -64,11 +74,11 @@ const TopNavigation = () => {
   }, [activePath]);
 
   return (
-    <div className="min-w-0 flex-1">
+    <div className="flex min-w-0 flex-1 justify-center">
       <nav
         ref={navRef}
         aria-label="Primary navigation"
-        className="notification-scroll relative flex min-w-0 items-center gap-1 overflow-x-auto px-1 pb-1 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="notification-scroll relative flex min-w-0 items-center justify-start gap-1 overflow-x-auto px-1 pb-1 pt-1 [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden"
       >
         {primaryNavigation.map(({ path, label, icon: Icon }) => (
           <NavLink
@@ -81,7 +91,7 @@ const TopNavigation = () => {
             className={({ isActive }) => {
               const active = isActive || activePath === path;
               return [
-                "group relative z-10 flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-[13px] font-semibold",
+                "group relative z-10 flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-2.5 text-center text-[13px] font-semibold",
                 "transition-[color,background-color,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-copper-400/60",
                 active
                   ? "text-copper-700 dark:text-copper-300"
@@ -89,6 +99,7 @@ const TopNavigation = () => {
               ].join(" ");
             }}
             aria-current={activePath === path ? "page" : undefined}
+            style={{ width: navItemWidth }}
             title={label}
           >
             <Icon

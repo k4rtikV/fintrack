@@ -21,6 +21,11 @@ const animatedOutlet = read("client/src/components/layout/AnimatedOutlet.jsx");
 const styles = read("client/src/index.css");
 const app = read("client/src/App.jsx");
 const button = read("client/src/components/ui/Button.jsx");
+const pageContainer = read("client/src/components/layout/PageContainer.jsx");
+const userMenu = read("client/src/components/layout/UserMenu.jsx");
+const categoriesPage = read("client/src/pages/CategoriesPage.jsx");
+const indexHtml = read("client/index.html");
+const favicon = read("client/public/favicon.svg");
 
 const orderedPaths = [
   "/dashboard",
@@ -86,6 +91,38 @@ assert(
   topNavigation.includes("ft-nav-indicator"),
   "Animated active navigation indicator is missing",
 );
+
+assert(
+  navigation.includes('label: "AI Assistant"'),
+  "Primary navigation must label the assistant as AI Assistant",
+);
+assert(
+  topNavigation.includes("navItemWidth") &&
+    topNavigation.includes("longestLabelLength") &&
+    topNavigation.includes("justify-center"),
+  "Primary navigation items must share the longest-label width and center their content",
+);
+assert(
+  pageContainer.includes("items-center text-center") &&
+    pageContainer.includes("justify-center gap-2"),
+  "PageContainer must center page headings and place actions on a centered row below",
+);
+assert(
+  categoriesPage.includes("flex flex-col items-center text-center") &&
+    categoriesPage.includes('className="mt-4 flex w-full justify-center"'),
+  "Categories must follow the centered v2 page-header layout",
+);
+assert(
+  (userMenu.match(/navigate\("\/settings"\)/g) || []).length === 1 &&
+    !userMenu.includes("Profile"),
+  "User menu must expose only one Settings destination",
+);
+assert(
+  indexHtml.includes('href="/favicon.svg"') &&
+    favicon.includes('#090F16') &&
+    favicon.includes('#C68159'),
+  "FinTrack must use the new Blue Steel/Copper favicon",
+);
 assert(
   app.includes('path="/investments"'),
   "Investments must have a primary v2 route placeholder",
@@ -93,6 +130,16 @@ assert(
 assert(
   button.includes("bg-copper-500") && !button.includes("bg-emerald-500"),
   "Primary Button branding must use copper rather than semantic green",
+);
+
+
+assert(
+  topbar.includes('src="/favicon.svg"'),
+  "Topbar should reuse the shared FinTrack favicon SVG for the brand mark",
+);
+assert(
+  !topbar.includes("WalletCards"),
+  "Topbar should not keep a separate legacy WalletCards brand icon",
 );
 
 console.log("FinTrack v2 visual shell regression tests passed.");

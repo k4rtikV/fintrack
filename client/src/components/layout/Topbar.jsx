@@ -1,4 +1,4 @@
-import { Bell, WalletCards } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -105,15 +105,18 @@ const Topbar = () => {
     <header className="sticky top-0 z-40 border-b border-slate-200/85 bg-slate-50/92 shadow-[0_1px_0_rgba(14,16,17,0.02)] backdrop-blur-2xl dark:border-slate-800/90 dark:bg-slate-950/92">
       <div className="mx-auto flex min-h-16 max-w-[1800px] items-center gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex shrink-0 items-center gap-2.5 pr-1">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-copper-300/35 bg-gradient-to-br from-copper-400 via-copper-500 to-copper-700 text-white shadow-sm shadow-copper-950/15 dark:text-slate-950">
-            <WalletCards size={19} />
-          </span>
+          <img
+            src="/favicon.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-9 w-9 shrink-0 rounded-xl shadow-sm shadow-copper-950/15"
+          />
           <span className="hidden text-[15px] font-extrabold tracking-[-0.02em] text-slate-950 sm:block dark:text-slate-50">
             FinTrack
           </span>
         </div>
 
-        <div className="hidden min-w-0 flex-1 md:block">
+        <div className="hidden min-w-0 flex-1 justify-center md:flex">
           <TopNavigation />
         </div>
 
