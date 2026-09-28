@@ -73,10 +73,24 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, 
           />
         </label>
 
-        <select aria-label="Transaction type" value={filters.type} onChange={(event) => updateFilter("type", event.target.value)} className={`${fieldClassName} lg:col-span-2`}>
+        <select
+          aria-label="Transaction type"
+          value={filters.type}
+          onChange={(event) => {
+            const nextType = event.target.value;
+            onChange({
+              ...filters,
+              type: nextType,
+              categoryId: nextType === "TRANSFER" ? "" : filters.categoryId,
+              page: 1,
+            });
+          }}
+          className={`${fieldClassName} lg:col-span-2`}
+        >
           <option value="">All types</option>
           <option value="INCOME">Income</option>
           <option value="EXPENSE">Expense</option>
+          <option value="TRANSFER">Transfer</option>
         </select>
 
         <select aria-label="Account" value={filters.accountId} onChange={(event) => updateFilter("accountId", event.target.value)} className={`${fieldClassName} lg:col-span-2`}>
@@ -84,8 +98,14 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, 
           {accounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}
         </select>
 
-        <select aria-label="Category" value={filters.categoryId} onChange={(event) => updateFilter("categoryId", event.target.value)} className={`${fieldClassName} lg:col-span-2`}>
-          <option value="">All categories</option>
+        <select
+          aria-label="Category"
+          value={filters.categoryId}
+          onChange={(event) => updateFilter("categoryId", event.target.value)}
+          disabled={filters.type === "TRANSFER"}
+          className={`${fieldClassName} lg:col-span-2 disabled:cursor-not-allowed disabled:opacity-55`}
+        >
+          <option value="">{filters.type === "TRANSFER" ? "No category for transfers" : "All categories"}</option>
           {categories.map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}
         </select>
 

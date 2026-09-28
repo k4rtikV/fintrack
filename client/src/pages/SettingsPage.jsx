@@ -496,8 +496,8 @@ const SettingsPage = () => {
                   recurringAlerts: checked,
                 }))
               }
-              label="Recurring transaction alerts"
-              description="Notify me when a due recurring item is processed into a transaction."
+              label="Autopay alerts"
+              description="Notify me when an Autopay rule records a due transaction."
             />
 
             <Toggle

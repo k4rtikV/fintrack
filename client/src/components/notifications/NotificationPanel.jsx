@@ -83,7 +83,7 @@ const NotificationPanel = ({
             </div>
             <div className="font-medium text-slate-800 dark:text-slate-100">No notifications yet</div>
             <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Budget, goal, and recurring alerts will appear here.
+              Budget, goal, and Autopay alerts will appear here.
             </div>
           </div>
         ) : (

@@ -23,11 +23,11 @@ const colorOptions = [
   ["slate", "Slate"],
 ];
 
-const createInitialForm = (account) => ({
+const createInitialForm = (account, defaultCurrency = "INR") => ({
   name: account?.name || "",
   type: account?.type || "BANK",
   balance: account ? String(account.balance ?? 0) : "0",
-  currency: account?.currency || "INR",
+  currency: account?.currency || defaultCurrency,
   color: account?.color || "emerald",
   icon: account?.icon || "wallet",
 });
@@ -38,16 +38,17 @@ const AccountModal = ({
   isSaving,
   onClose,
   onSubmit,
+  defaultCurrency = "INR",
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(account));
+  const [form, setForm] = useState(() => createInitialForm(account, defaultCurrency));
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createInitialForm(account));
+      setForm(createInitialForm(account, defaultCurrency));
       setError("");
     }
-  }, [account, isOpen]);
+  }, [account, defaultCurrency, isOpen]);
 
   if (!isOpen) {
     return null;

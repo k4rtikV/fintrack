@@ -105,7 +105,7 @@ const AccountsPage = () => {
 
   const handleArchive = (account) => {
     const confirmed = window.confirm(
-      `Archive “${account.name}”? It will no longer be available for new transactions. Active recurring schedules must be moved or paused first.`,
+      `Archive “${account.name}”? It will no longer be available for new transactions. Active Autopay rules must be moved or paused first.`,
     );
 
     if (confirmed) {
@@ -254,8 +254,7 @@ const AccountsPage = () => {
           </h2>
           <div className="mt-4 space-y-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             <p>
-              An income transaction increases the selected account balance,
-              while an expense decreases it automatically.
+              Income increases an account and expenses decrease it. Transfers move the same amount between two same-currency accounts without counting as income or spending.
             </p>
             <p>
               Editing or deleting a transaction reverses its old balance effect
@@ -273,6 +272,7 @@ const AccountsPage = () => {
         account={selectedAccount}
         isOpen={isModalOpen}
         isSaving={saveMutation.isPending}
+        defaultCurrency={user?.preferredCurrency || "INR"}
         onClose={() => {
           if (!saveMutation.isPending) {
             setIsModalOpen(false);

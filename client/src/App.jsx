@@ -39,9 +39,11 @@ const App = () => {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
-          <Route path="/recurring" element={<RecurringPage />} />
+          <Route path="/transactions/autopay" element={<RecurringPage />} />
+          <Route path="/transactions/categories" element={<CategoriesPage />} />
+          <Route path="/categories" element={<Navigate to="/transactions/categories" replace />} />
+          <Route path="/recurring" element={<Navigate to="/transactions/autopay" replace />} />
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/investments" element={<PlaceholderPage />} />
           <Route path="/goals" element={<GoalsPage />} />

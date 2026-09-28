@@ -23,6 +23,8 @@ const primaryNavigation = [
 const primaryAliases = new Map([
   ["/categories", "/transactions"],
   ["/recurring", "/transactions"],
+  ["/transactions/autopay", "/transactions"],
+  ["/transactions/categories", "/transactions"],
 ]);
 
 const normalizePathname = (pathname = "") => {

@@ -941,6 +941,7 @@ const accountsPresentation = ({ reply, data }) => {
 const recurringPresentation = ({ reply, data }) => {
   const expenseEntries = Object.entries(data.expenseByCurrency || {});
   const incomeEntries = Object.entries(data.incomeByCurrency || {});
+  const transferEntries = Object.entries(data.transferByCurrency || {});
   const metrics = [
     {
       label: "Upcoming items",
@@ -949,22 +950,28 @@ const recurringPresentation = ({ reply, data }) => {
       tone: "neutral",
     },
     ...expenseEntries.map(([currency, amount]) => ({
-      label: `${currency} recurring expenses`,
+      label: `${currency} Autopay expenses`,
       value: formatMoney(amount, currency),
       detail: "",
       tone: "warning",
     })),
     ...incomeEntries.map(([currency, amount]) => ({
-      label: `${currency} recurring income`,
+      label: `${currency} Autopay income`,
       value: formatMoney(amount, currency),
       detail: "",
       tone: "positive",
+    })),
+    ...transferEntries.map(([currency, amount]) => ({
+      label: `${currency} Autopay transfers`,
+      value: formatMoney(amount, currency),
+      detail: "Movement between accounts; excluded from income and spending.",
+      tone: "neutral",
     })),
   ];
 
   return {
     answer: getFallbackAnswer(reply),
-    summary: `${data.count || 0} active recurring item${
+    summary: `${data.count || 0} active Autopay item${
       Number(data.count) === 1 ? "" : "s"
     } fall within the selected horizon.`,
     status: "neutral",
@@ -1237,6 +1244,9 @@ const formatHealthInsight = ({ insight, currency }) => {
     const incomeTotal = Number(
       fact.next30DaysIncomeByCurrency?.[currency],
     );
+    const transferTotal = Number(
+      fact.next30DaysTransferByCurrency?.[currency],
+    );
     const parts = [];
 
     if (Number.isFinite(expenseTotal) && expenseTotal > 0) {
@@ -1247,7 +1257,11 @@ const formatHealthInsight = ({ insight, currency }) => {
       parts.push(`${formatMoney(incomeTotal, currency)} of income`);
     }
 
-    return `${Number(fact.next30DaysCount || 0)} recurring item${
+    if (Number.isFinite(transferTotal) && transferTotal > 0) {
+      parts.push(`${formatMoney(transferTotal, currency)} of transfers`);
+    }
+
+    return `${Number(fact.next30DaysCount || 0)} Autopay item${
       Number(fact.next30DaysCount || 0) === 1 ? " is" : "s are"
     } due in the next 30 days${parts.length ? `, including ${parts.join(" and ")}` : ""}.`;
   }
@@ -1425,7 +1439,7 @@ const spendingPatternsPresentation = ({ reply, data }) => {
   );
   if (recurring) {
     recommendations.push(
-      `If ${recurring.title} is intentionally recurring, consider tracking it through FinTrack's recurring-transactions feature.`,
+      `If ${recurring.title} is intentionally recurring, consider setting it up with FinTrack Autopay.`,
     );
   }
 

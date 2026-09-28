@@ -41,7 +41,7 @@ const PERIODS = [
   "LAST_90_DAYS",
 ];
 
-const TRANSACTION_TYPES = ["INCOME", "EXPENSE"];
+const TRANSACTION_TYPES = ["INCOME", "EXPENSE", "TRANSFER"];
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -177,6 +177,7 @@ const getRollingTransactionHistory = async ({
     },
   })
     .populate("account", "name type currency")
+    .populate("destinationAccount", "name type currency")
     .populate("category", "name type")
     .sort({
       transactionDate: -1,
@@ -240,8 +241,9 @@ const simplifyTransaction = (transaction) => ({
   type: transaction.type,
   amount: round2(transaction.amount),
   date: transaction.transactionDate,
-  category: transaction.category?.name || "Unknown",
+  category: transaction.category?.name || null,
   account: transaction.account?.name || "Unknown",
+  destinationAccount: transaction.destinationAccount?.name || null,
   accountType: transaction.account?.type || "Unknown",
   currency: transaction.account?.currency || "Unknown",
   paymentMethod: transaction.paymentMethod,
@@ -255,8 +257,9 @@ const simplifyRecurring = (recurring) => ({
   frequency: recurring.frequency,
   interval: recurring.interval,
   nextRunDate: recurring.nextRunDate,
-  category: recurring.category?.name || "Unknown",
+  category: recurring.category?.name || null,
   account: recurring.account?.name || "Unknown",
+  destinationAccount: recurring.destinationAccount?.name || null,
   currency: recurring.account?.currency || "Unknown",
 });
 
@@ -343,8 +346,10 @@ const getRecurringCashFlowContext = async ({
       date.getUTCMonth() + 1,
     ).padStart(2, "0")}`;
     const amount = Number(transaction.amount) || 0;
-    const field =
-      transaction.type === "INCOME" ? "income" : "expense";
+    if (!['INCOME', 'EXPENSE'].includes(transaction.type)) {
+      continue;
+    }
+    const field = transaction.type === "INCOME" ? "income" : "expense";
 
     if (key === currentMonth) {
       currentRecorded[field] += amount;
@@ -704,6 +709,7 @@ const getBudgetStatusTool = async ({ user, args, asOf }) => {
         },
       })
         .populate("account", "name type currency")
+        .populate("destinationAccount", "name type currency")
         .populate("category", "name type")
         .sort({ nextRunDate: 1 })
         .limit(30),
@@ -763,7 +769,7 @@ const getBudgetStatusTool = async ({ user, args, asOf }) => {
       projectionCaveat:
         adjusted.anomalyAdjusted
           ? "The current out-of-pattern amount is included once and is not automatically repeated through the rest of the month."
-          : "Projection separates already-recorded recurring activity from exact recurring items still due this month.",
+          : "Projection separates already-recorded Autopay activity from exact Autopay items still due this month.",
       anomalyAdjusted:
         adjusted.anomalyAdjusted,
     };
@@ -782,7 +788,7 @@ const getBudgetStatusTool = async ({ user, args, asOf }) => {
   analytics.highestPaceRiskBudget =
     paceRiskItems[0] || null;
   analytics.projectionNote =
-    "Current-month budget projections use the same anomaly-aware, recurring-aware logic as the FinTrack financial forecast.";
+    "Current-month budget projections use the same anomaly-aware, Autopay-aware logic as the FinTrack financial forecast.";
 
   if (categoryFilter) {
     analytics.items = analytics.items.filter((item) =>
@@ -925,6 +931,7 @@ const getRecentTransactionsTool = async ({ user, args, asOf }) => {
 
   const transactions = await Transaction.find(query)
     .populate("account", "name type currency")
+    .populate("destinationAccount", "name type currency")
     .populate("category", "name type")
     .sort({
       transactionDate: -1,
@@ -973,6 +980,7 @@ const getRecurringTransactionsTool = async ({ user, args, asOf }) => {
 
   const recurring = await RecurringTransaction.find(query)
     .populate("account", "name type currency")
+    .populate("destinationAccount", "name type currency")
     .populate("category", "name type")
     .sort({ nextRunDate: 1 })
     .limit(30);
@@ -980,13 +988,16 @@ const getRecurringTransactionsTool = async ({ user, args, asOf }) => {
 
   const expenseByCurrency = {};
   const incomeByCurrency = {};
+  const transferByCurrency = {};
 
   for (const item of items) {
     const currency = item.currency || "UNKNOWN";
-    const target = item.type === "INCOME" ? incomeByCurrency : expenseByCurrency;
-    target[currency] = round2(
-      (target[currency] || 0) + (Number(item.amount) || 0),
-    );
+    const target = item.type === "INCOME"
+      ? incomeByCurrency
+      : item.type === "EXPENSE"
+        ? expenseByCurrency
+        : transferByCurrency;
+    target[currency] = round2((target[currency] || 0) + (Number(item.amount) || 0));
   }
 
   return {
@@ -999,6 +1010,7 @@ const getRecurringTransactionsTool = async ({ user, args, asOf }) => {
     count: items.length,
     expenseByCurrency,
     incomeByCurrency,
+    transferByCurrency,
     items,
   };
 };
@@ -1128,6 +1140,7 @@ const getFinancialHealthSummaryTool = async ({ user, asOf }) => {
       isActive: true,
     })
       .populate("account", "name type currency")
+      .populate("destinationAccount", "name type currency")
       .populate("category", "name type")
       .sort({ nextRunDate: 1 })
       .limit(30),
@@ -1292,6 +1305,7 @@ const getSpendingPatternsTool = async ({
       },
     })
       .populate("account", "name type currency")
+      .populate("destinationAccount", "name type currency")
       .populate("category", "name type")
       .sort({
         transactionDate: -1,
@@ -1599,6 +1613,7 @@ const getFinancialForecastTool = async ({
       },
     })
       .populate("account", "name type currency")
+      .populate("destinationAccount", "name type currency")
       .populate("category", "name type")
       .sort({ nextRunDate: 1 })
       .limit(30),
@@ -1794,6 +1809,7 @@ const simulateFinancialScenarioTool = async ({
       },
     })
       .populate("account", "name type currency")
+      .populate("destinationAccount", "name type currency")
       .populate("category", "name type")
       .sort({ nextRunDate: 1 })
       .limit(30),
@@ -1874,7 +1890,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_financial_health_summary",
     description:
-      "Use for broad questions about overall financial health, such as 'How am I doing financially?'. Returns a compact backend-calculated summary of cash flow, budget risk, goals, accounts, recurring items, and prioritized insights. Prefer specific tools for narrow questions.",
+      "Use for broad questions about overall financial health, such as 'How am I doing financially?'. Returns a compact backend-calculated summary of cash flow, budget risk, goals, accounts, Autopay items, and prioritized insights. Prefer specific tools for narrow questions.",
     parameters: {
       type: "object",
       properties: {},
@@ -1929,7 +1945,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_budget_status",
     description:
-      "Gets budget usage. For the current month it uses the same anomaly-aware and recurring-aware projection logic as the financial forecast, plus projection confidence and unbudgeted spending. Use for budget questions and budget forecasts.",
+      "Gets budget usage. For the current month it uses the same anomaly-aware and Autopay-aware projection logic as the financial forecast, plus projection confidence and unbudgeted spending. Use for budget questions and budget forecasts.",
     parameters: {
       type: "object",
       properties: {
@@ -1979,7 +1995,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
         type: {
           type: "string",
           enum: TRANSACTION_TYPES,
-          description: "Optional INCOME or EXPENSE filter.",
+          description: "Optional INCOME, EXPENSE, or TRANSFER filter.",
         },
         category: {
           type: "string",
@@ -2003,14 +2019,14 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_recurring_transactions",
     description:
-      "Gets active recurring income or expenses due within a future horizon. Use for upcoming bills, subscriptions, recurring investments, salary, or expected recurring cash flow.",
+      "Gets active Autopay expenses, income, or transfers due within a future horizon. Use for upcoming bills, subscriptions, salary, scheduled transfers, investment funding, or other scheduled cash flow.",
     parameters: {
       type: "object",
       properties: {
         type: {
           type: "string",
           enum: TRANSACTION_TYPES,
-          description: "Optional INCOME or EXPENSE filter.",
+          description: "Optional INCOME, EXPENSE, or TRANSFER filter.",
         },
         horizonDays: {
           type: "integer",
@@ -2057,7 +2073,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_financial_forecast",
     description:
-      "Builds a read-only end-of-current-month cash-flow forecast using month-to-date pace, recent completed-month history, known recurring items due before month-end, budget pacing, goal pace, and anomaly context. Use for 'how will I finish the month', 'projected', 'forecast', or future budget/savings questions.",
+      "Builds a read-only end-of-current-month cash-flow forecast using month-to-date pace, recent completed-month history, known Autopay items due before month-end, budget pacing, goal pace, and anomaly context. Use for 'how will I finish the month', 'projected', 'forecast', or future budget/savings questions.",
     parameters: {
       type: "object",
       properties: {

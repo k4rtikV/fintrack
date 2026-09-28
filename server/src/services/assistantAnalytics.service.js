@@ -476,19 +476,23 @@ const buildRecurringAnalytics = ({ recurringItems, asOf }) => {
 
   const expenseByCurrency = {};
   const incomeByCurrency = {};
+  const transferByCurrency = {};
 
   for (const item of dueSoon) {
     const currency = item.currency || "UNKNOWN";
-    const target = item.type === "INCOME" ? incomeByCurrency : expenseByCurrency;
-    target[currency] = round2(
-      (target[currency] || 0) + (Number(item.amount) || 0),
-    );
+    const target = item.type === "INCOME"
+      ? incomeByCurrency
+      : item.type === "EXPENSE"
+        ? expenseByCurrency
+        : transferByCurrency;
+    target[currency] = round2((target[currency] || 0) + (Number(item.amount) || 0));
   }
 
   return {
     next30DaysCount: dueSoon.length,
     next30DaysExpenseByCurrency: expenseByCurrency,
     next30DaysIncomeByCurrency: incomeByCurrency,
+    next30DaysTransferByCurrency: transferByCurrency,
     items: dueSoon.map((item) => ({
       title: item.title,
       type: item.type,
@@ -498,6 +502,7 @@ const buildRecurringAnalytics = ({ recurringItems, asOf }) => {
       nextRunDate: item.nextRunDate,
       category: item.category,
       account: item.account,
+      destinationAccount: item.destinationAccount || null,
     })),
   };
 };

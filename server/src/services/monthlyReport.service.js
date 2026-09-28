@@ -166,6 +166,7 @@ const getRecordedRecurringActivity = async ({ userId, startDate, endDate }) => {
     ]),
     Transaction.find(match)
       .populate("account", "name currency")
+      .populate("destinationAccount", "name currency")
       .populate("category", "name")
       .sort({ transactionDate: -1, createdAt: -1 })
       .limit(10),
@@ -177,12 +178,15 @@ const getRecordedRecurringActivity = async ({ userId, startDate, endDate }) => {
     count: summary.count,
     income: round2(summary.income),
     expense: round2(summary.expense),
+    transfer: round2(summary.transfer),
+    transferCount: summary.transferCount,
     items: items.map((item) => ({
       title: item.title,
       type: item.type,
       amount: round2(item.amount),
       currency: item.account?.currency || null,
-      category: item.category?.name || "Unknown",
+      category: item.type === "TRANSFER" ? "Transfer" : item.category?.name || "Unknown",
+      destinationAccount: item.destinationAccount?.name || null,
       date: toDateKey(item.transactionDate),
     })),
   };

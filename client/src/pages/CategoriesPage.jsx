@@ -120,7 +120,7 @@ const CategoriesPage = () => {
 
   const handleArchive = async (category) => {
     const accepted = window.confirm(
-      `Archive “${category.name}”? Existing records will keep this category, but it will no longer appear for new records. Active recurring schedules must be moved or paused first.`,
+      `Archive “${category.name}”? Existing records will keep this category, but it will no longer appear for new records. Active Autopay rules must be moved or paused first.`,
     );
     if (!accepted) return;
 
@@ -151,7 +151,7 @@ const CategoriesPage = () => {
           </h1>
           <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
             Manage the income and expense categories used across transactions,
-            budgets, recurring payments and analytics.
+            budgets, Autopay and analytics.
           </p>
         </div>
 

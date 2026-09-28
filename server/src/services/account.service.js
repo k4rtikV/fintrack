@@ -122,11 +122,17 @@ const updateAccountForUser = async ({
     const [transactionReference, recurringReference] = await Promise.all([
       Transaction.exists({
         user: userId,
-        account: account._id,
+        $or: [
+          { account: account._id },
+          { destinationAccount: account._id },
+        ],
       }),
       RecurringTransaction.exists({
         user: userId,
-        account: account._id,
+        $or: [
+          { account: account._id },
+          { destinationAccount: account._id },
+        ],
       }),
     ]);
 
@@ -178,13 +184,16 @@ const archiveAccountForUser = async ({
 
   const activeRecurringCount = await RecurringTransaction.countDocuments({
     user: userId,
-    account: account._id,
     isActive: true,
+    $or: [
+      { account: account._id },
+      { destinationAccount: account._id },
+    ],
   });
 
   if (activeRecurringCount > 0) {
     throw new AppError(
-      `Pause, update, or delete ${activeRecurringCount} active recurring schedule${
+      `Pause, update, or delete ${activeRecurringCount} active Autopay rule${
         activeRecurringCount === 1 ? "" : "s"
       } using this account before archiving it`,
       409,

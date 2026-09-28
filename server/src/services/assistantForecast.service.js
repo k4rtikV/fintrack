@@ -358,7 +358,7 @@ const buildMonthlyForecast = ({
   scheduledIncomeRemaining = round2(scheduledIncomeRemaining);
   scheduledExpenseRemaining = round2(scheduledExpenseRemaining);
 
-  // Recurring and non-recurring remaining cash flow are separate components,
+  // Autopay and non-recurring remaining cash flow are separate components,
   // so a known upcoming bill/salary is not swallowed by a max() floor and is
   // not double-counted inside the routine/history component.
   const projectedIncome = round2(
@@ -544,8 +544,8 @@ const buildMonthlyForecast = ({
       "Forecasts are directional planning estimates, not guaranteed outcomes.",
       "One-off purchases are included as already-incurred expenses but are not automatically repeated in the remaining-days spending pace when FinTrack flags them as anomalous or high-severity new activity.",
       "Irregular income, missing transactions, and future behavior changes can materially alter the result.",
-      "Known recurring items due before month-end are added as exact scheduled components and are separated from the non-recurring pace estimate.",
-      "Current one-off income is not automatically repeated; only known remaining recurring income and a conservative historical non-recurring gap are projected.",
+      "Known Autopay items due before month-end are added as exact scheduled components and are separated from the non-recurring pace estimate.",
+      "Current one-off income is not automatically repeated; only known remaining Autopay income and a conservative historical non-recurring gap are projected.",
     ],
   });
 };

@@ -56,7 +56,7 @@ const formatToolName = (toolName) => {
     get_goal_progress: "Goal progress",
     get_account_balances: "Account balances",
     get_recent_transactions: "Recent transactions",
-    get_recurring_transactions: "Recurring transactions",
+    get_recurring_transactions: "Autopay",
     get_monthly_trend: "Monthly trend",
     analyze_spending_patterns: "Spending patterns",
     get_financial_forecast: "Financial forecast",

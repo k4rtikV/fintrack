@@ -208,8 +208,8 @@ const createRecurringProcessedAlertUnsafe = async ({ userId, recurring, occurren
     userId,
     type: "RECURRING",
     title,
-    message: `Your recurring ${recurring.type.toLowerCase()} “${recurring.title}” was added to transactions.`,
-    actionUrl: "/transactions",
+    message: `Your Autopay ${recurring.type.toLowerCase()} “${recurring.title}” was added to transactions.`,
+    actionUrl: "/transactions/autopay",
     dedupeKey: `recurring:${recurring._id}:${occurrenceKey}`,
     metadata: {
       recurringId: recurring._id,

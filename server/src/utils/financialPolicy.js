@@ -60,11 +60,17 @@ const buildCurrencyScopedTransactionStages = (currency) => {
 const summarizeRecurringAggregateRows = (rows = []) => {
   const incomeRecord = rows.find((item) => item._id === "INCOME");
   const expenseRecord = rows.find((item) => item._id === "EXPENSE");
+  const transferRecord = rows.find((item) => item._id === "TRANSFER");
 
   return {
-    count: (Number(incomeRecord?.count) || 0) + (Number(expenseRecord?.count) || 0),
+    count:
+      (Number(incomeRecord?.count) || 0) +
+      (Number(expenseRecord?.count) || 0) +
+      (Number(transferRecord?.count) || 0),
     income: Number(incomeRecord?.amount) || 0,
     expense: Number(expenseRecord?.amount) || 0,
+    transfer: Number(transferRecord?.amount) || 0,
+    transferCount: Number(transferRecord?.count) || 0,
   };
 };
 

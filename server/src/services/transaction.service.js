@@ -5,11 +5,8 @@ import Category from "../models/Category.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
 import { endOfUtcDateOnly, toUtcDateOnly } from "../utils/dateOnly.js";
+import { buildBalanceDeltas, mergeBalanceDeltas } from "../utils/transactionSemantics.js";
 import { syncBudgetAlertsForTransaction } from "./notification.service.js";
-
-const getBalanceAdjustment = (type, amount) => {
-  return type === "INCOME" ? amount : -amount;
-};
 
 const ensureAccountBelongsToUser = async ({
   accountId,
@@ -17,24 +14,16 @@ const ensureAccountBelongsToUser = async ({
   session,
   includeArchived = false,
 }) => {
-  const filter = {
-    _id: accountId,
-    user: userId,
-  };
+  const filter = { _id: accountId, user: userId };
+  if (!includeArchived) filter.isArchived = false;
 
-  if (!includeArchived) {
-    filter.isArchived = false;
-  }
-
-  const account = await Account.findOne(filter).session(session);
+  const query = Account.findOne(filter);
+  if (session) query.session(session);
+  const account = await query;
 
   if (!account) {
-    throw new AppError(
-      includeArchived ? "Account not found" : "Account not found or archived",
-      404,
-    );
+    throw new AppError(includeArchived ? "Account not found" : "Account not found or archived", 404);
   }
-
   return account;
 };
 
@@ -45,37 +34,72 @@ const ensureCategoryBelongsToUser = async ({
   session,
   includeArchived = false,
 }) => {
-  const filter = {
-    _id: categoryId,
-    user: userId,
-  };
+  if (!categoryId) throw new AppError("Category is required", 400);
+  const filter = { _id: categoryId, user: userId };
+  if (!includeArchived) filter.isArchived = false;
 
-  if (!includeArchived) {
-    filter.isArchived = false;
-  }
-
-  const category = await Category.findOne(filter).session(session);
+  const query = Category.findOne(filter);
+  if (session) query.session(session);
+  const category = await query;
 
   if (!category) {
-    throw new AppError(
-      includeArchived ? "Category not found" : "Category not found or archived",
-      404,
-    );
+    throw new AppError(includeArchived ? "Category not found" : "Category not found or archived", 404);
   }
-
   if (category.type !== type) {
+    throw new AppError(`An ${type.toLowerCase()} transaction must use an ${type.toLowerCase()} category`, 400);
+  }
+  return category;
+};
+
+const ensureTransferPair = async ({
+  sourceAccountId,
+  destinationAccountId,
+  userId,
+  session,
+  sourceIncludeArchived = false,
+  destinationIncludeArchived = false,
+}) => {
+  if (!destinationAccountId) throw new AppError("Destination account is required for a transfer", 400);
+  if (sourceAccountId.toString() === destinationAccountId.toString()) {
+    throw new AppError("Transfer destination must be different from the source account", 400);
+  }
+
+  const [sourceAccount, destinationAccount] = await Promise.all([
+    ensureAccountBelongsToUser({ accountId: sourceAccountId, userId, session, includeArchived: sourceIncludeArchived }),
+    ensureAccountBelongsToUser({ accountId: destinationAccountId, userId, session, includeArchived: destinationIncludeArchived }),
+  ]);
+
+  if (sourceAccount.currency !== destinationAccount.currency) {
     throw new AppError(
-      `An ${type.toLowerCase()} transaction must use an ${type.toLowerCase()} category`,
-      400,
+      "Transfers between different currencies are not supported yet. Use accounts with the same currency.",
+      409,
+      { code: "TRANSFER_CURRENCY_MISMATCH" },
     );
   }
 
-  return category;
+  return { sourceAccount, destinationAccount };
+};
+
+const populateTransaction = (query) =>
+  query
+    .populate("account", "name type currency balance isArchived")
+    .populate("destinationAccount", "name type currency balance isArchived")
+    .populate("category", "name type icon color isArchived");
+
+const applyBalanceDeltas = async ({ deltas, accountDocuments, session }) => {
+  for (const [accountId, delta] of deltas.entries()) {
+    if (!delta) continue;
+    const account = accountDocuments.get(accountId);
+    if (!account) throw new AppError("A transaction account could not be resolved", 409);
+    account.balance += delta;
+    await account.save({ session, validateModifiedOnly: true });
+  }
 };
 
 const createTransactionForUser = async ({
   userId,
   accountId,
+  destinationAccountId,
   categoryId,
   type,
   amount,
@@ -88,55 +112,46 @@ const createTransactionForUser = async ({
   let createdTransaction;
 
   await mongoose.connection.transaction(async (session) => {
-    const account = await ensureAccountBelongsToUser({
-      accountId,
-      userId,
-      session,
-    });
+    const accountDocuments = new Map();
 
-    await ensureCategoryBelongsToUser({
-      categoryId,
-      userId,
-      type,
-      session,
-    });
-
-    const adjustment = getBalanceAdjustment(type, amount);
-
-    account.balance += adjustment;
-
-    await account.save({
-      session,
-      validateModifiedOnly: true,
-    });
-
-    const createdTransactions = await Transaction.create(
-      [
-        {
-          user: userId,
-          account: accountId,
-          category: categoryId,
-          type,
-          amount,
-          title,
-          note,
-          transactionDate: toUtcDateOnly(transactionDate),
-          paymentMethod,
-          tags,
-        },
-      ],
-      {
+    if (type === "TRANSFER") {
+      const { sourceAccount, destinationAccount } = await ensureTransferPair({
+        sourceAccountId: accountId,
+        destinationAccountId,
+        userId,
         session,
-      },
-    );
+      });
+      accountDocuments.set(sourceAccount._id.toString(), sourceAccount);
+      accountDocuments.set(destinationAccount._id.toString(), destinationAccount);
+    } else {
+      const account = await ensureAccountBelongsToUser({ accountId, userId, session });
+      await ensureCategoryBelongsToUser({ categoryId, userId, type, session });
+      accountDocuments.set(account._id.toString(), account);
+    }
 
-    createdTransaction = createdTransactions[0];
+    const deltas = buildBalanceDeltas({ type, amount, accountId, destinationAccountId });
+    await applyBalanceDeltas({ deltas, accountDocuments, session });
+
+    const created = await Transaction.create(
+      [{
+        user: userId,
+        account: accountId,
+        destinationAccount: type === "TRANSFER" ? destinationAccountId : null,
+        category: type === "TRANSFER" ? null : categoryId,
+        type,
+        amount,
+        title,
+        note,
+        transactionDate: toUtcDateOnly(transactionDate),
+        paymentMethod: type === "TRANSFER" && paymentMethod === "OTHER" ? "BANK_TRANSFER" : paymentMethod,
+        tags,
+      }],
+      { session },
+    );
+    createdTransaction = created[0];
   });
 
-  const populatedTransaction = await Transaction.findById(createdTransaction._id)
-    .populate("account", "name type currency balance")
-    .populate("category", "name type icon color");
-
+  const populatedTransaction = await populateTransaction(Transaction.findById(createdTransaction._id));
   if (populatedTransaction.type === "EXPENSE") {
     await syncBudgetAlertsForTransaction({
       userId,
@@ -144,7 +159,6 @@ const createTransactionForUser = async ({
       transactionDate: populatedTransaction.transactionDate,
     });
   }
-
   return populatedTransaction;
 };
 
@@ -161,234 +175,150 @@ const getTransactionsForUser = async ({
   page = 1,
   limit = 20,
 }) => {
-  const filter = {
-    user: userId,
-  };
+  const filter = { user: userId };
+  const clauses = [];
 
-  if (accountId) {
-    filter.account = accountId;
-  }
-
-  if (categoryId) {
-    filter.category = categoryId;
-  }
-
-  if (type) {
-    filter.type = type;
-  }
+  if (accountId) clauses.push({ $or: [{ account: accountId }, { destinationAccount: accountId }] });
+  if (categoryId) filter.category = categoryId;
+  if (type) filter.type = type;
 
   if (search?.trim()) {
     const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const searchPattern = new RegExp(escapedSearch, "i");
-
-    filter.$or = [
-      { title: searchPattern },
-      { note: searchPattern },
-      { tags: searchPattern },
-      { paymentMethod: searchPattern },
-    ];
+    clauses.push({ $or: [{ title: searchPattern }, { note: searchPattern }, { tags: searchPattern }, { paymentMethod: searchPattern }] });
   }
 
+  if (clauses.length) filter.$and = clauses;
   if (startDate || endDate) {
     filter.transactionDate = {};
-
-    if (startDate) {
-      filter.transactionDate.$gte = toUtcDateOnly(startDate);
-    }
-
-    if (endDate) {
-      filter.transactionDate.$lte = endOfUtcDateOnly(endDate);
-    }
+    if (startDate) filter.transactionDate.$gte = toUtcDateOnly(startDate);
+    if (endDate) filter.transactionDate.$lte = endOfUtcDateOnly(endDate);
   }
 
   const safePage = Math.max(Number(page) || 1, 1);
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-  const skip = (safePage - 1) * safeLimit;
-
   const allowedSortFields = new Set(["transactionDate", "amount", "title", "createdAt"]);
   const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : "transactionDate";
   const safeSortOrder = sortOrder === "asc" ? 1 : -1;
-
   const sort = { [safeSortBy]: safeSortOrder };
+  if (safeSortBy !== "createdAt") sort.createdAt = -1;
 
-  if (safeSortBy !== "createdAt") {
-    sort.createdAt = -1;
-  }
+  const fetchPage = (resolvedPage) =>
+    populateTransaction(Transaction.find(filter))
+      .sort(sort)
+      .skip((resolvedPage - 1) * safeLimit)
+      .limit(safeLimit);
 
   const [initialTransactions, total] = await Promise.all([
-    Transaction.find(filter)
-      .populate("account", "name type currency")
-      .populate("category", "name type icon color")
-      .sort(sort)
-      .skip(skip)
-      .limit(safeLimit),
-
+    fetchPage(safePage),
     Transaction.countDocuments(filter),
   ]);
 
   const pages = Math.ceil(total / safeLimit);
   const resolvedPage = pages > 0 ? Math.min(safePage, pages) : 1;
-  let transactions = initialTransactions;
+  const transactions = total > 0 && resolvedPage !== safePage ? await fetchPage(resolvedPage) : initialTransactions;
 
-  if (total > 0 && resolvedPage !== safePage) {
-    transactions = await Transaction.find(filter)
-      .populate("account", "name type currency")
-      .populate("category", "name type icon color")
-      .sort(sort)
-      .skip((resolvedPage - 1) * safeLimit)
-      .limit(safeLimit);
-  }
-
-  return {
-    transactions,
-    pagination: {
-      page: resolvedPage,
-      limit: safeLimit,
-      total,
-      pages,
-    },
-  };
+  return { transactions, pagination: { page: resolvedPage, limit: safeLimit, total, pages } };
 };
 
-const getTransactionByIdForUser = async ({
-  transactionId,
-  userId,
-}) => {
-  if (!mongoose.isValidObjectId(transactionId)) {
-    throw new AppError("Invalid transaction ID", 400);
-  }
-
-  const transaction = await Transaction.findOne({
-    _id: transactionId,
-    user: userId,
-  })
-    .populate("account", "name type currency")
-    .populate("category", "name type icon color");
-
-  if (!transaction) {
-    throw new AppError("Transaction not found", 404);
-  }
-
+const getTransactionByIdForUser = async ({ transactionId, userId }) => {
+  if (!mongoose.isValidObjectId(transactionId)) throw new AppError("Invalid transaction ID", 400);
+  const transaction = await populateTransaction(Transaction.findOne({ _id: transactionId, user: userId }));
+  if (!transaction) throw new AppError("Transaction not found", 404);
   return transaction;
 };
 
-const updateTransactionForUser = async ({
-  transactionId,
-  userId,
-  updates,
-}) => {
+const updateTransactionForUser = async ({ transactionId, userId, updates }) => {
   let updatedTransaction;
 
   await mongoose.connection.transaction(async (session) => {
-    const transaction = await Transaction.findOne({
-      _id: transactionId,
-      user: userId,
-    }).session(session);
+    const transaction = await Transaction.findOne({ _id: transactionId, user: userId }).session(session);
+    if (!transaction) throw new AppError("Transaction not found", 404);
 
-    if (!transaction) {
-      throw new AppError("Transaction not found", 404);
-    }
-
-    const oldAccount = await ensureAccountBelongsToUser({
+    const oldSource = await ensureAccountBelongsToUser({
       accountId: transaction.account,
       userId,
       session,
       includeArchived: true,
     });
+    const oldDestination = transaction.type === "TRANSFER"
+      ? await ensureAccountBelongsToUser({ accountId: transaction.destinationAccount, userId, session, includeArchived: true })
+      : null;
 
     const nextType = updates.type ?? transaction.type;
     const nextAmount = updates.amount ?? transaction.amount;
     const nextAccountId = updates.accountId ?? transaction.account.toString();
-    const nextCategoryId =
-      updates.categoryId ?? transaction.category.toString();
+    const existingDestinationId = transaction.destinationAccount?.toString() || null;
+    const nextDestinationAccountId = nextType === "TRANSFER"
+      ? (updates.destinationAccountId !== undefined ? updates.destinationAccountId : existingDestinationId)
+      : null;
+    const existingCategoryId = transaction.category?.toString() || null;
+    const nextCategoryId = nextType === "TRANSFER"
+      ? null
+      : (updates.categoryId !== undefined ? updates.categoryId : existingCategoryId);
 
-    const accountChanged = !oldAccount._id.equals(nextAccountId);
-    const categoryChanged =
-      transaction.category.toString() !== nextCategoryId ||
-      transaction.type !== nextType;
+    const accountDocuments = new Map([[oldSource._id.toString(), oldSource]]);
+    if (oldDestination) accountDocuments.set(oldDestination._id.toString(), oldDestination);
 
-    const nextAccount = accountChanged
-      ? await ensureAccountBelongsToUser({
-          accountId: nextAccountId,
-          userId,
-          session,
-        })
-      : oldAccount;
-
-    await ensureCategoryBelongsToUser({
-      categoryId: nextCategoryId,
-      userId,
-      type: nextType,
-      session,
-      includeArchived: !categoryChanged,
-    });
-
-    const oldAdjustment = getBalanceAdjustment(
-      transaction.type,
-      transaction.amount,
-    );
-
-    const nextAdjustment = getBalanceAdjustment(
-      nextType,
-      nextAmount,
-    );
-
-    oldAccount.balance -= oldAdjustment;
-
-    if (oldAccount._id.equals(nextAccount._id)) {
-      oldAccount.balance += nextAdjustment;
-
-      await oldAccount.save({
+    let nextSource;
+    let nextDestination = null;
+    if (nextType === "TRANSFER") {
+      const pair = await ensureTransferPair({
+        sourceAccountId: nextAccountId,
+        destinationAccountId: nextDestinationAccountId,
+        userId,
         session,
-        validateModifiedOnly: true,
+        sourceIncludeArchived: oldSource._id.toString() === nextAccountId.toString(),
+        destinationIncludeArchived: Boolean(oldDestination && oldDestination._id.toString() === nextDestinationAccountId?.toString()),
       });
+      nextSource = pair.sourceAccount;
+      nextDestination = pair.destinationAccount;
     } else {
-      nextAccount.balance += nextAdjustment;
-
-      await oldAccount.save({
+      nextSource = oldSource._id.toString() === nextAccountId.toString()
+        ? oldSource
+        : await ensureAccountBelongsToUser({ accountId: nextAccountId, userId, session });
+      const categoryChanged = existingCategoryId !== nextCategoryId || transaction.type !== nextType;
+      await ensureCategoryBelongsToUser({
+        categoryId: nextCategoryId,
+        userId,
+        type: nextType,
         session,
-        validateModifiedOnly: true,
-      });
-
-      await nextAccount.save({
-        session,
-        validateModifiedOnly: true,
+        includeArchived: !categoryChanged,
       });
     }
 
-    const fieldMap = {
-      accountId: "account",
-      categoryId: "category",
-      type: "type",
-      amount: "amount",
-      title: "title",
-      note: "note",
-      transactionDate: "transactionDate",
-      paymentMethod: "paymentMethod",
-      tags: "tags",
-    };
+    accountDocuments.set(nextSource._id.toString(), nextSource);
+    if (nextDestination) accountDocuments.set(nextDestination._id.toString(), nextDestination);
 
-    for (const [inputField, modelField] of Object.entries(fieldMap)) {
-      if (updates[inputField] !== undefined) {
-        transaction[modelField] =
-          inputField === "transactionDate"
-            ? toUtcDateOnly(updates[inputField])
-            : updates[inputField];
-      }
-    }
-
-    await transaction.save({
-      session,
-      validateModifiedOnly: true,
+    const reverseOld = buildBalanceDeltas({
+      type: transaction.type,
+      amount: transaction.amount,
+      accountId: transaction.account,
+      destinationAccountId: transaction.destinationAccount,
+      direction: -1,
     });
+    const applyNext = buildBalanceDeltas({
+      type: nextType,
+      amount: nextAmount,
+      accountId: nextAccountId,
+      destinationAccountId: nextDestinationAccountId,
+    });
+    await applyBalanceDeltas({ deltas: mergeBalanceDeltas(reverseOld, applyNext), accountDocuments, session });
 
+    const scalarFields = ["amount", "title", "note", "paymentMethod", "tags"];
+    for (const field of scalarFields) if (updates[field] !== undefined) transaction[field] = updates[field];
+    if (updates.transactionDate !== undefined) transaction.transactionDate = toUtcDateOnly(updates.transactionDate);
+    transaction.type = nextType;
+    transaction.account = nextAccountId;
+    transaction.destinationAccount = nextType === "TRANSFER" ? nextDestinationAccountId : null;
+    transaction.category = nextType === "TRANSFER" ? null : nextCategoryId;
+    if (nextType === "TRANSFER" && (!updates.paymentMethod || updates.paymentMethod === "OTHER")) transaction.paymentMethod = "BANK_TRANSFER";
+
+    await transaction.save({ session, validateModifiedOnly: true });
     updatedTransaction = transaction;
   });
 
-  const populatedTransaction = await Transaction.findById(updatedTransaction._id)
-    .populate("account", "name type currency balance")
-    .populate("category", "name type icon color");
-
+  const populatedTransaction = await populateTransaction(Transaction.findById(updatedTransaction._id));
   if (populatedTransaction.type === "EXPENSE") {
     await syncBudgetAlertsForTransaction({
       userId,
@@ -396,51 +326,30 @@ const updateTransactionForUser = async ({
       transactionDate: populatedTransaction.transactionDate,
     });
   }
-
   return populatedTransaction;
 };
 
-const deleteTransactionForUser = async ({
-  transactionId,
-  userId,
-}) => {
+const deleteTransactionForUser = async ({ transactionId, userId }) => {
   await mongoose.connection.transaction(async (session) => {
-    const transaction = await Transaction.findOne({
-      _id: transactionId,
-      user: userId,
-    }).session(session);
+    const transaction = await Transaction.findOne({ _id: transactionId, user: userId }).session(session);
+    if (!transaction) throw new AppError("Transaction not found", 404);
 
-    if (!transaction) {
-      throw new AppError("Transaction not found", 404);
+    const sourceAccount = await ensureAccountBelongsToUser({ accountId: transaction.account, userId, session, includeArchived: true });
+    const accountDocuments = new Map([[sourceAccount._id.toString(), sourceAccount]]);
+    if (transaction.type === "TRANSFER") {
+      const destinationAccount = await ensureAccountBelongsToUser({ accountId: transaction.destinationAccount, userId, session, includeArchived: true });
+      accountDocuments.set(destinationAccount._id.toString(), destinationAccount);
     }
 
-    const account = await Account.findOne({
-      _id: transaction.account,
-      user: userId,
-    }).session(session);
-
-    if (!account) {
-      throw new AppError(
-        "The account associated with this transaction no longer exists",
-        409,
-      );
-    }
-
-    const adjustment = getBalanceAdjustment(
-      transaction.type,
-      transaction.amount,
-    );
-
-    account.balance -= adjustment;
-
-    await account.save({
-      session,
-      validateModifiedOnly: true,
+    const deltas = buildBalanceDeltas({
+      type: transaction.type,
+      amount: transaction.amount,
+      accountId: transaction.account,
+      destinationAccountId: transaction.destinationAccount,
+      direction: -1,
     });
-
-    await transaction.deleteOne({
-      session,
-    });
+    await applyBalanceDeltas({ deltas, accountDocuments, session });
+    await transaction.deleteOne({ session });
   });
 };
 

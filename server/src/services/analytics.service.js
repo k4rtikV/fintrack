@@ -240,7 +240,7 @@ const getMonthlyTrendForUser = async ({
     const monthRecord = resultMap.get(key);
     if (item._id.type === "INCOME") {
       monthRecord.income = item.total;
-    } else {
+    } else if (item._id.type === "EXPENSE") {
       monthRecord.expense = item.total;
     }
   }

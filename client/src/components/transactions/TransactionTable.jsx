@@ -1,4 +1,4 @@
-import { Copy, Pencil, Save, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Copy, Pencil, Save, Trash2 } from "lucide-react";
 
 import { formatCurrency, formatDate } from "../../utils/formatters";
 import CategoryIcon from "../ui/CategoryIcon";
@@ -93,6 +93,7 @@ const TransactionTable = ({
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {transactions.map((transaction) => {
             const isIncome = transaction.type === "INCOME";
+            const isTransfer = transaction.type === "TRANSFER";
             const isSelected = selectedIds.includes(transaction._id);
 
             return (
@@ -100,7 +101,7 @@ const TransactionTable = ({
                 key={transaction._id}
                 className={`p-4 transition ${
                   isSelected
-                    ? "bg-emerald-50/70 dark:bg-emerald-500/10"
+                    ? "bg-copper-50/70 dark:bg-copper-500/10"
                     : "bg-white dark:bg-slate-900"
                 }`}
               >
@@ -113,10 +114,13 @@ const TransactionTable = ({
                     className="mt-2 shrink-0"
                   />
 
-                  <CategoryIcon
-                    icon={transaction.category?.icon}
-                    color={transaction.category?.color}
-                  />
+                  {isTransfer ? (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-steel-100 text-steel-700 dark:bg-steel-500/15 dark:text-steel-300">
+                      <ArrowLeftRight size={18} />
+                    </div>
+                  ) : (
+                    <CategoryIcon icon={transaction.category?.icon} color={transaction.category?.color} />
+                  )}
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
@@ -132,12 +136,14 @@ const TransactionTable = ({
 
                       <p
                         className={`shrink-0 whitespace-nowrap text-sm font-bold ${
-                          isIncome
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-rose-600 dark:text-rose-400"
+                          isTransfer
+                            ? "text-steel-700 dark:text-steel-300"
+                            : isIncome
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-rose-600 dark:text-rose-400"
                         }`}
                       >
-                        {isIncome ? "+" : "−"}
+                        {isTransfer ? "↔ " : isIncome ? "+" : "−"}
                         {formatCurrency(
                           transaction.amount,
                           transaction.account?.currency || currency,
@@ -149,13 +155,15 @@ const TransactionTable = ({
                       <div className="min-w-0">
                         <dt className="text-slate-400">Account</dt>
                         <dd className="mt-0.5 truncate font-medium text-slate-700 dark:text-slate-200">
-                          {transaction.account?.name || "Account"}
+                          {isTransfer
+                            ? `${transaction.account?.name || "Account"} → ${transaction.destinationAccount?.name || "Account"}`
+                            : transaction.account?.name || "Account"}
                         </dd>
                       </div>
                       <div className="min-w-0">
                         <dt className="text-slate-400">Category</dt>
                         <dd className="mt-0.5 truncate font-medium text-slate-700 dark:text-slate-200">
-                          {transaction.category?.name || "Category"}
+                          {isTransfer ? "Transfer" : transaction.category?.name || "Category"}
                         </dd>
                       </div>
                       <div className="col-span-2">
@@ -207,6 +215,7 @@ const TransactionTable = ({
           <tbody>
             {transactions.map((transaction) => {
               const isIncome = transaction.type === "INCOME";
+              const isTransfer = transaction.type === "TRANSFER";
               const isSelected = selectedIds.includes(transaction._id);
 
               return (
@@ -214,7 +223,7 @@ const TransactionTable = ({
                   key={transaction._id}
                   className={`group text-sm transition ${
                     isSelected
-                      ? "bg-emerald-50/70 dark:bg-emerald-500/10"
+                      ? "bg-copper-50/70 dark:bg-copper-500/10"
                       : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/40"
                   }`}
                 >
@@ -228,10 +237,13 @@ const TransactionTable = ({
                   </td>
                   <td className="border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
                     <div className="flex items-center gap-3">
-                      <CategoryIcon
-                        icon={transaction.category?.icon}
-                        color={transaction.category?.color}
-                      />
+                      {isTransfer ? (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-steel-100 text-steel-700 dark:bg-steel-500/15 dark:text-steel-300">
+                          <ArrowLeftRight size={18} />
+                        </div>
+                      ) : (
+                        <CategoryIcon icon={transaction.category?.icon} color={transaction.category?.color} />
+                      )}
                       <div>
                         <p className="font-semibold text-slate-900 dark:text-white">
                           {transaction.title}
@@ -244,22 +256,26 @@ const TransactionTable = ({
                     </div>
                   </td>
                   <td className="border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
-                    {transaction.account?.name || "Account"}
+                    {isTransfer
+                      ? `${transaction.account?.name || "Account"} → ${transaction.destinationAccount?.name || "Account"}`
+                      : transaction.account?.name || "Account"}
                   </td>
                   <td className="border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
-                    {transaction.category?.name || "Category"}
+                    {isTransfer ? "Transfer" : transaction.category?.name || "Category"}
                   </td>
                   <td className="whitespace-nowrap border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
                     {formatDate(transaction.transactionDate)}
                   </td>
                   <td
                     className={`whitespace-nowrap border-b border-slate-100 px-4 py-4 text-right font-bold dark:border-slate-800/80 ${
-                      isIncome
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-rose-600 dark:text-rose-400"
+                      isTransfer
+                        ? "text-steel-700 dark:text-steel-300"
+                        : isIncome
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-rose-600 dark:text-rose-400"
                     }`}
                   >
-                    {isIncome ? "+" : "−"}
+                    {isTransfer ? "↔ " : isIncome ? "+" : "−"}
                     {formatCurrency(
                       transaction.amount,
                       transaction.account?.currency || currency,

@@ -41,6 +41,7 @@ const RecurringCard = ({
   const [menuOpen, setMenuOpen] = useState(false);
 
   const isIncome = recurring.type === "INCOME";
+  const isTransfer = recurring.type === "TRANSFER";
   const isActive = recurring.isActive;
 
   return (
@@ -49,9 +50,11 @@ const RecurringCard = ({
         <div className="flex min-w-0 items-center gap-3">
           <div
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-              isIncome
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-                : "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
+              isTransfer
+                ? "bg-steel-100 text-steel-700 dark:bg-steel-500/15 dark:text-steel-300"
+                : isIncome
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  : "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
             }`}
           >
             <CalendarClock size={21} />
@@ -62,8 +65,9 @@ const RecurringCard = ({
               {recurring.title}
             </h3>
             <p className="mt-0.5 truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-              {recurring.account?.name || "Unknown account"} ·{" "}
-              {recurring.category?.name || "Unknown category"}
+              {isTransfer
+                ? `${recurring.account?.name || "Unknown account"} → ${recurring.destinationAccount?.name || "Unknown account"}`
+                : `${recurring.account?.name || "Unknown account"} · ${recurring.category?.name || "Unknown category"}`}
             </p>
           </div>
         </div>
@@ -73,7 +77,7 @@ const RecurringCard = ({
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label="Recurring transaction actions"
+            aria-label="Autopay actions"
           >
             <MoreVertical size={18} />
           </button>
@@ -141,13 +145,15 @@ const RecurringCard = ({
           </p>
           <p
             className={`mt-1 text-xl font-bold ${
-              isIncome
-                ? "text-emerald-700 dark:text-emerald-300"
-                : "text-slate-950 dark:text-white"
+              isTransfer
+                ? "text-steel-700 dark:text-steel-300"
+                : isIncome
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : "text-slate-950 dark:text-white"
             }`}
           >
-            {isIncome ? "+" : "-"}
-            {formatCurrency(recurring.amount, currency)}
+            {isTransfer ? "↔ " : isIncome ? "+" : "-"}
+            {formatCurrency(recurring.amount, recurring.account?.currency || currency)}
           </p>
         </div>
 
@@ -172,7 +178,7 @@ const RecurringCard = ({
 
         <div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Next run
+            {isTransfer ? "Next transfer" : isIncome ? "Next deposit" : "Next payment"}
           </p>
           <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
             {isActive ? formatDate(recurring.nextRunDate) : "Paused"}

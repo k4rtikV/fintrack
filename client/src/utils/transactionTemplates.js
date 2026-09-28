@@ -48,6 +48,7 @@ const saveTemplate = (transaction, user) => {
     amount: transaction.amount,
     accountId: transaction.account?._id || transaction.account,
     categoryId: transaction.category?._id || transaction.category,
+    destinationAccountId: transaction.destinationAccount?._id || transaction.destinationAccount || null,
     paymentMethod: transaction.paymentMethod,
     tags: transaction.tags || [],
     note: transaction.note || "",

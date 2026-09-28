@@ -75,7 +75,7 @@ const humanizeForecastMethod = (method) => {
     ANOMALY_ADJUSTED_NON_RECURRING_FORECAST_PLUS_EXACT_RECURRING:
       "Anomaly-adjusted forecast",
     NON_RECURRING_HISTORY_OR_PACE_PLUS_EXACT_RECURRING:
-      "History/pace + recurring",
+      "History/pace + Autopay",
     ANOMALY_ADJUSTED_REMAINING_MONTH_FORECAST_WITH_RECURRING_FLOOR:
       "Anomaly-adjusted forecast",
     REMAINING_MONTH_HISTORY_OR_PACE_WITH_RECURRING_FLOOR:
@@ -656,12 +656,12 @@ class MonthlyReportPdf {
     const recurring = this.data.recurring;
 
     this.prepareSection(140);
-    this.sectionTitle("Recurring activity recorded", {
-      subtitle: "Actual transactions linked to recurring rules during the report period.",
+    this.sectionTitle("Autopay activity recorded", {
+      subtitle: "Actual transactions created by Autopay rules during the report period.",
     });
 
     if (!recurring?.count) {
-      this.noteBox("No recurring-linked transaction occurrences were recorded in this period.");
+      this.noteBox("No Autopay transaction occurrences were recorded in this period.");
       return;
     }
 
@@ -669,25 +669,25 @@ class MonthlyReportPdf {
       {
         label: "Occurrences",
         value: String(recurring.count),
-        note: "Recorded recurring transactions",
+        note: "Recorded Autopay transactions",
       },
       {
-        label: "Recurring income",
+        label: "Autopay income",
         value: formatMoney(recurring.income, this.currency),
         note: "Actual recorded income",
         tone: "positive",
       },
       {
-        label: "Recurring expenses",
+        label: "Autopay expenses",
         value: formatMoney(recurring.expense, this.currency),
         note: "Actual recorded expenses",
         tone: recurring.expense > 0 ? "warning" : "neutral",
       },
       {
-        label: "Net recurring",
-        value: formatMoney(recurring.income - recurring.expense, this.currency),
-        note: "Income minus expenses",
-        tone: recurring.income - recurring.expense >= 0 ? "positive" : "negative",
+        label: "Autopay transfers",
+        value: formatMoney(recurring.transfer || 0, this.currency),
+        note: `${recurring.transferCount || 0} recorded transfer${recurring.transferCount === 1 ? "" : "s"}`,
+        tone: "neutral",
       },
     ]);
   }
@@ -699,7 +699,7 @@ class MonthlyReportPdf {
     const forecast = forecastData.forecast;
     this.prepareSection(150);
     this.sectionTitle("Current-month forecast", {
-      subtitle: "Directional estimate using FinTrack's anomaly-aware and recurring-aware forecast engine.",
+      subtitle: "Directional estimate using FinTrack's anomaly-aware and Autopay-aware forecast engine.",
     });
 
     this.statCards([
@@ -758,7 +758,7 @@ class MonthlyReportPdf {
         currentRecordedRecurringExpense > 0
       ) {
         explanation +=
-          ` ${formatMoney(currentRecordedRecurringExpense, this.currency)} of recurring-linked expense is already recorded this month and is not repeated unless another occurrence is actually due before month-end.`;
+          ` ${formatMoney(currentRecordedRecurringExpense, this.currency)} of Autopay-linked expense is already recorded this month and is not repeated unless another occurrence is actually due before month-end.`;
       }
 
       this.noteBox(explanation, "neutral");
@@ -1057,7 +1057,7 @@ class MonthlyReportPdf {
     this.budgetTable();
     this.topExpensesTable();
 
-    this.addPage("Snapshots and recurring activity");
+    this.addPage("Snapshots and Autopay activity");
     this.accountSnapshot();
     this.goalsSection();
     this.recurringSection();

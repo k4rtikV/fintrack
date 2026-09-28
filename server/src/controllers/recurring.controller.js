@@ -16,7 +16,7 @@ const createRecurring = async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: "Recurring transaction created successfully",
+    message: "Autopay created successfully",
     data: {
       recurring,
     },
@@ -70,7 +70,7 @@ const updateRecurring = async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Recurring transaction updated successfully",
+    message: "Autopay updated successfully",
     data: {
       recurring,
     },
@@ -85,7 +85,7 @@ const deleteRecurring = async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Recurring transaction deleted successfully",
+    message: "Autopay deleted successfully",
   });
 };
 
@@ -99,8 +99,8 @@ const processRecurring = async (req, res) => {
     success: true,
     message:
       result.generatedCount > 0
-        ? `${result.generatedCount} recurring transaction(s) generated`
-        : "No recurring transactions are due",
+        ? `${result.generatedCount} Autopay transaction(s) generated`
+        : "No Autopay transactions are due",
     data: result,
   });
 };
@@ -115,7 +115,7 @@ const processSingleRecurring = async (req, res) => {
   res.status(200).json({
     success: true,
     message: result.created
-      ? "Recurring transaction processed successfully"
+      ? "Autopay processed successfully"
       : "This occurrence was already processed",
     data: {
       recurring: result.recurring,

@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, Plus, ReceiptText, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, ReceiptText, Repeat2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import AccountModal from "../components/accounts/AccountModal";
 import DashboardCard from "../components/layout/DashboardCard";
 import PageContainer from "../components/layout/PageContainer";
 import TransactionFilters from "../components/transactions/TransactionFilters";
@@ -13,6 +15,7 @@ import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
 import useAuth from "../hooks/useAuth";
+import { createAccount } from "../services/accountService";
 import {
   createTransaction,
   deleteTransaction,
@@ -44,8 +47,10 @@ const initialFilters = {
 const TransactionsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState(initialFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAccountOnboardingOpen, setIsAccountOnboardingOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -110,6 +115,20 @@ const TransactionsPage = () => {
     mutationFn: deleteTransaction,
     onSuccess: async (response) => { toast.success(response.message); setDeletingId(""); await refreshFinanceData(); },
     onError: (error) => { toast.error(getApiError(error, "Unable to delete transaction")); setDeletingId(""); },
+  });
+
+  const createAccountMutation = useMutation({
+    mutationFn: createAccount,
+    onSuccess: async (response) => {
+      const account = response.data.account;
+      toast.success("Account created — continue with your transaction");
+      setIsAccountOnboardingOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      setSelectedTransaction(null);
+      setSelectedTemplate({ type: "EXPENSE", accountId: account._id });
+      setIsModalOpen(true);
+    },
+    onError: (error) => toast.error(getApiError(error, "Unable to create account")),
   });
 
   const transactions = transactionsQuery.data?.transactions || [];
@@ -182,14 +201,27 @@ const TransactionsPage = () => {
         event.preventDefault();
         setSelectedTransaction(null);
         setSelectedTemplate(null);
-        setIsModalOpen(true);
+        if (accounts.length === 0) setIsAccountOnboardingOpen(true);
+        else setIsModalOpen(true);
       }
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, []);
+  }, [accounts.length]);
 
-  const openCreateModal = (template = null) => { setSelectedTransaction(null); setSelectedTemplate(template); setIsModalOpen(true); };
+  const openCreateModal = (template = null) => {
+    if (accountsQuery.isLoading) {
+      toast("Loading your accounts...");
+      return;
+    }
+    setSelectedTransaction(null);
+    setSelectedTemplate(template);
+    if (accounts.length === 0) {
+      setIsAccountOnboardingOpen(true);
+      return;
+    }
+    setIsModalOpen(true);
+  };
   const openEditModal = (transaction) => { setSelectedTemplate(null); setSelectedTransaction(transaction); setIsModalOpen(true); };
   const duplicateTransaction = (transaction) => openCreateModal({
     type: transaction.type,
@@ -197,6 +229,7 @@ const TransactionsPage = () => {
     amount: transaction.amount,
     accountId: transaction.account?._id,
     categoryId: transaction.category?._id,
+    destinationAccountId: transaction.destinationAccount?._id,
     paymentMethod: transaction.paymentMethod,
     tags: transaction.tags,
     note: transaction.note,
@@ -258,8 +291,8 @@ const TransactionsPage = () => {
   return (
     <PageContainer
       title="Transactions"
-      description="Search, sort, reuse, export, and manage income and expenses. Press N to add or Ctrl/Cmd + K to search."
-      action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
+      description="Manage expenses, income, and transfers in one ledger. For anything that repeats on a schedule, set it up once with Autopay."
+      action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button variant="secondary" onClick={() => navigate("/transactions/autopay")}><Repeat2 size={17} />Set up Autopay</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
     >
       <TransactionWorkspaceNav />
 
@@ -282,7 +315,7 @@ const TransactionsPage = () => {
       )}
 
       <DashboardCard className="mt-5 overflow-hidden p-0">
-        {isLoading ? <div className="flex min-h-72 items-center justify-center"><Loader /></div> : queryError ? <div className="p-6"><EmptyState icon={ReceiptText} title="Unable to load transactions" description={getApiError(queryError, "Check your connection and try again.")} action={<Button onClick={() => transactionsQuery.refetch()}>Try again</Button>} /></div> : transactions.length === 0 ? <div className="p-6"><EmptyState icon={ReceiptText} title={hasActiveFilters ? "No matching transactions" : "No transactions yet"} description={hasActiveFilters ? "Try adjusting or clearing the current filters." : "Add your first income or expense transaction."} action={hasActiveFilters ? <Button variant="secondary" onClick={handleResetFilters}>Clear filters</Button> : <Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button>} /></div> : <TransactionTable currency={user?.preferredCurrency || "INR"} transactions={transactions} selectedIds={selectedIds} onToggle={toggleSelection} onToggleAll={toggleAll} onEdit={openEditModal} onDuplicate={duplicateTransaction} onSaveTemplate={handleSaveTemplate} onDelete={handleDelete} deletingId={deletingId} />}
+        {isLoading ? <div className="flex min-h-72 items-center justify-center"><Loader /></div> : queryError ? <div className="p-6"><EmptyState icon={ReceiptText} title="Unable to load transactions" description={getApiError(queryError, "Check your connection and try again.")} action={<Button onClick={() => transactionsQuery.refetch()}>Try again</Button>} /></div> : transactions.length === 0 ? <div className="p-6"><EmptyState icon={ReceiptText} title={hasActiveFilters ? "No matching transactions" : "No transactions yet"} description={hasActiveFilters ? "Try adjusting or clearing the current filters." : "Add your first expense, income, or transfer."} action={hasActiveFilters ? <Button variant="secondary" onClick={handleResetFilters}>Clear filters</Button> : <Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button>} /></div> : <TransactionTable currency={user?.preferredCurrency || "INR"} transactions={transactions} selectedIds={selectedIds} onToggle={toggleSelection} onToggleAll={toggleAll} onEdit={openEditModal} onDuplicate={duplicateTransaction} onSaveTemplate={handleSaveTemplate} onDelete={handleDelete} deletingId={deletingId} />}
 
         {pagination && (
           <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
@@ -300,6 +333,15 @@ const TransactionsPage = () => {
       </DashboardCard>
 
       <TransactionModal accounts={accounts} categories={categories} isOpen={isModalOpen} isSaving={saveMutation.isPending} transaction={selectedTransaction} template={selectedTemplate} timezone={user?.timezone} onClose={() => { if (!saveMutation.isPending) { setIsModalOpen(false); setSelectedTransaction(null); setSelectedTemplate(null); } }} onSubmit={(payload) => saveMutation.mutateAsync(payload)} />
+
+      <AccountModal
+        account={null}
+        isOpen={isAccountOnboardingOpen}
+        isSaving={createAccountMutation.isPending}
+        defaultCurrency={user?.preferredCurrency || "INR"}
+        onClose={() => { if (!createAccountMutation.isPending) setIsAccountOnboardingOpen(false); }}
+        onSubmit={(payload) => createAccountMutation.mutateAsync(payload)}
+      />
     </PageContainer>
   );
 };

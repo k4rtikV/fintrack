@@ -46,60 +46,58 @@ const getNextOccurrence = ({
 
 const ensureValidObjectId = (id) => {
   if (!mongoose.isValidObjectId(id)) {
-    throw new AppError("Invalid recurring transaction ID", 400);
+    throw new AppError("Invalid Autopay ID", 400);
   }
 };
 
-const ensureAccountAndCategory = async ({
+const getOwnedActiveAccount = async ({ userId, accountId, session = null }) => {
+  const query = Account.findOne({ _id: accountId, user: userId, isArchived: false });
+  if (session) query.session(session);
+  const account = await query;
+  if (!account) throw new AppError("Account not found or archived", 404);
+  return account;
+};
+
+const ensureRecurringDependencies = async ({
   userId,
   accountId,
+  destinationAccountId,
   categoryId,
   type,
   session = null,
 }) => {
-  const accountQuery = Account.findOne({
-    _id: accountId,
-    user: userId,
-    isArchived: false,
-  });
+  const account = await getOwnedActiveAccount({ userId, accountId, session });
 
-  const categoryQuery = Category.findOne({
-    _id: categoryId,
-    user: userId,
-    isArchived: false,
-  });
-
-  if (session) {
-    accountQuery.session(session);
-    categoryQuery.session(session);
+  if (type === "TRANSFER") {
+    if (!destinationAccountId) throw new AppError("Destination account is required for an Autopay transfer", 400);
+    if (accountId.toString() === destinationAccountId.toString()) {
+      throw new AppError("Autopay transfer destination must be different from the source account", 400);
+    }
+    const destinationAccount = await getOwnedActiveAccount({ userId, accountId: destinationAccountId, session });
+    if (account.currency !== destinationAccount.currency) {
+      throw new AppError(
+        "Autopay transfers between different currencies are not supported yet.",
+        409,
+        { code: "TRANSFER_CURRENCY_MISMATCH" },
+      );
+    }
+    return { account, destinationAccount, category: null };
   }
 
-  const [account, category] = await Promise.all([
-    accountQuery,
-    categoryQuery,
-  ]);
-
-  if (!account) {
-    throw new AppError("Account not found or archived", 404);
-  }
-
-  if (!category) {
-    throw new AppError("Category not found or archived", 404);
-  }
-
+  const categoryQuery = Category.findOne({ _id: categoryId, user: userId, isArchived: false });
+  if (session) categoryQuery.session(session);
+  const category = await categoryQuery;
+  if (!category) throw new AppError("Category not found or archived", 404);
   if (category.type !== type) {
-    throw new AppError(
-      `An ${type.toLowerCase()} recurring transaction must use an ${type.toLowerCase()} category`,
-      400,
-    );
+    throw new AppError(`An ${type.toLowerCase()} Autopay must use an ${type.toLowerCase()} category`, 400);
   }
-
-  return { account, category };
+  return { account, destinationAccount: null, category };
 };
 
 const populateRecurring = (query) =>
   query
     .populate("account", "name type currency balance isArchived")
+    .populate("destinationAccount", "name type currency balance isArchived")
     .populate("category", "name type icon color isArchived");
 
 const normalizeRecurringCalendarDates = (recurring, timezone) => {
@@ -120,6 +118,7 @@ const normalizeRecurringCalendarDates = (recurring, timezone) => {
 const createRecurringForUser = async ({
   userId,
   accountId,
+  destinationAccountId,
   categoryId,
   type,
   amount,
@@ -132,9 +131,10 @@ const createRecurringForUser = async ({
   startDate,
   endDate,
 }) => {
-  await ensureAccountAndCategory({
+  await ensureRecurringDependencies({
     userId,
     accountId,
+    destinationAccountId,
     categoryId,
     type,
   });
@@ -152,12 +152,13 @@ const createRecurringForUser = async ({
   const recurring = await RecurringTransaction.create({
     user: userId,
     account: accountId,
-    category: categoryId,
+    destinationAccount: type === "TRANSFER" ? destinationAccountId : null,
+    category: type === "TRANSFER" ? null : categoryId,
     type,
     amount,
     title,
     note,
-    paymentMethod,
+    paymentMethod: type === "TRANSFER" && paymentMethod === "OTHER" ? "BANK_TRANSFER" : paymentMethod,
     tags,
     frequency,
     interval,
@@ -186,7 +187,7 @@ const getRecurringByIdForUser = async ({
   );
 
   if (!recurring) {
-    throw new AppError("Recurring transaction not found", 404);
+    throw new AppError("Autopay not found", 404);
   }
 
   normalizeRecurringCalendarDates(recurring, timezone);
@@ -285,20 +286,28 @@ const updateRecurringForUser = async ({
   });
 
   if (!recurring) {
-    throw new AppError("Recurring transaction not found", 404);
+    throw new AppError("Autopay not found", 404);
   }
 
   normalizeRecurringCalendarDates(recurring, timezone);
 
   const nextType = updates.type ?? recurring.type;
-  const nextAccountId =
-    updates.accountId ?? recurring.account.toString();
-  const nextCategoryId =
-    updates.categoryId ?? recurring.category.toString();
+  const nextAccountId = updates.accountId ?? recurring.account.toString();
+  const nextDestinationAccountId = nextType === "TRANSFER"
+    ? (updates.destinationAccountId !== undefined
+        ? updates.destinationAccountId
+        : recurring.destinationAccount?.toString() || null)
+    : null;
+  const nextCategoryId = nextType === "TRANSFER"
+    ? null
+    : (updates.categoryId !== undefined
+        ? updates.categoryId
+        : recurring.category?.toString() || null);
 
-  await ensureAccountAndCategory({
+  await ensureRecurringDependencies({
     userId,
     accountId: nextAccountId,
+    destinationAccountId: nextDestinationAccountId,
     categoryId: nextCategoryId,
     type: nextType,
   });
@@ -323,6 +332,7 @@ const updateRecurringForUser = async ({
 
   const fieldMap = {
     accountId: "account",
+    destinationAccountId: "destinationAccount",
     categoryId: "category",
     type: "type",
     amount: "amount",
@@ -339,6 +349,14 @@ const updateRecurringForUser = async ({
     if (updates[inputField] !== undefined) {
       recurring[modelField] = updates[inputField];
     }
+  }
+
+  recurring.type = nextType;
+  recurring.account = nextAccountId;
+  recurring.destinationAccount = nextType === "TRANSFER" ? nextDestinationAccountId : null;
+  recurring.category = nextType === "TRANSFER" ? null : nextCategoryId;
+  if (nextType === "TRANSFER" && (!updates.paymentMethod || updates.paymentMethod === "OTHER")) {
+    recurring.paymentMethod = "BANK_TRANSFER";
   }
 
   recurring.startDate = nextStartDate;
@@ -384,7 +402,7 @@ const deleteRecurringForUser = async ({
   });
 
   if (!recurring) {
-    throw new AppError("Recurring transaction not found", 404);
+    throw new AppError("Autopay not found", 404);
   }
 };
 
@@ -405,38 +423,38 @@ const createGeneratedTransaction = async ({
       return;
     }
 
-    const { account } = await ensureAccountAndCategory({
+    const { account, destinationAccount } = await ensureRecurringDependencies({
       userId: recurring.user,
       accountId: recurring.account,
+      destinationAccountId: recurring.destinationAccount,
       categoryId: recurring.category,
       type: recurring.type,
       session,
     });
 
-    const adjustment =
-      recurring.type === "INCOME"
-        ? recurring.amount
-        : -recurring.amount;
-
-    account.balance += adjustment;
-
-    await account.save({
-      session,
-      validateModifiedOnly: true,
-    });
+    if (recurring.type === "TRANSFER") {
+      account.balance -= recurring.amount;
+      destinationAccount.balance += recurring.amount;
+      await account.save({ session, validateModifiedOnly: true });
+      await destinationAccount.save({ session, validateModifiedOnly: true });
+    } else {
+      account.balance += recurring.type === "INCOME" ? recurring.amount : -recurring.amount;
+      await account.save({ session, validateModifiedOnly: true });
+    }
 
     await Transaction.create(
       [
         {
           user: recurring.user,
           account: recurring.account,
-          category: recurring.category,
+          destinationAccount: recurring.type === "TRANSFER" ? recurring.destinationAccount : null,
+          category: recurring.type === "TRANSFER" ? null : recurring.category,
           type: recurring.type,
           amount: recurring.amount,
           title: recurring.title,
           note: recurring.note,
           transactionDate: occurrenceDate,
-          paymentMethod: recurring.paymentMethod,
+          paymentMethod: recurring.type === "TRANSFER" && recurring.paymentMethod === "OTHER" ? "BANK_TRANSFER" : recurring.paymentMethod,
           tags: recurring.tags,
           recurringTransaction: recurring._id,
           recurringOccurrenceDate: occurrenceDate,
@@ -481,21 +499,21 @@ const processSingleRecurringForUser = async ({
   });
 
   if (!recurring) {
-    throw new AppError("Recurring transaction not found", 404);
+    throw new AppError("Autopay not found", 404);
   }
 
   normalizeRecurringCalendarDates(recurring, timezone);
   alignNextRunToAnchor(recurring);
 
   if (!recurring.isActive) {
-    throw new AppError("This recurring schedule is paused", 400);
+    throw new AppError("This Autopay is paused", 400);
   }
 
   const today = atStartOfDay(getDateKeyInTimeZone(now, timezone));
   const nextRun = atStartOfDay(recurring.nextRunDate);
 
   if (nextRun.getTime() > today.getTime()) {
-    throw new AppError("This recurring schedule is not due yet", 400);
+    throw new AppError("This Autopay is not due yet", 400);
   }
 
   if (
@@ -504,7 +522,7 @@ const processSingleRecurringForUser = async ({
   ) {
     recurring.isActive = false;
     await recurring.save();
-    throw new AppError("This recurring schedule has already ended", 400);
+    throw new AppError("This Autopay has already ended", 400);
   }
 
   const created = await createGeneratedTransaction({

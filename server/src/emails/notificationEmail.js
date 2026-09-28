@@ -34,7 +34,7 @@ const buildNotificationEmail = ({ user, notification }) => {
   if (notification.type === "RECURRING") {
     details = `
       <div style="margin:20px 0;padding:18px;border-radius:14px;background:#f8fafc">
-        <div><strong>${escapeHtml(metadata.transactionTitle || "Recurring transaction")}</strong></div>
+        <div><strong>${escapeHtml(metadata.transactionTitle || "Autopay transaction")}</strong></div>
         <div style="margin-top:8px">Amount: <strong>${formatCurrency(metadata.amount, user.preferredCurrency, user.locale)}</strong></div>
         <div>Type: ${escapeHtml(metadata.transactionType || "")}</div>
       </div>`;

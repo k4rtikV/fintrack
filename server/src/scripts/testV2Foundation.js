@@ -99,6 +99,21 @@ assert.deepEqual(recurringSummary, {
   count: 46,
   income: 17000,
   expense: 29000,
+  transfer: 0,
+  transferCount: 0,
+});
+
+const recurringWithTransfers = summarizeRecurringAggregateRows([
+  { _id: "INCOME", count: 1, amount: 1000 },
+  { _id: "EXPENSE", count: 2, amount: 700 },
+  { _id: "TRANSFER", count: 3, amount: 1500 },
+]);
+assert.deepEqual(recurringWithTransfers, {
+  count: 6,
+  income: 1000,
+  expense: 700,
+  transfer: 1500,
+  transferCount: 3,
 });
 
 console.log("FinTrack V2 foundation regression tests passed.");

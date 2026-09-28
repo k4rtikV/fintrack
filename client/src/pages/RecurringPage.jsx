@@ -82,7 +82,7 @@ const RecurringPage = () => {
       await refreshFinanceData();
     },
     onError: (error) =>
-      toast.error(getApiError(error, "Unable to save recurring transaction")),
+      toast.error(getApiError(error, "Unable to save Autopay")),
   });
 
   const deleteMutation = useMutation({
@@ -92,7 +92,7 @@ const RecurringPage = () => {
       await refreshFinanceData();
     },
     onError: (error) =>
-      toast.error(getApiError(error, "Unable to delete recurring transaction")),
+      toast.error(getApiError(error, "Unable to delete Autopay")),
   });
 
   const toggleMutation = useMutation({
@@ -108,7 +108,7 @@ const RecurringPage = () => {
     },
     onError: (error) => {
       setTogglingId("");
-      toast.error(getApiError(error, "Unable to update schedule"));
+      toast.error(getApiError(error, "Unable to update Autopay"));
     },
   });
 
@@ -122,7 +122,7 @@ const RecurringPage = () => {
     },
     onError: (error) => {
       setProcessingId("");
-      toast.error(getApiError(error, "Unable to process this schedule"));
+      toast.error(getApiError(error, "Unable to process this Autopay"));
     },
   });
 
@@ -178,7 +178,7 @@ const RecurringPage = () => {
   const handleDelete = (item) => {
     if (
       window.confirm(
-        `Delete the recurring schedule “${item.title}”? Existing generated transactions will remain unchanged.`,
+        `Delete the Autopay “${item.title}”? Existing generated transactions will remain unchanged.`,
       )
     ) {
       deleteMutation.mutate(item._id);
@@ -208,12 +208,12 @@ const RecurringPage = () => {
 
   return (
     <PageContainer
-      title="Recurring"
-      description="Automate repeating income and expenses and let FinTrack create the transactions when they become due."
+      title="Autopay"
+      description="Set up scheduled expenses, income, and transfers so FinTrack records routine transactions automatically."
       action={
         <Button onClick={openCreateModal}>
           <Plus size={18} />
-          Create schedule
+          Set up Autopay
         </Button>
       }
     >
@@ -227,7 +227,7 @@ const RecurringPage = () => {
             </div>
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Total schedules
+                Total Autopay
               </p>
               <p className="mt-0.5 text-xl font-bold text-slate-950 dark:text-white">
                 {summary.total}
@@ -288,21 +288,21 @@ const RecurringPage = () => {
       <section className="mt-8">
         <div className="mb-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            Schedules
+            Autopay rules
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Generated occurrences appear automatically in Transactions and update the selected account balance.
+            When an Autopay becomes due, FinTrack records it in Transactions and updates the relevant account balance automatically.
           </p>
         </div>
 
         {isLoading ? (
           <div className="flex min-h-72 items-center justify-center">
-            <Loader label="Loading recurring transactions..." />
+            <Loader label="Loading Autopay..." />
           </div>
         ) : queryError ? (
           <EmptyState
             icon={CalendarClock}
-            title="Unable to load recurring transactions"
+            title="Unable to load Autopay"
             description={getApiError(
               queryError,
               "Check your connection and try again.",
@@ -316,12 +316,12 @@ const RecurringPage = () => {
         ) : recurring.length === 0 ? (
           <EmptyState
             icon={Repeat2}
-            title="No recurring transactions yet"
-            description="Create a schedule for rent, salary, subscriptions, SIPs, bills, or any other repeating transaction."
+            title="No Autopay rules yet"
+            description="Set up Autopay for bills, subscriptions, salary, rent, savings transfers, SIP funding, or any other scheduled transaction."
             action={
               <Button onClick={openCreateModal}>
                 <Plus size={18} />
-                Create schedule
+                Set up Autopay
               </Button>
             }
           />

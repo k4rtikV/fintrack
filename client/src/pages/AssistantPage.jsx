@@ -31,7 +31,7 @@ const welcomeMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Ask me about spending, budgets, cash flow, unusual patterns, forecasts, what-if scenarios, accounts, recurring payments, or savings goals. I’ll answer using the financial data already in your FinTrack account.",
+    "Ask me about spending, budgets, cash flow, unusual patterns, forecasts, what-if scenarios, accounts, Autopay, or savings goals. I’ll answer using the financial data already in your FinTrack account.",
 };
 
 const makeMessage = (role, content, metadata = {}) => ({
@@ -481,10 +481,10 @@ const AssistantPage = () => {
 
             <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
               <p>• Current-month income, expenses, and savings</p>
-              <p>• Spending anomalies, spikes, and recurring patterns</p>
+              <p>• Spending anomalies, spikes, and scheduled patterns</p>
               <p>• Budgets, pacing, and month-end forecasts</p>
               <p>• Read-only what-if cash-flow simulations</p>
-              <p>• Accounts, goals, recurring items, and trends</p>
+              <p>• Accounts, goals, Autopay rules, and trends</p>
             </div>
           </DashboardCard>
 

@@ -187,7 +187,7 @@ const archiveCategoryForUser = async ({
 
   if (activeRecurringCount > 0) {
     throw new AppError(
-      `Pause, update, or delete ${activeRecurringCount} active recurring schedule${
+      `Pause, update, or delete ${activeRecurringCount} active Autopay rule${
         activeRecurringCount === 1 ? "" : "s"
       } using this category before archiving it`,
       409,
