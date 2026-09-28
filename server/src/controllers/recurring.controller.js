@@ -24,11 +24,6 @@ const createRecurring = async (req, res) => {
 };
 
 const getRecurring = async (req, res) => {
-  const processResult = await processDueRecurringForUser({
-    userId: req.user._id,
-    timezone: req.user.timezone,
-  });
-
   const recurring = await getRecurringForUser({
     userId: req.user._id,
     includeInactive: req.query.includeInactive !== "false",
@@ -38,7 +33,6 @@ const getRecurring = async (req, res) => {
   res.status(200).json({
     success: true,
     results: recurring.length,
-    processing: processResult,
     data: {
       recurring,
     },
