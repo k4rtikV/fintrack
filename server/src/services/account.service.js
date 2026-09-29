@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
 import Account from "../models/Account.js";
+import InvestmentHolding from "../models/InvestmentHolding.js";
+import InvestmentTrade from "../models/InvestmentTrade.js";
 import RecurringTransaction from "../models/RecurringTransaction.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
@@ -119,7 +121,7 @@ const updateAccountForUser = async ({
   }
 
   if (updates.currency && updates.currency !== account.currency) {
-    const [transactionReference, recurringReference] = await Promise.all([
+    const [transactionReference, recurringReference, investmentTradeReference] = await Promise.all([
       Transaction.exists({
         user: userId,
         $or: [
@@ -134,6 +136,7 @@ const updateAccountForUser = async ({
           { destinationAccount: account._id },
         ],
       }),
+      InvestmentTrade.exists({ user: userId, account: account._id }),
     ]);
 
     if (
@@ -141,7 +144,7 @@ const updateAccountForUser = async ({
         currentCurrency: account.currency,
         nextCurrency: updates.currency,
         hasFinancialReferences: Boolean(
-          transactionReference || recurringReference,
+          transactionReference || recurringReference || investmentTradeReference,
         ),
         currentBalance: account.balance,
       })
@@ -182,14 +185,21 @@ const archiveAccountForUser = async ({
     userId,
   });
 
-  const activeRecurringCount = await RecurringTransaction.countDocuments({
-    user: userId,
-    isActive: true,
-    $or: [
-      { account: account._id },
-      { destinationAccount: account._id },
-    ],
-  });
+  const [activeRecurringCount, openHoldingCount] = await Promise.all([
+    RecurringTransaction.countDocuments({
+      user: userId,
+      isActive: true,
+      $or: [
+        { account: account._id },
+        { destinationAccount: account._id },
+      ],
+    }),
+    InvestmentHolding.countDocuments({
+      user: userId,
+      account: account._id,
+      quantity: { $gt: 0 },
+    }),
+  ]);
 
   if (activeRecurringCount > 0) {
     throw new AppError(
@@ -197,6 +207,14 @@ const archiveAccountForUser = async ({
         activeRecurringCount === 1 ? "" : "s"
       } using this account before archiving it`,
       409,
+    );
+  }
+
+  if (openHoldingCount > 0) {
+    throw new AppError(
+      `Sell or move the ${openHoldingCount} open investment holding${openHoldingCount === 1 ? "" : "s"} in this account before archiving it`,
+      409,
+      { code: "INVESTMENT_ACCOUNT_HAS_OPEN_HOLDINGS" },
     );
   }
 

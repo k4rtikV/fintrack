@@ -23,9 +23,9 @@ const colorOptions = [
   ["slate", "Slate"],
 ];
 
-const createInitialForm = (account, defaultCurrency = "INR") => ({
+const createInitialForm = (account, defaultCurrency = "INR", defaultType = "BANK") => ({
   name: account?.name || "",
-  type: account?.type || "BANK",
+  type: account?.type || defaultType,
   balance: account ? String(account.balance ?? 0) : "0",
   currency: account?.currency || defaultCurrency,
   color: account?.color || "emerald",
@@ -39,16 +39,19 @@ const AccountModal = ({
   onClose,
   onSubmit,
   defaultCurrency = "INR",
+  defaultType = "BANK",
+  fixedType = false,
+  fixedCurrency = false,
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(account, defaultCurrency));
+  const [form, setForm] = useState(() => createInitialForm(account, defaultCurrency, defaultType));
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createInitialForm(account, defaultCurrency));
+      setForm(createInitialForm(account, defaultCurrency, defaultType));
       setError("");
     }
-  }, [account, defaultCurrency, isOpen]);
+  }, [account, defaultCurrency, defaultType, isOpen]);
 
   if (!isOpen) {
     return null;
@@ -137,6 +140,7 @@ const AccountModal = ({
                 value={form.type}
                 onChange={(event) => updateField("type", event.target.value)}
                 className={fieldClassName}
+                disabled={fixedType}
               >
                 {accountTypes.map(([value, label]) => (
                   <option key={value} value={value}>
@@ -152,6 +156,7 @@ const AccountModal = ({
                 value={form.currency}
                 onChange={(event) => updateField("currency", event.target.value)}
                 className={fieldClassName}
+                disabled={fixedCurrency}
               >
                 <option value="INR">INR — Indian Rupee</option>
                 <option value="USD">USD — US Dollar</option>

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 import Account from "../models/Account.js";
+import InvestmentHolding from "../models/InvestmentHolding.js";
 import Transaction from "../models/Transaction.js";
 import {
   endOfUtcDateOnly,
@@ -14,6 +15,25 @@ import {
 
 const toObjectId = (value) => {
   return new mongoose.Types.ObjectId(value.toString());
+};
+
+
+const getInvestmentValuationByAccount = async ({ userId }) => {
+  const holdings = await InvestmentHolding.find({
+    user: userId,
+    quantity: { $gt: 0 },
+  }).populate("instrument", "lastPrice");
+
+  const byAccount = new Map();
+  for (const holding of holdings) {
+    const livePrice = Number(holding.instrument?.lastPrice);
+    const fallbackPrice = Number(holding.averageCost || 0);
+    const price = Number.isFinite(livePrice) && livePrice > 0 ? livePrice : fallbackPrice;
+    const value = Number(holding.quantity || 0) * price;
+    const accountId = holding.account.toString();
+    byAccount.set(accountId, (byAccount.get(accountId) || 0) + value);
+  }
+  return byAccount;
 };
 
 const buildDateMatch = ({ startDate, endDate }) => {
@@ -51,7 +71,7 @@ const getOverviewForUser = async ({
     ...(currency ? { currency } : {}),
   };
 
-  const [transactionTotals, accountTotals, totalActiveAccountCount] =
+  const [transactionTotals, accountTotals, totalActiveAccountCount, investmentValuation] =
     await Promise.all([
     Transaction.aggregate([
       { $match: transactionMatch },
@@ -78,6 +98,9 @@ const getOverviewForUser = async ({
       user: userObjectId,
       isArchived: false,
     }),
+    currency === "INR"
+      ? getInvestmentValuationByAccount({ userId: userObjectId })
+      : Promise.resolve(new Map()),
   ]);
 
   const incomeRecord = transactionTotals.find(
@@ -96,7 +119,8 @@ const getOverviewForUser = async ({
 
   return {
     currency: currency || null,
-    totalBalance: accountTotals[0]?.totalBalance || 0,
+    totalBalance: (accountTotals[0]?.totalBalance || 0) + [...investmentValuation.values()].reduce((sum, value) => sum + value, 0),
+    investmentHoldingsValue: [...investmentValuation.values()].reduce((sum, value) => sum + value, 0),
     accountCount: totalActiveAccountCount || 0,
     balanceAccountCount: accountTotals[0]?.accountCount || 0,
     totalIncome,
@@ -311,14 +335,28 @@ const getTopExpensesForUser = async ({
 };
 
 const getAccountSummaryForUser = async ({ userId }) => {
-  const accounts = await Account.find({
-    user: userId,
-    isArchived: false,
-  })
-    .select("name type balance currency color icon createdAt")
-    .sort({ currency: 1, balance: -1 });
+  const [accounts, investmentValuation] = await Promise.all([
+    Account.find({
+      user: userId,
+      isArchived: false,
+    })
+      .select("name type balance currency color icon createdAt")
+      .sort({ currency: 1, balance: -1 }),
+    getInvestmentValuationByAccount({ userId }),
+  ]);
 
-  const normalizedAccounts = accounts.map((account) => account.toObject());
+  const normalizedAccounts = accounts.map((account) => {
+    const item = account.toObject();
+    const holdingsValue = item.currency === "INR"
+      ? investmentValuation.get(account._id.toString()) || 0
+      : 0;
+    return {
+      ...item,
+      cashBalance: item.balance,
+      investmentHoldingsValue: holdingsValue,
+      balance: item.balance + holdingsValue,
+    };
+  });
   return addCurrencyRelativePercentages(normalizedAccounts);
 };
 
