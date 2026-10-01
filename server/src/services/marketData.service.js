@@ -7,6 +7,8 @@ const UPSTOX_BASE_URL = "https://api.upstox.com";
 const QUOTE_CACHE_MS = 15 * 1000;
 const MARKET_TIMEOUT_MS = 8000;
 const MAX_QUOTE_KEYS = 100;
+const EXCHANGE_STATUS_CACHE_MS = 60 * 1000;
+const exchangeStatusCache = { expiresAt: 0, data: null };
 
 const getAnalyticsToken = () => String(process.env.UPSTOX_ANALYTICS_TOKEN || "").trim();
 
@@ -85,6 +87,8 @@ const serializeInstrument = (instrument) => ({
   yearLow: instrument.yearLow,
   volume: instrument.volume,
   quoteUpdatedAt: instrument.quoteUpdatedAt,
+  quoteFetchedAt: instrument.quoteFetchedAt,
+  lastTradeAt: instrument.lastTradeAt,
 });
 
 const upsertInstrument = async (normalized) => {
@@ -141,28 +145,36 @@ const searchIndianEquities = async ({ query, page = 1, records = 20 }) => {
 };
 
 const isFreshQuote = (instrument) =>
-  instrument.quoteUpdatedAt &&
-  Date.now() - new Date(instrument.quoteUpdatedAt).getTime() < QUOTE_CACHE_MS &&
-  Number.isFinite(Number(instrument.lastPrice));
+  (instrument.quoteFetchedAt || instrument.quoteUpdatedAt) &&
+  Date.now() - new Date(instrument.quoteFetchedAt || instrument.quoteUpdatedAt).getTime() < QUOTE_CACHE_MS &&
+  instrument.lastPrice != null && Number(instrument.lastPrice) > 0;
+
+const validTimestamp = (value) => {
+  if (value == null || value === "" || value === 0 || value === "0") return null;
+  const date = new Date(/^\d+$/.test(String(value)) ? Number(value) : value);
+  return Number.isFinite(date.getTime()) ? date : null;
+};
 
 const normalizeQuote = (quote) => {
   const lastPrice = Number(quote?.last_price);
   const previousClose = Number(quote?.prev_close_price);
 
   return {
-    lastPrice: Number.isFinite(lastPrice) ? lastPrice : null,
-    previousClose: Number.isFinite(previousClose) ? previousClose : null,
+    lastPrice: Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice : null,
+    previousClose: quote?.prev_close_price != null && Number.isFinite(previousClose) ? previousClose : null,
     yearHigh: Number.isFinite(Number(quote?.year_high)) ? Number(quote.year_high) : null,
     yearLow: Number.isFinite(Number(quote?.year_low)) ? Number(quote.year_low) : null,
     volume: Number.isFinite(Number(quote?.volume)) ? Number(quote.volume) : null,
-    quoteUpdatedAt: quote?.timestamp ? new Date(quote.timestamp) : new Date(),
+    quoteUpdatedAt: validTimestamp(quote?.timestamp),
+    lastTradeAt: validTimestamp(quote?.last_trade_time),
+    quoteFetchedAt: new Date(),
   };
 };
 
 const quotePayload = (instrument) => {
-  const lastPrice = Number(instrument.lastPrice);
-  const previousClose = Number(instrument.previousClose);
-  const change = Number.isFinite(lastPrice) && Number.isFinite(previousClose)
+  const lastPrice = instrument.lastPrice == null ? null : Number(instrument.lastPrice);
+  const previousClose = instrument.previousClose == null ? null : Number(instrument.previousClose);
+  const change = lastPrice != null && Number.isFinite(lastPrice) && previousClose != null && Number.isFinite(previousClose)
     ? lastPrice - previousClose
     : null;
   const changePercent = change !== null && previousClose > 0
@@ -182,6 +194,8 @@ const quotePayload = (instrument) => {
     yearLow: instrument.yearLow,
     volume: instrument.volume,
     quoteUpdatedAt: instrument.quoteUpdatedAt,
+    quoteFetchedAt: instrument.quoteFetchedAt,
+    lastTradeAt: instrument.lastTradeAt,
   };
 };
 
@@ -209,6 +223,7 @@ const fetchAndCacheQuotes = async (instruments) => {
       const quote = quoteByInstrumentKey.get(instrument.instrumentKey);
       if (!quote) continue;
       const normalized = normalizeQuote(quote);
+      if (normalized.lastPrice == null) continue;
       Object.assign(instrument, normalized);
       await instrument.save({ validateModifiedOnly: true });
     }
@@ -245,10 +260,32 @@ const getQuotesForInstruments = async ({ instruments, allowStale = true }) => {
   }
 };
 
-const getMarketDataStatus = () => ({
+const getExchangeStatuses = async () => {
+  if (!isMarketDataConfigured()) return { NSE: "UNKNOWN", BSE: "UNKNOWN" };
+  if (exchangeStatusCache.data && Date.now() < exchangeStatusCache.expiresAt) return exchangeStatusCache.data;
+  const results = await Promise.allSettled(["NSE", "BSE"].map(async (exchange) => {
+    const response = await axios.get(`${UPSTOX_BASE_URL}/v2/market/status/${exchange}`, {
+      headers: buildHeaders(), timeout: MARKET_TIMEOUT_MS,
+    });
+    return response.data?.data?.status;
+  }));
+  const statuses = {};
+  ["NSE", "BSE"].forEach((exchange, index) => {
+    const result = results[index];
+    const value = result.status === "fulfilled" ? result.value : null;
+    statuses[exchange] = value === "NORMAL_OPEN" ? "OPEN"
+      : typeof value === "string" && value ? "CLOSED" : "UNKNOWN";
+  });
+  exchangeStatusCache.data = statuses;
+  exchangeStatusCache.expiresAt = Date.now() + EXCHANGE_STATUS_CACHE_MS;
+  return statuses;
+};
+
+const getMarketDataStatus = async () => ({
   configured: isMarketDataConfigured(),
   provider: "Upstox",
   exchanges: ["NSE", "BSE"],
+  exchangeStatus: await getExchangeStatuses(),
   quoteCacheSeconds: QUOTE_CACHE_MS / 1000,
 });
 

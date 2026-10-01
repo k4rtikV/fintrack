@@ -1,8 +1,9 @@
 import { ArrowDownToLine, ArrowUpFromLine, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import Button from "../ui/Button";
 import { formatCurrency } from "../../utils/formatters";
+import { getQuotePresentation } from "../../utils/quotePresentation";
 
 const fieldClassName =
   "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-copper-400 focus:ring-2 focus:ring-copper-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
@@ -26,15 +27,23 @@ const InvestmentTradeModal = ({
   holding,
   defaultType = "BUY",
   suggestedPrice,
+  quote,
+  exchangeStatus,
   isSaving,
   onClose,
   onSubmit,
 }) => {
   const [form, setForm] = useState(() => createForm());
   const [error, setError] = useState("");
+  const priceEdited = useRef(false);
+  const initializedTrade = useRef(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) { initializedTrade.current = null; return; }
+    const identity = `${instrument?._id}:${defaultType}:${holding?._id || ""}`;
+    if (initializedTrade.current === identity) return;
+    initializedTrade.current = identity;
+    priceEdited.current = false;
     setForm(
       createForm({
         type: defaultType,
@@ -43,7 +52,13 @@ const InvestmentTradeModal = ({
       }),
     );
     setError("");
-  }, [accounts, defaultType, holding, isOpen, suggestedPrice]);
+  }, [accounts, defaultType, holding?._id, isOpen, instrument?._id, suggestedPrice]);
+
+  useEffect(() => {
+    if (isOpen && suggestedPrice && !priceEdited.current) {
+      setForm((current) => ({ ...current, price: String(suggestedPrice) }));
+    }
+  }, [isOpen, suggestedPrice]);
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account._id === form.accountId),
@@ -53,8 +68,11 @@ const InvestmentTradeModal = ({
   if (!isOpen || !instrument) return null;
 
   const updateField = (field, value) => {
+    if (field === "price") priceEdited.current = true;
     setForm((current) => ({ ...current, [field]: value }));
   };
+
+  const quoteInfo = getQuotePresentation(quote, exchangeStatus);
 
   const quantity = Number(form.quantity);
   const price = Number(form.price);
@@ -185,6 +203,11 @@ const InvestmentTradeModal = ({
                 placeholder="1250.00"
               />
             </label>
+
+            <p className="-mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400 sm:col-start-2">
+              {quote?.lastPrice > 0 ? `Upstox ${instrument.exchange}: ${formatCurrency(quote.lastPrice, "INR")} · ` : "No market quote · "}
+              {quoteInfo.label}{quoteInfo.time ? ` · ${quoteInfo.time}` : ""}. Enter the actual execution price.
+            </p>
 
             <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Fees / brokerage

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Copy, Pencil, Save, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Copy, ExternalLink, Pencil, Save, Trash2 } from "lucide-react";
 
 import { formatCurrency, formatDate } from "../../utils/formatters";
 import CategoryIcon from "../ui/CategoryIcon";
@@ -13,8 +13,15 @@ const TransactionActions = ({
   onSaveTemplate,
   onDelete,
   deletingId,
+  onViewInvestment,
 }) => (
+
   <div className="flex flex-wrap justify-end gap-1">
+    {transaction.recordKind === "INVESTMENT_TRADE" ? (
+      <button type="button" className={`${iconButtonClass} gap-1 px-2 text-copper-600 dark:text-copper-300`} onClick={onViewInvestment} title="View investment activity" aria-label={`View ${transaction.title} in Investments`}>
+        <ExternalLink size={16} /> <span className="text-xs">Trade</span>
+      </button>
+    ) : (<>
     <button
       type="button"
       className={`${iconButtonClass} text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10`}
@@ -52,6 +59,7 @@ const TransactionActions = ({
     >
       <Trash2 size={16} />
     </button>
+    </>)}
   </div>
 );
 
@@ -66,10 +74,10 @@ const TransactionTable = ({
   onSaveTemplate,
   onDelete,
   deletingId,
+  onViewInvestment,
 }) => {
-  const allSelected =
-    transactions.length > 0 &&
-    transactions.every((item) => selectedIds.includes(item._id));
+  const selectable = transactions.filter((item) => item.recordKind !== "INVESTMENT_TRADE");
+  const allSelected = selectable.length > 0 && selectable.every((item) => selectedIds.includes(item._id));
 
   return (
     <>
@@ -79,6 +87,7 @@ const TransactionTable = ({
             <input
               type="checkbox"
               checked={allSelected}
+              disabled={selectable.length === 0}
               onChange={onToggleAll}
               aria-label="Select all visible transactions"
             />
@@ -92,7 +101,8 @@ const TransactionTable = ({
 
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {transactions.map((transaction) => {
-            const isIncome = transaction.type === "INCOME";
+            const isTrade = transaction.recordKind === "INVESTMENT_TRADE";
+            const isIncome = transaction.type === "INCOME" || transaction.type === "INVESTMENT_SELL";
             const isTransfer = transaction.type === "TRANSFER";
             const isSelected = selectedIds.includes(transaction._id);
 
@@ -109,12 +119,17 @@ const TransactionTable = ({
                   <input
                     type="checkbox"
                     checked={isSelected}
+                    disabled={isTrade}
                     onChange={() => onToggle(transaction._id)}
                     aria-label={`Select ${transaction.title}`}
                     className="mt-2 shrink-0"
                   />
 
-                  {isTransfer ? (
+                  {isTrade ? (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-copper-500/10 text-copper-600 dark:text-copper-300">
+                      {isIncome ? <ArrowUpFromLine size={18} /> : <ArrowDownToLine size={18} />}
+                    </div>
+                  ) : isTransfer ? (
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-steel-100 text-steel-700 dark:bg-steel-500/15 dark:text-steel-300">
                       <ArrowLeftRight size={18} />
                     </div>
@@ -130,7 +145,7 @@ const TransactionTable = ({
                         </p>
                         <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
                           {transaction.note ||
-                            transaction.paymentMethod.replaceAll("_", " ")}
+                            (transaction.paymentMethod || "OTHER").replaceAll("_", " ")}
                         </p>
                       </div>
 
@@ -145,7 +160,7 @@ const TransactionTable = ({
                       >
                         {isTransfer ? "↔ " : isIncome ? "+" : "−"}
                         {formatCurrency(
-                          transaction.amount,
+                          isTrade ? Math.abs(transaction.netCashAmount) : transaction.amount,
                           transaction.account?.currency || currency,
                         )}
                       </p>
@@ -163,7 +178,7 @@ const TransactionTable = ({
                       <div className="min-w-0">
                         <dt className="text-slate-400">Category</dt>
                         <dd className="mt-0.5 truncate font-medium text-slate-700 dark:text-slate-200">
-                          {isTransfer ? "Transfer" : transaction.category?.name || "Category"}
+                          {isTrade ? "Investment trade" : isTransfer ? "Transfer" : transaction.category?.name || "Category"}
                         </dd>
                       </div>
                       <div className="col-span-2">
@@ -182,6 +197,7 @@ const TransactionTable = ({
                         onSaveTemplate={onSaveTemplate}
                         onDelete={onDelete}
                         deletingId={deletingId}
+                        onViewInvestment={onViewInvestment}
                       />
                     </div>
                   </div>
@@ -200,6 +216,7 @@ const TransactionTable = ({
                 <input
                   type="checkbox"
                   checked={allSelected}
+                  disabled={selectable.length === 0}
                   onChange={onToggleAll}
                   aria-label="Select all visible transactions"
                 />
@@ -214,7 +231,8 @@ const TransactionTable = ({
           </thead>
           <tbody>
             {transactions.map((transaction) => {
-              const isIncome = transaction.type === "INCOME";
+              const isTrade = transaction.recordKind === "INVESTMENT_TRADE";
+            const isIncome = transaction.type === "INCOME" || transaction.type === "INVESTMENT_SELL";
               const isTransfer = transaction.type === "TRANSFER";
               const isSelected = selectedIds.includes(transaction._id);
 
@@ -231,13 +249,18 @@ const TransactionTable = ({
                     <input
                       type="checkbox"
                       checked={isSelected}
+                    disabled={isTrade}
                       onChange={() => onToggle(transaction._id)}
                       aria-label={`Select ${transaction.title}`}
                     />
                   </td>
                   <td className="border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
                     <div className="flex items-center gap-3">
-                      {isTransfer ? (
+                      {isTrade ? (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-copper-500/10 text-copper-600 dark:text-copper-300">
+                          {isIncome ? <ArrowUpFromLine size={18} /> : <ArrowDownToLine size={18} />}
+                        </div>
+                      ) : isTransfer ? (
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-steel-100 text-steel-700 dark:bg-steel-500/15 dark:text-steel-300">
                           <ArrowLeftRight size={18} />
                         </div>
@@ -250,7 +273,7 @@ const TransactionTable = ({
                         </p>
                         <p className="mt-1 max-w-xs truncate text-xs text-slate-500 dark:text-slate-400">
                           {transaction.note ||
-                            transaction.paymentMethod.replaceAll("_", " ")}
+                            (transaction.paymentMethod || "OTHER").replaceAll("_", " ")}
                         </p>
                       </div>
                     </div>
@@ -261,7 +284,7 @@ const TransactionTable = ({
                       : transaction.account?.name || "Account"}
                   </td>
                   <td className="border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
-                    {isTransfer ? "Transfer" : transaction.category?.name || "Category"}
+                    {isTrade ? "Investment trade" : isTransfer ? "Transfer" : transaction.category?.name || "Category"}
                   </td>
                   <td className="whitespace-nowrap border-b border-slate-100 px-4 py-4 dark:border-slate-800/80">
                     {formatDate(transaction.transactionDate)}
@@ -277,7 +300,7 @@ const TransactionTable = ({
                   >
                     {isTransfer ? "↔ " : isIncome ? "+" : "−"}
                     {formatCurrency(
-                      transaction.amount,
+                      isTrade ? Math.abs(transaction.netCashAmount) : transaction.amount,
                       transaction.account?.currency || currency,
                     )}
                   </td>
@@ -289,6 +312,7 @@ const TransactionTable = ({
                       onSaveTemplate={onSaveTemplate}
                       onDelete={onDelete}
                       deletingId={deletingId}
+                      onViewInvestment={onViewInvestment}
                     />
                   </td>
                 </tr>

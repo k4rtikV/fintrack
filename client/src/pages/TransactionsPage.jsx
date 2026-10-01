@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, Plus, ReceiptText, Repeat2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import AccountModal from "../components/accounts/AccountModal";
@@ -15,7 +15,7 @@ import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
 import useAuth from "../hooks/useAuth";
-import { createAccount } from "../services/accountService";
+import { createAccount, getAccounts as getAccountDirectory } from "../services/accountService";
 import {
   createTransaction,
   deleteTransaction,
@@ -48,7 +48,9 @@ const TransactionsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState(initialFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountFromUrl = searchParams.get("accountId") || "";
+  const [filters, setFilters] = useState(() => ({ ...initialFilters, accountId: /^[a-f0-9]{24}$/i.test(accountFromUrl) ? accountFromUrl : "" }));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAccountOnboardingOpen, setIsAccountOnboardingOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -72,6 +74,11 @@ const TransactionsPage = () => {
     setTemplates(readTemplates(user));
   }, [user]);
 
+  useEffect(() => {
+    const nextAccountId = /^[a-f0-9]{24}$/i.test(accountFromUrl) ? accountFromUrl : "";
+    setFilters((current) => current.accountId === nextAccountId ? current : { ...current, accountId: nextAccountId, page: 1 });
+  }, [accountFromUrl]);
+
   const serverFilters = useMemo(() => {
     const nextFilters = {
       ...filters,
@@ -85,6 +92,7 @@ const TransactionsPage = () => {
 
   const transactionsQuery = useQuery({ queryKey: ["transactions", serverFilters], queryFn: () => getTransactions(serverFilters), placeholderData: (previousData) => previousData });
   const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: getAccounts });
+  const accountDirectoryQuery = useQuery({ queryKey: ["accounts", "activity-directory"], queryFn: () => getAccountDirectory({ includeArchived: true }) });
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: () => getCategories() });
 
   const refreshFinanceData = async () => {
@@ -136,6 +144,8 @@ const TransactionsPage = () => {
   const categories = categoriesQuery.data || [];
   const pagination = transactionsQuery.data?.pagination;
 
+  const selectableTransactions = transactions.filter((item) => item.recordKind !== "INVESTMENT_TRADE");
+
   const hasActiveFilters = Boolean(
     filters.search.trim() ||
       filters.type ||
@@ -159,12 +169,25 @@ const TransactionsPage = () => {
   const handleFiltersChange = (nextFilters) => {
     setSelectedIds([]);
     setFilters(nextFilters);
+    if (nextFilters.accountId !== accountFromUrl) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (nextFilters.accountId) next.set("accountId", nextFilters.accountId);
+        else next.delete("accountId");
+        return next;
+      });
+    }
   };
 
   const handleResetFilters = () => {
     setSelectedIds([]);
     setDebouncedSearch("");
     setFilters(initialFilters);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("accountId");
+      return next;
+    });
   };
 
   const goToPage = (page) => {
@@ -283,7 +306,7 @@ const TransactionsPage = () => {
   };
 
   const toggleSelection = (id) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const toggleAll = () => setSelectedIds((current) => transactions.every((item) => current.includes(item._id)) ? current.filter((id) => !transactions.some((item) => item._id === id)) : [...new Set([...current, ...transactions.map((item) => item._id)])]);
+  const toggleAll = () => setSelectedIds((current) => selectableTransactions.every((item) => current.includes(item._id)) ? current.filter((id) => !selectableTransactions.some((item) => item._id === id)) : [...new Set([...current, ...selectableTransactions.map((item) => item._id)])]);
 
   const isLoading = transactionsQuery.isLoading || accountsQuery.isLoading || categoriesQuery.isLoading;
   const queryError = transactionsQuery.error || accountsQuery.error || categoriesQuery.error;
@@ -291,7 +314,7 @@ const TransactionsPage = () => {
   return (
     <PageContainer
       title="Transactions"
-      description="Manage expenses, income, and transfers in one ledger. For anything that repeats on a schedule, set it up once with Autopay."
+      description="Review expenses, income, transfers, and investment trades in one activity view. Autopay handles scheduled movements."
       action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button variant="secondary" onClick={() => navigate("/transactions/autopay")}><Repeat2 size={17} />Set up Autopay</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
     >
       <TransactionWorkspaceNav />
@@ -305,7 +328,7 @@ const TransactionsPage = () => {
         </DashboardCard>
       )}
 
-      <DashboardCard><TransactionFilters accounts={accounts} categories={categories} filters={filters} onChange={handleFiltersChange} onReset={handleResetFilters} timezone={user?.timezone} /></DashboardCard>
+      <DashboardCard><TransactionFilters accounts={accountDirectoryQuery.data || accounts} categories={categories} filters={filters} onChange={handleFiltersChange} onReset={handleResetFilters} timezone={user?.timezone} /></DashboardCard>
 
       {selectedIds.length > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-500/20 dark:bg-rose-500/10">
@@ -315,7 +338,7 @@ const TransactionsPage = () => {
       )}
 
       <DashboardCard className="mt-5 overflow-hidden p-0">
-        {isLoading ? <div className="flex min-h-72 items-center justify-center"><Loader /></div> : queryError ? <div className="p-6"><EmptyState icon={ReceiptText} title="Unable to load transactions" description={getApiError(queryError, "Check your connection and try again.")} action={<Button onClick={() => transactionsQuery.refetch()}>Try again</Button>} /></div> : transactions.length === 0 ? <div className="p-6"><EmptyState icon={ReceiptText} title={hasActiveFilters ? "No matching transactions" : "No transactions yet"} description={hasActiveFilters ? "Try adjusting or clearing the current filters." : "Add your first expense, income, or transfer."} action={hasActiveFilters ? <Button variant="secondary" onClick={handleResetFilters}>Clear filters</Button> : <Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button>} /></div> : <TransactionTable currency={user?.preferredCurrency || "INR"} transactions={transactions} selectedIds={selectedIds} onToggle={toggleSelection} onToggleAll={toggleAll} onEdit={openEditModal} onDuplicate={duplicateTransaction} onSaveTemplate={handleSaveTemplate} onDelete={handleDelete} deletingId={deletingId} />}
+        {isLoading ? <div className="flex min-h-72 items-center justify-center"><Loader /></div> : queryError ? <div className="p-6"><EmptyState icon={ReceiptText} title="Unable to load transactions" description={getApiError(queryError, "Check your connection and try again.")} action={<Button onClick={() => transactionsQuery.refetch()}>Try again</Button>} /></div> : transactions.length === 0 ? <div className="p-6"><EmptyState icon={ReceiptText} title={hasActiveFilters ? "No matching transactions" : "No transactions yet"} description={hasActiveFilters ? "Try adjusting or clearing the current filters." : "Add your first expense, income, transfer, or investment trade."} action={hasActiveFilters ? <Button variant="secondary" onClick={handleResetFilters}>Clear filters</Button> : <Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button>} /></div> : <TransactionTable currency={user?.preferredCurrency || "INR"} transactions={transactions} selectedIds={selectedIds} onToggle={toggleSelection} onToggleAll={toggleAll} onEdit={openEditModal} onDuplicate={duplicateTransaction} onSaveTemplate={handleSaveTemplate} onDelete={handleDelete} deletingId={deletingId} onViewInvestment={() => navigate("/investments", { state: { tab: "activity" } })} />}
 
         {pagination && (
           <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">

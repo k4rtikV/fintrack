@@ -81,7 +81,7 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, 
             onChange({
               ...filters,
               type: nextType,
-              categoryId: nextType === "TRANSFER" ? "" : filters.categoryId,
+              categoryId: (nextType === "TRANSFER" || nextType.startsWith("INVESTMENT")) ? "" : filters.categoryId,
               page: 1,
             });
           }}
@@ -91,21 +91,24 @@ const TransactionFilters = ({ accounts, categories, filters, onChange, onReset, 
           <option value="INCOME">Income</option>
           <option value="EXPENSE">Expense</option>
           <option value="TRANSFER">Transfer</option>
+          <option value="INVESTMENT">All investment trades</option>
+          <option value="INVESTMENT_BUY">Investment buys</option>
+          <option value="INVESTMENT_SELL">Investment sells</option>
         </select>
 
         <select aria-label="Account" value={filters.accountId} onChange={(event) => updateFilter("accountId", event.target.value)} className={`${fieldClassName} lg:col-span-2`}>
           <option value="">All accounts</option>
-          {accounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}
+          {accounts.map((account) => <option key={account._id} value={account._id}>{account.name}{account.isArchived ? " (archived)" : ""}</option>)}
         </select>
 
         <select
           aria-label="Category"
           value={filters.categoryId}
           onChange={(event) => updateFilter("categoryId", event.target.value)}
-          disabled={filters.type === "TRANSFER"}
+          disabled={filters.type === "TRANSFER" || filters.type.startsWith("INVESTMENT")}
           className={`${fieldClassName} lg:col-span-2 disabled:cursor-not-allowed disabled:opacity-55`}
         >
-          <option value="">{filters.type === "TRANSFER" ? "No category for transfers" : "All categories"}</option>
+          <option value="">{filters.type === "TRANSFER" || filters.type.startsWith("INVESTMENT") ? "No category for this type" : "All categories"}</option>
           {categories.map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}
         </select>
 

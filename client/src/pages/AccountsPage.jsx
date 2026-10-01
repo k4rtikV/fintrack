@@ -7,6 +7,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import AccountCard from "../components/accounts/AccountCard";
@@ -30,6 +31,7 @@ import getApiError from "../utils/getApiError";
 const AccountsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [includeArchived, setIncludeArchived] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -237,6 +239,7 @@ const AccountsPage = () => {
               account={account}
               onEdit={openEditModal}
               onArchive={handleArchive}
+              onViewTransactions={(item) => navigate(`/transactions?accountId=${encodeURIComponent(item._id)}`)}
             />
           ))}
         </div>

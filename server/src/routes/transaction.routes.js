@@ -4,6 +4,7 @@ import {
   createTransaction,
   deleteTransaction,
   getTransaction,
+  getTransactionActivity,
   getTransactions,
   updateTransaction,
 } from "../controllers/transaction.controller.js";
@@ -27,6 +28,8 @@ router
   .route("/")
   .post(validate(createTransactionSchema), createTransaction)
   .get(validate(transactionQuerySchema), getTransactions);
+
+router.get("/activity", validate(transactionQuerySchema), getTransactionActivity);
 
 router
   .route("/:transactionId")

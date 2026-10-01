@@ -2,10 +2,12 @@ import { ArrowDownToLine, ArrowUpFromLine, ExternalLink, TrendingDown, TrendingU
 
 import Button from "../ui/Button";
 import { formatCurrency } from "../../utils/formatters";
+import { getQuotePresentation } from "../../utils/quotePresentation";
 
-const InvestmentHoldingCard = ({ holding, onBuy, onSell }) => {
+const InvestmentHoldingCard = ({ holding, onBuy, onSell, exchangeStatus }) => {
   const positive = Number(holding.unrealizedPnl) >= 0;
   const QuoteIcon = positive ? TrendingUp : TrendingDown;
+  const quoteInfo = getQuotePresentation(holding.quote, exchangeStatus, true);
 
   return (
     <article className="rounded-2xl border border-slate-200/85 bg-white/92 p-5 transition hover:-translate-y-0.5 hover:border-copper-300/70 dark:border-slate-700 dark:bg-slate-900/92 dark:hover:border-copper-700/70">
@@ -48,6 +50,10 @@ const InvestmentHoldingCard = ({ holding, onBuy, onSell }) => {
           <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatCurrency(holding.averageCost, "INR")}</p>
         </div>
       </div>
+
+      <p className="mt-3 text-xs text-slate-400" aria-label="Holding market quote status">
+        {quoteInfo.label}{quoteInfo.time ? ` · ${quoteInfo.time}` : " · Valued at cost until a quote is available"}
+      </p>
 
       <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-950/65">
         <div className="flex items-center justify-between gap-3">

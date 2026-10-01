@@ -3,9 +3,11 @@ import {
   Activity,
   ArrowDownToLine,
   BarChart3,
+  ChevronDown,
   ExternalLink,
   Eye,
   EyeOff,
+  History,
   LineChart,
   Plus,
   RefreshCw,
@@ -13,7 +15,8 @@ import {
   TrendingUp,
   WalletCards,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import AccountModal from "../components/accounts/AccountModal";
@@ -38,6 +41,7 @@ import {
   searchInstruments,
 } from "../services/investmentService";
 import { formatCurrency, formatDate } from "../utils/formatters";
+import { getQuotePresentation } from "../utils/quotePresentation";
 import getApiError from "../utils/getApiError";
 
 const tabs = [
@@ -51,24 +55,29 @@ const pct = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0
 
 const InvestmentsPage = () => {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState("portfolio");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [tab, setTab] = useState(() => tabs.some(([value]) => value === location.state?.tab) ? location.state.tab : "portfolio");
   const [searchText, setSearchText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [accountActions, setAccountActions] = useState(null);
   const [tradeState, setTradeState] = useState(null);
   const [suggestedPrice, setSuggestedPrice] = useState("");
+  const tradeRequest = useRef(0);
 
-  const marketStatusQuery = useQuery({ queryKey: ["investment-market-status"], queryFn: getMarketStatus });
+  const marketStatusQuery = useQuery({ queryKey: ["investment-market-status"], queryFn: getMarketStatus, refetchInterval: 60000 });
+  const isMarketOpen = Object.values(marketStatusQuery.data?.exchangeStatus || {}).includes("OPEN");
   const accountsQuery = useQuery({ queryKey: ["investment-accounts"], queryFn: getInvestmentAccounts });
   const portfolioQuery = useQuery({
     queryKey: ["investment-portfolio"],
     queryFn: getPortfolio,
-    refetchInterval: marketStatusQuery.data?.configured ? 15000 : false,
+    refetchInterval: marketStatusQuery.data?.configured && isMarketOpen ? 15000 : false,
   });
   const watchlistQuery = useQuery({
     queryKey: ["investment-watchlist"],
     queryFn: getWatchlist,
-    refetchInterval: tab === "watchlist" && marketStatusQuery.data?.configured ? 15000 : false,
+    refetchInterval: tab === "watchlist" && marketStatusQuery.data?.configured && isMarketOpen ? 15000 : false,
   });
   const tradesQuery = useQuery({
     queryKey: ["investment-trades"],
@@ -96,6 +105,7 @@ const InvestmentsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["investment-trades"] }),
       queryClient.invalidateQueries({ queryKey: ["investment-accounts"] }),
       queryClient.invalidateQueries({ queryKey: ["investment-watchlist"] }),
+      queryClient.invalidateQueries({ queryKey: ["transactions"] }),
       queryClient.invalidateQueries({ queryKey: ["accounts"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] }),
     ]);
@@ -141,13 +151,24 @@ const InvestmentsPage = () => {
   });
 
   const openTrade = async ({ instrument, holding = null, type = "BUY", quote = null }) => {
-    setSuggestedPrice(quote?.lastPrice || instrument?.lastPrice || holding?.currentPrice || "");
-    setTradeState({ instrument, holding, type });
+    const request = ++tradeRequest.current;
+    const initialQuote = quote || {
+      lastPrice: instrument?.lastPrice,
+      quoteUpdatedAt: instrument?.quoteUpdatedAt,
+      quoteFetchedAt: instrument?.quoteFetchedAt,
+      lastTradeAt: instrument?.lastTradeAt,
+    };
+    setSuggestedPrice(initialQuote.lastPrice || holding?.currentPrice || "");
+    setTradeState({ instrument, holding, type, quote: initialQuote });
 
-    if (!quote?.lastPrice && !instrument?.lastPrice && marketStatusQuery.data?.configured) {
+    if (marketStatusQuery.data?.configured) {
       try {
         const fresh = await getInstrumentQuote(instrument._id);
-        if (fresh.quote?.lastPrice) setSuggestedPrice(fresh.quote.lastPrice);
+        if (request !== tradeRequest.current) return;
+        if (fresh.quote?.lastPrice) {
+          setSuggestedPrice(fresh.quote.lastPrice);
+          setTradeState((current) => current?.instrument?._id === instrument._id ? { ...current, quote: fresh.quote } : current);
+        }
       } catch {
         // Manual price entry remains available when the provider is temporarily unavailable.
       }
@@ -173,6 +194,8 @@ const InvestmentsPage = () => {
   ];
 
   const marketConfigured = Boolean(marketStatusQuery.data?.configured);
+  const marketStatusLabel = Object.entries(marketStatusQuery.data?.exchangeStatus || {})
+    .map(([exchange, status]) => `${exchange} ${status}`).join(" · ") || "MARKET STATUS UNKNOWN";
   const pageLoading = accountsQuery.isLoading || portfolioQuery.isLoading || marketStatusQuery.isLoading;
 
   return (
@@ -181,9 +204,17 @@ const InvestmentsPage = () => {
       description="Track NSE/BSE holdings, live market prices, watchlists, broker cash, and portfolio P&L without mixing trades into income or expenses."
       action={
         <div className="flex flex-wrap justify-center gap-2">
-          <Button variant="secondary" onClick={() => setIsAccountModalOpen(true)}>
-            <WalletCards size={17} /> Investment account
-          </Button>
+          <div className="relative">
+            <Button variant="secondary" onClick={() => accounts.length ? setAccountActions((current) => current === "menu" ? null : "menu") : setIsAccountModalOpen(true)} aria-expanded={accountActions === "menu"}>
+              <WalletCards size={17} /> Investment account {accounts.length > 0 && <ChevronDown size={15} />}
+            </Button>
+            {accountActions === "menu" && accounts.length > 0 && (
+              <div className="absolute left-1/2 top-full z-30 mt-2 w-64 -translate-x-1/2 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-steel-700 dark:bg-steel-900" role="menu" aria-label="Investment account actions">
+                <button type="button" role="menuitem" onClick={() => setAccountActions("list")} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-steel-800"><WalletCards size={16} /> View investment accounts</button>
+                <button type="button" role="menuitem" onClick={() => { setAccountActions(null); setIsAccountModalOpen(true); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-steel-800"><Plus size={16} /> Create another account</button>
+              </div>
+            )}
+          </div>
           <Button onClick={() => setTab("market")}>
             <Search size={17} /> Find shares
           </Button>
@@ -194,6 +225,14 @@ const InvestmentsPage = () => {
         <div className="flex min-h-72 items-center justify-center"><Loader /></div>
       ) : (
         <>
+          {accountActions === "list" && (
+            <DashboardCard className="mx-auto mb-5 max-w-3xl">
+              <div className="flex items-center justify-between gap-3"><h2 className="font-bold text-slate-950 dark:text-white">Your investment accounts</h2><button type="button" onClick={() => setAccountActions(null)} className="text-xs font-semibold text-steel-600 hover:text-copper-500 dark:text-steel-300">Close</button></div>
+              <div className="mt-3 space-y-2">
+                {accounts.map((account) => <div key={account._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-steel-700"><div><p className="font-semibold text-slate-900 dark:text-white">{account.name}</p><p className="text-xs text-slate-500 dark:text-slate-400">Broker cash · {formatCurrency(account.balance, account.currency)}</p></div><div className="flex flex-wrap gap-2"><Button variant="secondary" className="px-3 py-2" onClick={() => navigate(`/transactions?accountId=${encodeURIComponent(account._id)}`)}><History size={15} /> History</Button><Button variant="secondary" className="px-3 py-2" onClick={() => navigate("/accounts")}>View account</Button></div></div>)}
+              </div>
+            </DashboardCard>
+          )}
           {!marketConfigured && (
             <div className="mb-5 rounded-2xl border border-amber-300/60 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200">
               <strong>Live NSE/BSE data is not configured yet.</strong> Portfolio bookkeeping still works, but market search and live quotes require the server-side <code>UPSTOX_ANALYTICS_TOKEN</code>.
@@ -237,7 +276,7 @@ const InvestmentsPage = () => {
                   <h2 className="text-lg font-bold text-slate-950 dark:text-white">Your holdings</h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400">Broker cash stays in the investment account; share value is tracked separately from ordinary transactions.</p>
                 </div>
-                <span className="text-xs font-semibold text-slate-400">{portfolio?.market?.live ? "LIVE QUOTES · 15S REFRESH" : "CACHED / COST BASIS"}</span>
+                <span className="text-xs font-semibold text-slate-400">{marketConfigured ? `${marketStatusLabel} · ${isMarketOpen ? "UP TO 15S REFRESH" : "LAST AVAILABLE PRICES"}` : "COST BASIS / CACHED PRICES"}</span>
               </div>
 
               {accounts.length === 0 ? (
@@ -253,6 +292,7 @@ const InvestmentsPage = () => {
                     <InvestmentHoldingCard
                       key={holding._id}
                       holding={holding}
+                      exchangeStatus={marketStatusQuery.data?.exchangeStatus?.[holding.instrument.exchange]}
                       onBuy={(item) => openTrade({ instrument: item.instrument, holding: item, type: "BUY", quote: item.quote })}
                       onSell={(item) => openTrade({ instrument: item.instrument, holding: item, type: "SELL", quote: item.quote })}
                     />
@@ -334,7 +374,7 @@ const InvestmentsPage = () => {
                         <button type="button" onClick={() => removeWatchlistMutation.mutate(item._id)} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-800" aria-label={`Remove ${item.instrument.tradingSymbol} from watchlist`}><EyeOff size={18} /></button>
                       </div>
                       <div className="mt-5 flex items-end justify-between gap-4">
-                        <div><p className="text-xs uppercase tracking-[0.12em] text-slate-400">Last price</p><p className="mt-1 text-xl font-bold text-slate-950 dark:text-white">{q.lastPrice != null ? formatCurrency(q.lastPrice, "INR") : "—"}</p></div>
+                        <div><p className="text-xs uppercase tracking-[0.12em] text-slate-400">Last price</p><p className="mt-1 text-xl font-bold text-slate-950 dark:text-white">{q.lastPrice != null ? formatCurrency(q.lastPrice, "INR") : "—"}</p><p className="mt-1 text-xs text-slate-400">{(() => { const state = getQuotePresentation(q, marketStatusQuery.data?.exchangeStatus?.[item.instrument.exchange]); return `${state.label}${state.time ? ` · ${state.time}` : ""}`; })()}</p></div>
                         <div className={`text-right text-sm font-bold ${positive ? "text-emerald-500" : "text-rose-500"}`}>{q.change != null ? `${q.change >= 0 ? "+" : ""}${formatCurrency(q.change, "INR")} (${pct(q.changePercent)})` : "No live quote"}</div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -384,8 +424,10 @@ const InvestmentsPage = () => {
         defaultType={tradeState?.type || "BUY"}
         accounts={accounts}
         suggestedPrice={suggestedPrice}
+        quote={tradeState?.quote}
+        exchangeStatus={marketStatusQuery.data?.exchangeStatus?.[tradeState?.instrument?.exchange]}
         isSaving={tradeMutation.isPending}
-        onClose={() => { setTradeState(null); setSuggestedPrice(""); }}
+        onClose={() => { tradeRequest.current += 1; setTradeState(null); setSuggestedPrice(""); }}
         onSubmit={(payload) => tradeMutation.mutateAsync(payload)}
       />
     </PageContainer>

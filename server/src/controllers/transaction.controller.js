@@ -5,6 +5,7 @@ import {
   getTransactionsForUser,
   updateTransactionForUser,
 } from "../services/transaction.service.js";
+import { getActivityForUser } from "../services/transactionActivity.service.js";
 
 const createTransaction = async (req, res) => {
   const transaction = await createTransactionForUser({
@@ -34,6 +35,16 @@ const getTransactions = async (req, res) => {
     data: {
       transactions: result.transactions,
     },
+  });
+};
+
+const getTransactionActivity = async (req, res) => {
+  const result = await getActivityForUser({ userId: req.user._id, ...req.validatedData.query });
+  res.status(200).json({
+    success: true,
+    results: result.transactions.length,
+    pagination: result.pagination,
+    data: { transactions: result.transactions },
   });
 };
 
@@ -83,6 +94,7 @@ export {
   createTransaction,
   deleteTransaction,
   getTransaction,
+  getTransactionActivity,
   getTransactions,
   updateTransaction,
 };

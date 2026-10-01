@@ -21,6 +21,7 @@ const investmentTradeSchema = new mongoose.Schema(
 );
 
 investmentTradeSchema.index({ user: 1, tradeDate: -1, createdAt: -1 });
+investmentTradeSchema.index({ user: 1, account: 1, tradeDate: -1, createdAt: -1 });
 investmentTradeSchema.index({ user: 1, holding: 1, tradeDate: -1 });
 
 const InvestmentTrade = mongoose.model("InvestmentTrade", investmentTradeSchema);

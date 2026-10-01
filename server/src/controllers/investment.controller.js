@@ -12,7 +12,7 @@ import {
 import { getMarketDataStatus } from "../services/marketData.service.js";
 
 const marketStatus = async (req, res) => {
-  res.status(200).json({ success: true, data: { market: getMarketDataStatus() } });
+  res.status(200).json({ success: true, data: { market: await getMarketDataStatus() } });
 };
 
 const searchInstruments = async (req, res) => {

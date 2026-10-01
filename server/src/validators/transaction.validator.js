@@ -12,7 +12,7 @@ const dateKeySchema = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must 
 const transactionQuery = z.object({
   accountId: objectIdString.optional(),
   categoryId: objectIdString.optional(),
-  type: z.string().trim().transform((value) => value.toUpperCase()).pipe(transactionTypeSchema).optional(),
+  type: z.string().trim().transform((value) => value.toUpperCase()).pipe(z.enum(["INCOME", "EXPENSE", "TRANSFER", "INVESTMENT", "INVESTMENT_BUY", "INVESTMENT_SELL"])).optional(),
   startDate: dateKeySchema.optional(),
   endDate: dateKeySchema.optional(),
   search: z.string().trim().max(100, "Search cannot exceed 100 characters").optional(),

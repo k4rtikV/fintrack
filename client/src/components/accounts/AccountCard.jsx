@@ -3,6 +3,7 @@ import {
   Banknote,
   CreditCard,
   Landmark,
+  History,
   Pencil,
   TrendingUp,
   Wallet,
@@ -28,7 +29,7 @@ const toneMap = {
   slate: "from-slate-600 to-slate-800",
 };
 
-const AccountCard = ({ account, onArchive, onEdit }) => {
+const AccountCard = ({ account, onArchive, onEdit, onViewTransactions }) => {
   const Icon = iconMap[account.type] || Wallet;
   const tone = toneMap[account.color] || toneMap.slate;
 
@@ -64,8 +65,16 @@ const AccountCard = ({ account, onArchive, onEdit }) => {
           Current balance · {account.currency}
         </p>
 
-        {!account.isArchived && (
-          <div className="mt-5 flex gap-2 border-t border-white/20 pt-4">
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-white/20 pt-4">
+          <Button
+            variant="secondary"
+            className="flex-1 border-white/20 bg-white/10 text-white hover:bg-white/20 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+            onClick={() => onViewTransactions(account)}
+          >
+            <History size={16} /> History
+          </Button>
+          {!account.isArchived && (<>
+
             <Button
               variant="secondary"
               className="flex-1 border-white/20 bg-white/10 text-white hover:bg-white/20 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
@@ -83,8 +92,8 @@ const AccountCard = ({ account, onArchive, onEdit }) => {
             >
               <Archive size={17} />
             </button>
-          </div>
-        )}
+          </>)}
+        </div>
       </div>
     </article>
   );

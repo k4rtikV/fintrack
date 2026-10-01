@@ -17,7 +17,8 @@
     "test:v2-transactions": "node src/scripts/testV2TransactionsWorkspace.js",
     "test:v2-autopay": "node src/scripts/testV2AutopayScheduler.js",
     "test:v2-cashflow": "node src/scripts/testV2DashboardCashFlow.js",
-    "test:v2-investments": "node src/scripts/testV2Investments.js"
+    "test:v2-investments": "node src/scripts/testV2Investments.js",
+    "test:v2-phase61": "node src/scripts/testV2Phase61.js"
   },
   "keywords": [
     "finance",

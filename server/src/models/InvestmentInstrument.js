@@ -20,6 +20,9 @@ const investmentInstrumentSchema = new mongoose.Schema(
     yearLow: { type: Number, min: 0, default: null },
     volume: { type: Number, min: 0, default: null },
     quoteUpdatedAt: { type: Date, default: null, index: true },
+    // Provider snapshot time and actual last trade are different concepts.
+    quoteFetchedAt: { type: Date, default: null },
+    lastTradeAt: { type: Date, default: null },
   },
   { timestamps: true, versionKey: false },
 );

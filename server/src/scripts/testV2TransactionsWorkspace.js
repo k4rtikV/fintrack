@@ -62,7 +62,7 @@ assert(app.includes('path="/transactions/autopay"') && app.includes('path="/tran
 assert(app.includes('Navigate to="/transactions/autopay"') && app.includes('Navigate to="/transactions/categories"'), "Legacy routes must redirect into the Transactions workspace");
 assert(workspaceNav.includes('"Autopay"') && !workspaceNav.includes('"Recurring"'), "User-facing workspace must use Autopay terminology");
 assert(transactionModal.includes('"TRANSFER"') && transactionModal.includes("destinationAccountId"), "Transaction form must expose first-class transfers");
-assert(transactionFilters.includes('nextType === "TRANSFER" ? "" : filters.categoryId') && transactionFilters.includes('disabled={filters.type === "TRANSFER"}'), "Transfer filters must clear and disable category filtering");
+assert(transactionFilters.includes('nextType === "TRANSFER" || nextType.startsWith("INVESTMENT")') && transactionFilters.includes('disabled={filters.type === "TRANSFER" || filters.type.startsWith("INVESTMENT")}'), "Transfer/investment filters must clear and disable category filtering");
 assert(recurringModal.includes('"TRANSFER"') && recurringModal.includes("Set up Autopay"), "Autopay form must support scheduled transfers");
 assert(transactionPage.includes("AccountModal") && transactionPage.includes("Account created — continue with your transaction"), "Zero-account transaction flow must onboard an account then resume");
 assert(recurringPage.includes('title="Autopay"'), "Autopay page title must use the simpler product term");

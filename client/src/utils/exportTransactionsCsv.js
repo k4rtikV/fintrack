@@ -33,6 +33,12 @@ const exportTransactionsCsv = ({
     "Amount",
     "Tags",
     "Note",
+    "Source",
+    "Quantity",
+    "Price per share",
+    "Fees",
+    "Net cash movement",
+    "Realised P&L",
   ];
 
   const rows = transactions.map((transaction) => [
@@ -46,6 +52,12 @@ const exportTransactionsCsv = ({
     transaction.amount,
     (transaction.tags || []).join(" | "),
     transaction.note || "",
+    transaction.recordKind === "INVESTMENT_TRADE" ? "Investment trade" : "Transaction",
+    transaction.recordKind === "INVESTMENT_TRADE" ? transaction.quantity : "",
+    transaction.recordKind === "INVESTMENT_TRADE" ? transaction.price : "",
+    transaction.recordKind === "INVESTMENT_TRADE" ? transaction.fees : "",
+    transaction.recordKind === "INVESTMENT_TRADE" ? transaction.netCashAmount : "",
+    transaction.recordKind === "INVESTMENT_TRADE" && transaction.type === "INVESTMENT_SELL" ? transaction.realizedPnl : "",
   ]);
 
   const csv = [header, ...rows]

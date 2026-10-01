@@ -1,7 +1,7 @@
 import api from "../api/axios";
 
 const getTransactions = async (params = {}) => {
-  const response = await api.get("/transactions", { params });
+  const response = await api.get("/transactions/activity", { params });
   return {
     transactions: response.data.data.transactions,
     pagination: response.data.pagination,
@@ -19,7 +19,7 @@ const getTransactionsForExport = async (params = {}) => {
   let totalPages = 1;
 
   do {
-    const response = await api.get("/transactions", {
+    const response = await api.get("/transactions/activity", {
       params: {
         ...exportFilters,
         page,
