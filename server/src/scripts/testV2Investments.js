@@ -73,7 +73,7 @@ assert(validator.includes("max(30)"), "Instrument search must respect provider p
 assert(clientApp.includes('path="/investments" element={<InvestmentsPage />}'), "Investments placeholder must be replaced by the real page");
 assert(investmentsPage.includes('marketStatusLabel') && investmentsPage.includes('UP TO 15S REFRESH') && investmentsPage.includes('LAST AVAILABLE PRICES'), "Investment UI must reflect exchange status and avoid claiming that old quotes are live");
 assert(investmentsPage.includes("Watchlist") && investmentsPage.includes("Activity"), "Investments workspace must expose watchlist and trade activity");
-assert(investmentsPage.includes("TradingView") || investmentsPage.includes("tradingView"), "External research link must be exposed");
+assert(read("client/src/pages/StockDetailPage.jsx").includes("TradingView") && investmentsPage.includes("/investments/stocks/"), "External research must be accessible on instrument details");
 assert(tradeModal.includes("FIFO lots") && tradeModal.includes("ordinary income or expenses"), "Trade UX must explain investment-specific cash semantics");
 
 console.log("FinTrack v2 Investments regression tests passed.");

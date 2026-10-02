@@ -9,6 +9,8 @@ const MARKET_TIMEOUT_MS = 8000;
 const MAX_QUOTE_KEYS = 100;
 const EXCHANGE_STATUS_CACHE_MS = 60 * 1000;
 const exchangeStatusCache = { expiresAt: 0, data: null };
+// Share identical in-flight quote batches across concurrent portfolio/watchlist requests.
+const inFlightQuoteBatches = new Map();
 
 const getAnalyticsToken = () => String(process.env.UPSTOX_ANALYTICS_TOKEN || "").trim();
 
@@ -252,7 +254,27 @@ const getQuotesForInstruments = async ({ instruments, allowStale = true }) => {
   }
 
   try {
-    await fetchAndCacheQuotes(needsRefresh);
+    const batchKey = needsRefresh.map((item) => item.instrumentKey).sort().join(",");
+    let pending = inFlightQuoteBatches.get(batchKey);
+    if (!pending) {
+      pending = fetchAndCacheQuotes(needsRefresh);
+      inFlightQuoteBatches.set(batchKey, pending);
+      // Only the owner cleans up; failed calls must never poison later refreshes.
+      void pending.finally(() => {
+        if (inFlightQuoteBatches.get(batchKey) === pending) inFlightQuoteBatches.delete(batchKey);
+      }).catch(() => {});
+    }
+    const refreshed = await pending;
+    const byKey = new Map(refreshed.map((quote) => [quote.instrumentKey, quote]));
+    // Separate mongoose documents can represent the same instrument across
+    // concurrent requests; propagate refreshed prices to every caller.
+    for (const instrument of needsRefresh) {
+      const next = byKey.get(instrument.instrumentKey);
+      if (!next) continue;
+      for (const field of ["lastPrice", "previousClose", "yearHigh", "yearLow", "volume", "quoteUpdatedAt", "quoteFetchedAt", "lastTradeAt"]) {
+        instrument[field] = next[field];
+      }
+    }
     return { quotes: unique.map(quotePayload), live: true };
   } catch (error) {
     if (!allowStale) throw error;

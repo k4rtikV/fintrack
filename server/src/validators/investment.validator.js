@@ -41,7 +41,13 @@ const instrumentIdSchema = z.object({
   params: z.object({ instrumentId: objectIdString }),
 });
 
+const historySchema = z.object({
+  params: z.object({ instrumentId: objectIdString }),
+  query: z.object({ period: z.enum(["1D", "5D", "1M", "3M", "6M", "1Y"]).default("1M") }),
+});
+
 export {
+  historySchema,
   instrumentIdSchema,
   marketSearchSchema,
   tradeListSchema,

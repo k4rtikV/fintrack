@@ -3,6 +3,8 @@ import {
   Activity,
   ArrowDownToLine,
   BarChart3,
+  CalendarDays,
+  PieChart,
   ChevronDown,
   ExternalLink,
   Eye,
@@ -21,6 +23,8 @@ import toast from "react-hot-toast";
 
 import AccountModal from "../components/accounts/AccountModal";
 import InvestmentHoldingCard from "../components/investments/InvestmentHoldingCard";
+import InvestmentAnalyticsPanel from "../components/investments/InvestmentAnalyticsPanel";
+import InvestmentCalendar from "../components/investments/InvestmentCalendar";
 import InvestmentTradeModal from "../components/investments/InvestmentTradeModal";
 import DashboardCard from "../components/layout/DashboardCard";
 import PageContainer from "../components/layout/PageContainer";
@@ -32,6 +36,7 @@ import {
   addWatchlistItem,
   createInvestmentTrade,
   getInstrumentQuote,
+  getPortfolioAnalytics, getInvestmentCalendar,
   getInvestmentAccounts,
   getInvestmentTrades,
   getMarketStatus,
@@ -49,6 +54,8 @@ const tabs = [
   ["market", Search, "Market"],
   ["watchlist", Eye, "Watchlist"],
   ["activity", Activity, "Activity"],
+  ["insights", PieChart, "Insights"],
+  ["calendar", CalendarDays, "Calendar"],
 ];
 
 const pct = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toFixed(2)}%`;
@@ -84,6 +91,14 @@ const InvestmentsPage = () => {
     queryFn: () => getInvestmentTrades(50),
     enabled: tab === "activity",
   });
+  const analyticsQuery = useQuery({
+    queryKey: ["investment-analytics"], queryFn: getPortfolioAnalytics,
+    enabled: tab === "insights", refetchInterval: tab === "insights" && marketStatusQuery.data?.configured && isMarketOpen ? 60000 : false,
+  });
+  const calendarQuery = useQuery({
+    queryKey: ["investment-calendar"], queryFn: getInvestmentCalendar,
+    enabled: tab === "calendar", staleTime: 60 * 60 * 1000, retry: false,
+  });
   const searchQuery = useQuery({
     queryKey: ["investment-search", searchTerm],
     queryFn: () => searchInstruments({ query: searchTerm }),
@@ -102,6 +117,8 @@ const InvestmentsPage = () => {
   const refreshInvestmentData = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["investment-portfolio"] }),
+      queryClient.invalidateQueries({ queryKey: ["investment-analytics"] }),
+      queryClient.invalidateQueries({ queryKey: ["investment-calendar"] }),
       queryClient.invalidateQueries({ queryKey: ["investment-trades"] }),
       queryClient.invalidateQueries({ queryKey: ["investment-accounts"] }),
       queryClient.invalidateQueries({ queryKey: ["investment-watchlist"] }),
@@ -293,6 +310,7 @@ const InvestmentsPage = () => {
                       key={holding._id}
                       holding={holding}
                       exchangeStatus={marketStatusQuery.data?.exchangeStatus?.[holding.instrument.exchange]}
+                      onDetails={(item) => navigate(`/investments/stocks/${item.instrument._id}`)}
                       onBuy={(item) => openTrade({ instrument: item.instrument, holding: item, type: "BUY", quote: item.quote })}
                       onSell={(item) => openTrade({ instrument: item.instrument, holding: item, type: "SELL", quote: item.quote })}
                     />
@@ -344,6 +362,7 @@ const InvestmentsPage = () => {
                           <p className="mt-1 text-xs text-slate-400">ISIN {instrument.isin}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                          <Button variant="secondary" onClick={() => navigate(`/investments/stocks/${instrument._id}`)}><LineChart size={16} />Details</Button>
                           <Button variant="secondary" disabled={watched || addWatchlistMutation.isPending} onClick={() => addWatchlistMutation.mutate(instrument._id)}>
                             {watched ? <Eye size={16} /> : <Plus size={16} />}{watched ? "Watching" : "Watch"}
                           </Button>
@@ -379,7 +398,7 @@ const InvestmentsPage = () => {
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button className="px-3 py-2" disabled={accounts.length === 0} onClick={() => openTrade({ instrument: item.instrument, type: "BUY", quote: q })}>Buy</Button>
-                        <a href={item.research?.tradingView} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">Details <ExternalLink size={13} /></a>
+                        <Button variant="secondary" className="px-3 py-2" onClick={() => navigate(`/investments/stocks/${item.instrument._id}`)}>Details <LineChart size={13}/></Button>
                         <a href={item.research?.moneycontrol} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">Moneycontrol <ExternalLink size={13} /></a>
                       </div>
                     </DashboardCard>
@@ -388,6 +407,9 @@ const InvestmentsPage = () => {
               </div>
             ) : <EmptyState icon={Eye} title="Watchlist is empty" description="Search the market and add shares you want to follow without adding them to your portfolio." action={<Button onClick={() => setTab("market")}>Find shares</Button>} />
           )}
+
+          {tab === "insights" && <InvestmentAnalyticsPanel analytics={analyticsQuery.data} loading={analyticsQuery.isLoading} error={analyticsQuery.isError} />}
+          {tab === "calendar" && <InvestmentCalendar calendar={calendarQuery.data} loading={calendarQuery.isLoading} error={calendarQuery.isError} />}
 
           {tab === "activity" && (
             tradesQuery.isLoading ? <div className="flex min-h-64 items-center justify-center"><Loader /></div> : tradesQuery.data?.length ? (

@@ -37,7 +37,15 @@ const addWatchlistItem = async (instrumentId) =>
 const removeWatchlistItem = async (watchlistId) =>
   (await api.delete(`/investments/watchlist/${watchlistId}`)).data;
 
+const getStockOverview = async (instrumentId) => (await api.get(`/investments/market/instruments/${instrumentId}/overview`)).data.data;
+const getStockHistory = async (instrumentId, period = "1M") => (await api.get(`/investments/market/instruments/${instrumentId}/history`, { params: { period } })).data.data;
+const getStockResearch = async (instrumentId) => (await api.get(`/investments/market/instruments/${instrumentId}/research`)).data.data;
+const getStockNews = async (instrumentId) => (await api.get(`/investments/market/instruments/${instrumentId}/news`)).data.data;
+const getInvestmentCalendar = async () => (await api.get("/investments/market/calendar")).data.data;
+const getPortfolioAnalytics = async () => (await api.get("/investments/portfolio/analytics")).data.data;
+
 export {
+  getStockOverview, getStockHistory, getStockResearch, getStockNews, getInvestmentCalendar, getPortfolioAnalytics,
   addWatchlistItem,
   createInvestmentTrade,
   getInstrumentQuote,

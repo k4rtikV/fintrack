@@ -239,9 +239,15 @@ const getPortfolioForUser = async ({ userId }) => {
   const quoteResult = await getQuotesForInstruments({ instruments, allowStale: true });
   const quoteMap = buildQuoteMap(quoteResult.quotes);
 
+  // Closed positions still contribute to lifetime realised P&L, even when no
+  // shares remain and the holding is absent from the visible portfolio.
+  const closedPnl = await InvestmentHolding.aggregate([
+    { $match: { user: userId, quantity: { $lte: 0 } } },
+    { $group: { _id: null, value: { $sum: "$realizedPnl" } } },
+  ]);
   let invested = 0;
   let marketValue = 0;
-  let realizedPnl = 0;
+  let realizedPnl = Number(closedPnl[0]?.value || 0);
   let unrealizedPnl = 0;
 
   const items = holdings.map((holding) => {
@@ -266,6 +272,7 @@ const getPortfolioForUser = async ({ userId }) => {
       costBasis: holding.costBasis,
       realizedPnl: holding.realizedPnl,
       currentPrice,
+      priceIsCostEstimate: !(Number.isFinite(livePrice) && livePrice > 0),
       marketValue: value,
       unrealizedPnl: currentUnrealized,
       totalPnl: roundMoney(currentUnrealized + Number(holding.realizedPnl || 0)),

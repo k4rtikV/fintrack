@@ -10,6 +10,7 @@ import DashboardPage from "./pages/DashboardPage";
 import GoalsPage from "./pages/GoalsPage";
 import LoginPage from "./pages/LoginPage";
 import InvestmentsPage from "./pages/InvestmentsPage";
+import StockDetailPage from "./pages/StockDetailPage";
 import RecurringPage from "./pages/RecurringPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -46,6 +47,7 @@ const App = () => {
           <Route path="/recurring" element={<Navigate to="/transactions/autopay" replace />} />
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/investments" element={<InvestmentsPage />} />
+          <Route path="/investments/stocks/:instrumentId" element={<StockDetailPage />} />
           <Route path="/goals" element={<GoalsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/assistant" element={<AssistantPage />} />

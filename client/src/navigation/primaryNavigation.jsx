@@ -34,6 +34,7 @@ const normalizePathname = (pathname = "") => {
 
 const resolvePrimaryPath = (pathname) => {
   const normalized = normalizePathname(pathname);
+  if (normalized.startsWith("/investments/stocks/")) return "/investments";
   return primaryAliases.get(normalized) || normalized;
 };
 

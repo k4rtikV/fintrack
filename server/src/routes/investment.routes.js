@@ -3,6 +3,7 @@ import { rateLimit } from "express-rate-limit";
 
 import {
   addWatchlistItem,
+  getStockOverview, getStockHistory, getStockResearch, getStockNews, getCalendar, getPortfolioAnalytics,
   createTrade,
   getInstrumentQuote,
   getInvestmentAccounts,
@@ -17,7 +18,7 @@ import { requireAppUnlocked } from "../middleware/appLock.middleware.js";
 import protect from "../middleware/auth.middleware.js";
 import validate from "../middleware/validate.js";
 import {
-  instrumentIdSchema,
+  instrumentIdSchema, historySchema,
   marketSearchSchema,
   tradeListSchema,
   tradeSchema,
@@ -44,6 +45,13 @@ router.use(protect, requireAppUnlocked);
 router.get("/market/status", marketStatus);
 router.get("/market/search", marketLimiter, validate(marketSearchSchema), searchInstruments);
 router.get("/market/quote/:instrumentId", marketLimiter, validate(instrumentIdSchema), getInstrumentQuote);
+
+router.get("/market/instruments/:instrumentId/overview", marketLimiter, validate(instrumentIdSchema), getStockOverview);
+router.get("/market/instruments/:instrumentId/history", marketLimiter, validate(historySchema), getStockHistory);
+router.get("/market/instruments/:instrumentId/research", marketLimiter, validate(instrumentIdSchema), getStockResearch);
+router.get("/market/instruments/:instrumentId/news", marketLimiter, validate(instrumentIdSchema), getStockNews);
+router.get("/market/calendar", marketLimiter, getCalendar);
+router.get("/portfolio/analytics", marketLimiter, getPortfolioAnalytics);
 
 router.get("/accounts", getInvestmentAccounts);
 router.get("/portfolio", marketLimiter, getPortfolio);

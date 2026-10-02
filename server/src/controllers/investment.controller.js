@@ -1,3 +1,5 @@
+import { getInstrumentHistory, getInstrumentResearch, getInstrumentNews, getInvestmentCalendar, getInstrumentOverview } from "../services/investmentResearch.service.js";
+import { getPortfolioAnalyticsForUser } from "../services/investmentAnalytics.service.js";
 import {
   addWatchlistItemForUser,
   createInvestmentTradeForUser,
@@ -83,7 +85,20 @@ const getInstrumentQuote = async (req, res) => {
   res.status(200).json({ success: true, data: result });
 };
 
+const getStockOverview = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentOverview({ instrumentId: req.validatedData.params.instrumentId }) });
+const getStockHistory = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentHistory({ instrumentId: req.validatedData.params.instrumentId, period: req.validatedData.query.period }) });
+const getStockResearch = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentResearch({ instrumentId: req.validatedData.params.instrumentId }) });
+const getStockNews = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentNews({ instrumentId: req.validatedData.params.instrumentId }) });
+const getCalendar = async (req, res) => res.status(200).json({ success: true, data: await getInvestmentCalendar({ userId: req.user._id }) });
+const getPortfolioAnalytics = async (req, res) => res.status(200).json({ success: true, data: await getPortfolioAnalyticsForUser({ userId: req.user._id }) });
+
 export {
+  getStockOverview,
+  getStockHistory,
+  getStockResearch,
+  getStockNews,
+  getCalendar,
+  getPortfolioAnalytics,
   addWatchlistItem,
   createTrade,
   getInstrumentQuote,

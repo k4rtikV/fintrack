@@ -4,7 +4,7 @@ import Button from "../ui/Button";
 import { formatCurrency } from "../../utils/formatters";
 import { getQuotePresentation } from "../../utils/quotePresentation";
 
-const InvestmentHoldingCard = ({ holding, onBuy, onSell, exchangeStatus }) => {
+const InvestmentHoldingCard = ({ holding, onBuy, onSell, onDetails, exchangeStatus }) => {
   const positive = Number(holding.unrealizedPnl) >= 0;
   const QuoteIcon = positive ? TrendingUp : TrendingDown;
   const quoteInfo = getQuotePresentation(holding.quote, exchangeStatus, true);
@@ -73,6 +73,7 @@ const InvestmentHoldingCard = ({ holding, onBuy, onSell, exchangeStatus }) => {
       <div className="mt-4 flex flex-wrap gap-2">
         <Button className="px-3 py-2" onClick={() => onBuy(holding)}><ArrowDownToLine size={15} />Buy</Button>
         <Button className="px-3 py-2" variant="secondary" onClick={() => onSell(holding)}><ArrowUpFromLine size={15} />Sell</Button>
+        <Button variant="secondary" className="px-3 py-2" onClick={() => onDetails(holding)}>Details <ExternalLink size={13}/></Button>
         <a
           href={holding.research?.tradingView}
           target="_blank"
