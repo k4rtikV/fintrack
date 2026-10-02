@@ -5,7 +5,7 @@ import { formatCurrency } from "../../utils/formatters";
 const labelFor = (at, period) => {
   const timestamp = new Date(at);
   if (!Number.isFinite(timestamp.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", ...(period === "1D" ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short" }) }).format(timestamp);
+  return new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", ...(period === "1D" ? { hour: "2-digit", minute: "2-digit" } : period === "MAX" ? { month: "short", year: "numeric" } : { day: "2-digit", month: "short" }) }).format(timestamp);
 };
 const ChartHover = ({ active, payload, period }) => {
   const row = active && payload?.[0]?.payload;

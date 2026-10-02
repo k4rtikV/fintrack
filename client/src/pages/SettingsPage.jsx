@@ -22,7 +22,6 @@ import PinSecurityCard from "../components/security/PinSecurityCard";
 import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
 import useAuth from "../hooks/useAuth";
-import useTheme from "../hooks/useTheme";
 import {
   getActiveSessions,
   getSecurityActivity,
@@ -130,7 +129,6 @@ const activityTone = {
 const SettingsPage = () => {
   const { user, refreshUser, completeAuthentication } = useAuth();
   const queryClient = useQueryClient();
-  const { theme, setTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -345,7 +343,7 @@ const SettingsPage = () => {
     return (
       <PageContainer
         title="Settings"
-        description="Manage your FinTrack profile, alerts, appearance, and account security."
+        description="Manage your FinTrack profile, alerts, and account security."
       >
         <div className="grid gap-5 lg:grid-cols-2">
           {[1, 2, 3, 4].map((item) => (
@@ -362,7 +360,7 @@ const SettingsPage = () => {
   return (
     <PageContainer
       title="Settings"
-      description="Manage your FinTrack profile, alerts, appearance, and account security."
+      description="Manage your FinTrack profile, alerts, and account security."
     >
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <DashboardCard>
@@ -524,50 +522,6 @@ const SettingsPage = () => {
               {notificationSaving ? "Saving…" : "Save notifications"}
             </Button>
           </div>
-        </DashboardCard>
-
-        <DashboardCard>
-          <SettingsSectionTitle
-            icon={MonitorCog}
-            title="Appearance"
-            description="Choose how FinTrack looks on this browser."
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              ["light", "Light", "Bright workspace with dark text."],
-              ["dark", "Dark", "Low-light workspace with dark surfaces."],
-            ].map(([value, label, description]) => {
-              const active = theme === value;
-
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setTheme(value)}
-                  className={`rounded-2xl border p-4 text-left transition ${
-                    active
-                      ? "border-copper-400 bg-copper-50 ring-2 ring-copper-400/15 dark:bg-copper-500/10"
-                      : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
-                  }`}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {label}
-                    </span>
-                    {active && <CheckCircle2 size={18} className="text-copper-500" />}
-                  </span>
-                  <span className="mt-2 block text-xs leading-5 text-slate-500 dark:text-slate-400">
-                    {description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="mt-4 text-xs leading-5 text-slate-400">
-            Theme preference is saved locally and is applied immediately throughout FinTrack.
-          </p>
         </DashboardCard>
 
         <DashboardCard>

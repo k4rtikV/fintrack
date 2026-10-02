@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink, Newspaper, RefreshCw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import InvestmentRibbonChart from "../components/investments/InvestmentRibbonChart";
 import DashboardCard from "../components/layout/DashboardCard";
 import PageContainer from "../components/layout/PageContainer";
@@ -11,7 +12,7 @@ import { getQuotePresentation } from "../utils/quotePresentation";
 import getApiError from "../utils/getApiError";
 import { getStockOverview, getStockHistory, getStockResearch, getStockNews, getMarketStatus } from "../services/investmentService";
 
-const periods = ["1D", "5D", "1M", "3M", "6M", "1Y"];
+const periods = ["1D", "5D", "1M", "3M", "6M", "1Y", "MAX"];
 const asText = (value) => value == null || value === "" ? "—" : String(value);
 const formatDate = (value) => {
   if (!value) return "—";
@@ -21,7 +22,9 @@ const formatDate = (value) => {
 const StockDetailPage = () => {
   const { instrumentId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [period, setPeriod] = useState("1M");
+  const [refreshing, setRefreshing] = useState(false);
   const overview = useQuery({ queryKey: ["stock-overview", instrumentId], queryFn: () => getStockOverview(instrumentId), refetchInterval: 30000 });
   const history = useQuery({ queryKey: ["stock-history", instrumentId, period], queryFn: () => getStockHistory(instrumentId, period), staleTime: 60000 });
   const research = useQuery({ queryKey: ["stock-research", instrumentId], queryFn: () => getStockResearch(instrumentId), staleTime: 3600000, retry: false });
@@ -30,10 +33,34 @@ const StockDetailPage = () => {
   const instrument = overview.data?.instrument;
   const quote = overview.data?.quote;
   const status = getQuotePresentation(quote, market.data?.exchangeStatus?.[instrument?.exchange]);
-  const links = instrument ? {
-    tradingView: `https://www.tradingview.com/symbols/${instrument.exchange}-${encodeURIComponent(instrument.tradingSymbol)}/`,
-    moneycontrol: "https://www.moneycontrol.com/india/stockpricequote/",
-  } : {};
+  const links = overview.data?.research || {};
+  const refreshQuotesAndChart = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const results = await Promise.allSettled([
+        getStockOverview(instrumentId, { forceRefresh: true }),
+        getStockHistory(instrumentId, period, { forceRefresh: true }),
+      ]);
+      if (results[0].status === "fulfilled") {
+        queryClient.setQueryData(["stock-overview", instrumentId], results[0].value);
+        if (results[0].value.market?.warning) toast(results[0].value.market.warning);
+      }
+      if (results[1].status === "fulfilled") {
+        queryClient.setQueryData(["stock-history", instrumentId, period], results[1].value);
+      }
+      const failures = results.filter((item) => item.status === "rejected");
+      if (failures.length) {
+        toast.error(getApiError(failures[0].reason, "Some market data could not be refreshed"));
+      } else if (!results[0].value.market?.warning) {
+        toast.success("Quote and chart checked with Upstox");
+      }
+    } catch (error) {
+      toast.error(getApiError(error, "Unable to refresh quote and chart"));
+    } finally {
+      setRefreshing(false);
+    }
+  };
   return <PageContainer title={instrument ? `${instrument.tradingSymbol} · ${instrument.exchange}` : "Stock research"}
     description={instrument?.name || "NSE/BSE instrument analysis using read-only market data"}
     action={<Button variant="secondary" onClick={() => navigate("/investments", { state: { tab: "market" } })}><ArrowLeft size={16}/> Investments</Button>}>
@@ -85,7 +112,7 @@ const StockDetailPage = () => {
           <DashboardCard><h2 className="mb-3 text-lg font-bold text-white">Corporate actions</h2>
             {research.data?.corporateActions?.length ? <div className="space-y-2">{research.data.corporateActions.slice(0, 8).map((event, i) => <div className="border-b border-slate-700/60 pb-2 text-sm" key={`${event.name}-${i}`}><p className="font-semibold text-white">{event.name}{event.ratio ? ` · ${event.ratio}` : ""}</p><p className="text-xs text-slate-400">{event.expiry_date || "Date not specified"}{event.amount != null ? ` · ₹${event.amount}` : ""}</p></div>)}</div> : <p className="text-sm text-slate-400">No reported corporate actions.</p>}
           </DashboardCard>
-          <div className="flex flex-wrap gap-2"><a href={links.tradingView} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300">TradingView <ExternalLink size={14}/></a><a href={links.moneycontrol} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300">Moneycontrol <ExternalLink size={14}/></a><button type="button" onClick={() => { overview.refetch(); history.refetch(); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300"><RefreshCw size={14}/>Refresh quotes/chart</button></div>
+          <div className="flex flex-wrap gap-2"><a href={links.tradingView} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300">TradingView <ExternalLink size={14}/></a><a href={links.moneycontrol} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300">{links.moneycontrolDirect ? "Moneycontrol" : "Find on Moneycontrol"} <ExternalLink size={14}/></a><button type="button" onClick={refreshQuotesAndChart} disabled={refreshing} aria-busy={refreshing} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 disabled:opacity-60"><RefreshCw size={14} className={refreshing ? "animate-spin" : ""}/>{refreshing ? "Refreshing…" : "Refresh quotes/chart"}</button></div>
         </div>
       </div>
     </div>}

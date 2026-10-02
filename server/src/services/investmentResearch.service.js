@@ -6,6 +6,7 @@ import InvestmentHolding from "../models/InvestmentHolding.js";
 import InvestmentWatchlistItem from "../models/InvestmentWatchlistItem.js";
 import AppError from "../utils/AppError.js";
 import { normalizeCandles } from "../utils/investmentHistory.js";
+import { researchLinksForInstrument } from "../utils/investmentResearchLinks.js";
 import { getQuotesForInstruments, serializeInstrument } from "./marketData.service.js";
 
 // Market research is strictly read-only. Never use provider holdings, funds, positions or orders.
@@ -13,6 +14,7 @@ const BASE = "https://api.upstox.com";
 const TIMEOUT = 8000;
 const MAX_CACHE_ENTRIES = 140;
 const responseCache = new Map();
+const numeric = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 const periods = Object.freeze({
   "1D": { unit: "minutes", interval: 5, lookback: 8, days: 1, ttl: 60000 },
   "5D": { unit: "minutes", interval: 15, lookback: 14, days: 5, ttl: 120000 },
@@ -20,6 +22,7 @@ const periods = Object.freeze({
   "3M": { unit: "days", interval: 1, lookback: 95, ttl: 600000 },
   "6M": { unit: "days", interval: 1, lookback: 190, ttl: 600000 },
   "1Y": { unit: "weeks", interval: 1, lookback: 375, ttl: 900000 },
+  "MAX": { unit: "months", interval: 1, from: "2000-01-01", ttl: 60 * 60 * 1000 },
 });
 
 const token = () => {
@@ -43,9 +46,9 @@ const request = async (path, params) => {
     return response.data?.data;
   } catch (error) { throw providerError(error); }
 };
-const cached = async (key, ttl, load) => {
+const cached = async (key, ttl, load, { forceRefresh = false } = {}) => {
   const existing = responseCache.get(key);
-  if (existing?.data !== undefined && Date.now() < existing.expiresAt) return existing.data;
+  if (!forceRefresh && existing?.data !== undefined && Date.now() < existing.expiresAt) return existing.data;
   if (existing?.pending) return existing.pending;
   const pending = load().then((data) => {
     if (responseCache.size >= MAX_CACHE_ENTRIES) responseCache.delete(responseCache.keys().next().value);
@@ -54,6 +57,12 @@ const cached = async (key, ttl, load) => {
     responseCache.set(key, { data, expiresAt: Date.now() + effectiveTtl });
     return data;
   }).catch((error) => {
+    if (forceRefresh) {
+      // Manual refresh must report provider errors, not pretend cached data is fresh.
+      if (existing?.data !== undefined) responseCache.set(key, existing);
+      else responseCache.delete(key);
+      throw error;
+    }
     if (existing?.data !== undefined) {
       responseCache.set(key, { ...existing, expiresAt: Date.now() + Math.min(ttl, 60000) });
       return Array.isArray(existing.data) ? existing.data : {
@@ -80,14 +89,14 @@ const dayOffset = (isoDay, days) => {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 };
-const getInstrumentHistory = async ({ instrumentId, period = "1M" }) => {
+const getInstrumentHistory = async ({ instrumentId, period = "1M", forceRefresh = false }) => {
   const instrument = await lookupInstrument(instrumentId);
   const config = periods[period];
   if (!config) throw new AppError("Unsupported chart period", 400);
   const today = istDay();
   return cached(`history:${instrument.instrumentKey}:${period}:${today}`, config.ttl, async () => {
     const key = encodeURIComponent(instrument.instrumentKey);
-    const historicalPath = `/v3/historical-candle/${key}/${config.unit}/${config.interval}/${today}/${dayOffset(today, -config.lookback)}`;
+    const historicalPath = `/v3/historical-candle/${key}/${config.unit}/${config.interval}/${today}/${config.from || dayOffset(today, -config.lookback)}`;
     if (!config.days) {
       const data = await request(historicalPath);
       return { instrument: serializeInstrument(instrument), period, candles: normalizeCandles(data?.candles, config), source: "Upstox Historical V3", fetchedAt: new Date().toISOString() };
@@ -103,7 +112,7 @@ const getInstrumentHistory = async ({ instrumentId, period = "1M" }) => {
       ...(intraday.status === "fulfilled" ? intraday.value?.candles || [] : []),
     ], config);
     return { instrument: serializeInstrument(instrument), period, candles, source: "Upstox Historical/Intraday V3", fetchedAt: new Date().toISOString() };
-  });
+  }, { forceRefresh });
 };
 const getInstrumentResearch = async ({ instrumentId }) => {
   const instrument = await lookupInstrument(instrumentId);
@@ -142,7 +151,7 @@ const getInstrumentNews = async ({ instrumentId }) => {
     };
   });
 };
-const getInvestmentCalendar = async ({ userId }) => {
+const getInvestmentCalendar = async ({ userId, forceRefresh = false }) => {
   const [holdings, watchlist] = await Promise.all([
     InvestmentHolding.find({ user: userId, quantity: { $gt: 0 } }).populate("instrument", "isin tradingSymbol exchange").limit(30).lean(),
     InvestmentWatchlistItem.find({ user: userId }).populate("instrument", "isin tradingSymbol exchange").limit(30).lean(),
@@ -154,9 +163,9 @@ const getInvestmentCalendar = async ({ userId }) => {
   const tracked = [...byIsin.values()].slice(0, 10);
   const today = istDay();
   const [holidays, ...actions] = await Promise.allSettled([
-    cached(`holidays:${today.slice(0, 4)}`, 12 * 60 * 60 * 1000, () => request("/v2/market/holidays")),
+    cached(`holidays:${today.slice(0, 4)}`, 12 * 60 * 60 * 1000, () => request("/v2/market/holidays"), { forceRefresh }),
     ...tracked.map((instrument) => cached(`calendar-action:${instrument.isin}`, 6 * 60 * 60 * 1000,
-      () => request(`/v2/fundamentals/${encodeURIComponent(instrument.isin)}/corporate-actions`))),
+      () => request(`/v2/fundamentals/${encodeURIComponent(instrument.isin)}/corporate-actions`), { forceRefresh })),
   ]);
   const holidayData = holidays.status === "fulfilled" && Array.isArray(holidays.value) ? holidays.value : [];
   const marketHolidays = holidayData.filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item?.date || "") && item.date >= today &&
@@ -177,13 +186,17 @@ const getInvestmentCalendar = async ({ userId }) => {
   });
   return {
     marketHolidays, corporateActions, trackedInstruments: tracked.length,
+    availability: {
+      holidays: holidays.status === "fulfilled" ? "AVAILABLE" : "UNAVAILABLE",
+      corporateActions: actions.some((item) => item.status === "rejected") ? "PARTIAL" : "AVAILABLE",
+    },
     warning: holidays.status === "rejected" || actions.some((result) => result.status === "rejected") ? "Some calendar data is currently unavailable" : null,
     fetchedAt: new Date().toISOString(),
   };
 };
-const getInstrumentOverview = async ({ instrumentId }) => {
+const getInstrumentOverview = async ({ instrumentId, forceRefresh = false }) => {
   const instrument = await lookupInstrument(instrumentId);
-  const quotes = await getQuotesForInstruments({ instruments: [instrument], allowStale: true });
-  return { instrument: serializeInstrument(instrument), quote: quotes.quotes[0] || null, market: { live: Boolean(quotes.live), warning: quotes.warning || null } };
+  const quotes = await getQuotesForInstruments({ instruments: [instrument], allowStale: true, forceRefresh });
+  return { instrument: serializeInstrument(instrument), quote: quotes.quotes[0] || null, market: { live: Boolean(quotes.live), warning: quotes.warning || null }, research: researchLinksForInstrument(instrument) };
 };
 export { getInstrumentHistory, getInstrumentResearch, getInstrumentNews, getInvestmentCalendar, getInstrumentOverview, normalizeCandles, periods };

@@ -1,53 +1,16 @@
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useEffect } from "react";
 
 const ThemeContext = createContext(null);
-
-const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem("fintrack-theme");
-
-  if (savedTheme === "light" || savedTheme === "dark") {
-    return savedTheme;
-  }
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-};
-
+// FinTrack v2 uses one cohesive Blue Steel/Copper dark visual system.
+// Keep a stable context for existing consumers without offering a light theme.
+const DARK_THEME = Object.freeze({ theme: "dark", isDark: true });
 const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(getInitialTheme);
-
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("fintrack-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((currentTheme) =>
-      currentTheme === "dark" ? "light" : "dark",
-    );
+    document.documentElement.classList.add("dark");
+    document.documentElement.dataset.theme = "dark";
+    document.documentElement.style.colorScheme = "dark";
+    localStorage.removeItem("fintrack-theme");
   }, []);
-
-  const value = useMemo(
-    () => ({
-      theme,
-      isDark: theme === "dark",
-      setTheme,
-      toggleTheme,
-    }),
-    [theme, toggleTheme],
-  );
-
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={DARK_THEME}>{children}</ThemeContext.Provider>;
 };
-
 export { ThemeContext, ThemeProvider };

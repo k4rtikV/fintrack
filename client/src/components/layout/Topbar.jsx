@@ -8,7 +8,6 @@ import {
 } from "../../services/notificationService";
 import { NOTIFICATIONS_CHANGED_EVENT } from "../../utils/notificationEvents";
 import NotificationPanel from "../notifications/NotificationPanel";
-import ThemeToggle from "./ThemeToggle";
 import TopNavigation from "./TopNavigation";
 import UserMenu from "./UserMenu";
 
@@ -121,8 +120,6 @@ const Topbar = () => {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <ThemeToggle />
-
           <div ref={notificationAreaRef} className="relative">
             <button
               type="button"

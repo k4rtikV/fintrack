@@ -85,11 +85,11 @@ const getInstrumentQuote = async (req, res) => {
   res.status(200).json({ success: true, data: result });
 };
 
-const getStockOverview = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentOverview({ instrumentId: req.validatedData.params.instrumentId }) });
-const getStockHistory = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentHistory({ instrumentId: req.validatedData.params.instrumentId, period: req.validatedData.query.period }) });
+const getStockOverview = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentOverview({ instrumentId: req.validatedData.params.instrumentId, forceRefresh: req.validatedData.query.refresh }) });
+const getStockHistory = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentHistory({ instrumentId: req.validatedData.params.instrumentId, period: req.validatedData.query.period, forceRefresh: req.validatedData.query.refresh }) });
 const getStockResearch = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentResearch({ instrumentId: req.validatedData.params.instrumentId }) });
 const getStockNews = async (req, res) => res.status(200).json({ success: true, data: await getInstrumentNews({ instrumentId: req.validatedData.params.instrumentId }) });
-const getCalendar = async (req, res) => res.status(200).json({ success: true, data: await getInvestmentCalendar({ userId: req.user._id }) });
+const getCalendar = async (req, res) => res.status(200).json({ success: true, data: await getInvestmentCalendar({ userId: req.user._id, forceRefresh: req.validatedData.query.refresh }) });
 const getPortfolioAnalytics = async (req, res) => res.status(200).json({ success: true, data: await getPortfolioAnalyticsForUser({ userId: req.user._id }) });
 
 export {

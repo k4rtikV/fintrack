@@ -41,14 +41,19 @@ const instrumentIdSchema = z.object({
   params: z.object({ instrumentId: objectIdString }),
 });
 
+const refreshFlag = z.enum(["true"]).optional().transform((value) => value === "true");
+const refreshSchema = z.object({ query: z.object({ refresh: refreshFlag }) });
+const instrumentRefreshSchema = z.object({ params: z.object({ instrumentId: objectIdString }), query: z.object({ refresh: refreshFlag }) });
 const historySchema = z.object({
   params: z.object({ instrumentId: objectIdString }),
-  query: z.object({ period: z.enum(["1D", "5D", "1M", "3M", "6M", "1Y"]).default("1M") }),
+  query: z.object({ period: z.enum(["1D", "5D", "1M", "3M", "6M", "1Y", "MAX"]).default("1M"), refresh: refreshFlag }),
 });
 
 export {
   historySchema,
   instrumentIdSchema,
+  instrumentRefreshSchema,
+  refreshSchema,
   marketSearchSchema,
   tradeListSchema,
   tradeSchema,

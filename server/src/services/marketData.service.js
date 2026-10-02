@@ -236,7 +236,7 @@ const fetchAndCacheQuotes = async (instruments) => {
   }
 };
 
-const getQuotesForInstruments = async ({ instruments, allowStale = true }) => {
+const getQuotesForInstruments = async ({ instruments, allowStale = true, forceRefresh = false }) => {
   const uniqueById = new Map();
   for (const instrument of instruments || []) {
     if (instrument?._id) uniqueById.set(instrument._id.toString(), instrument);
@@ -244,7 +244,7 @@ const getQuotesForInstruments = async ({ instruments, allowStale = true }) => {
   const unique = [...uniqueById.values()];
   if (!unique.length) return { quotes: [], live: false };
 
-  const needsRefresh = unique.filter((item) => !isFreshQuote(item));
+  const needsRefresh = forceRefresh ? unique : unique.filter((item) => !isFreshQuote(item));
   if (!needsRefresh.length) {
     return { quotes: unique.map(quotePayload), live: true };
   }

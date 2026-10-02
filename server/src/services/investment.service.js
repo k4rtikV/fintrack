@@ -9,6 +9,7 @@ import InvestmentWatchlistItem from "../models/InvestmentWatchlistItem.js";
 import AppError from "../utils/AppError.js";
 import { toUtcDateOnly } from "../utils/dateOnly.js";
 import { planFifoSale, roundMoney, roundQuantity } from "../utils/investmentMath.js";
+import { researchLinksForInstrument } from "../utils/investmentResearchLinks.js";
 import {
   getQuotesForInstruments,
   searchIndianEquities,
@@ -224,11 +225,6 @@ const createInvestmentTradeForUser = async ({
 
 const buildQuoteMap = (quotes) =>
   new Map((quotes || []).map((quote) => [String(quote.instrumentId), quote]));
-
-const researchLinksForInstrument = (instrument) => ({
-  tradingView: `https://www.tradingview.com/symbols/${instrument.exchange}-${encodeURIComponent(instrument.tradingSymbol)}/`,
-  moneycontrol: "https://www.moneycontrol.com/india/stockpricequote/",
-});
 
 const getPortfolioForUser = async ({ userId }) => {
   const holdings = await populateHolding(

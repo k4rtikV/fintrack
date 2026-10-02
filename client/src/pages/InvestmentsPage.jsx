@@ -71,6 +71,7 @@ const InvestmentsPage = () => {
   const [accountActions, setAccountActions] = useState(null);
   const [tradeState, setTradeState] = useState(null);
   const [suggestedPrice, setSuggestedPrice] = useState("");
+  const [calendarRefreshing, setCalendarRefreshing] = useState(false);
   const tradeRequest = useRef(0);
 
   const marketStatusQuery = useQuery({ queryKey: ["investment-market-status"], queryFn: getMarketStatus, refetchInterval: 60000 });
@@ -99,6 +100,20 @@ const InvestmentsPage = () => {
     queryKey: ["investment-calendar"], queryFn: getInvestmentCalendar,
     enabled: tab === "calendar", staleTime: 60 * 60 * 1000, retry: false,
   });
+  const refreshCalendar = async () => {
+    if (calendarRefreshing) return;
+    setCalendarRefreshing(true);
+    try {
+      const data = await getInvestmentCalendar({ forceRefresh: true });
+      queryClient.setQueryData(["investment-calendar"], data);
+      if (data.warning) toast("Calendar checked. Some Upstox data is currently unavailable.");
+      else toast.success("Calendar refreshed from Upstox");
+    } catch (error) {
+      toast.error(getApiError(error, "Unable to refresh the calendar"));
+    } finally {
+      setCalendarRefreshing(false);
+    }
+  };
   const searchQuery = useQuery({
     queryKey: ["investment-search", searchTerm],
     queryFn: () => searchInstruments({ query: searchTerm }),
@@ -399,7 +414,7 @@ const InvestmentsPage = () => {
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button className="px-3 py-2" disabled={accounts.length === 0} onClick={() => openTrade({ instrument: item.instrument, type: "BUY", quote: q })}>Buy</Button>
                         <Button variant="secondary" className="px-3 py-2" onClick={() => navigate(`/investments/stocks/${item.instrument._id}`)}>Details <LineChart size={13}/></Button>
-                        <a href={item.research?.moneycontrol} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">Moneycontrol <ExternalLink size={13} /></a>
+                        <a href={item.research?.moneycontrol} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">{item.research?.moneycontrolDirect ? "Moneycontrol" : "Find on Moneycontrol"} <ExternalLink size={13} /></a>
                       </div>
                     </DashboardCard>
                   );
@@ -409,7 +424,7 @@ const InvestmentsPage = () => {
           )}
 
           {tab === "insights" && <InvestmentAnalyticsPanel analytics={analyticsQuery.data} loading={analyticsQuery.isLoading} error={analyticsQuery.isError} />}
-          {tab === "calendar" && <InvestmentCalendar calendar={calendarQuery.data} loading={calendarQuery.isLoading} error={calendarQuery.isError} />}
+          {tab === "calendar" && <InvestmentCalendar calendar={calendarQuery.data} loading={calendarQuery.isLoading || calendarQuery.isFetching && !calendarQuery.data} error={calendarQuery.error} refreshing={calendarRefreshing} onRetry={refreshCalendar} />}
 
           {tab === "activity" && (
             tradesQuery.isLoading ? <div className="flex min-h-64 items-center justify-center"><Loader /></div> : tradesQuery.data?.length ? (
