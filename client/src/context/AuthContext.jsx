@@ -13,6 +13,11 @@ import {
 } from "../services/authService";
 import { lockPin as lockPinRequest } from "../services/securityService";
 import {
+  cancelAssistantRequest,
+  clearAssistantUserState,
+  getAssistantUserId,
+} from "../services/assistantConversationService";
+import {
   AUTH_APP_LOCKED_EVENT,
   AUTH_SESSION_INVALIDATED_EVENT,
 } from "../utils/authEvents";
@@ -85,6 +90,7 @@ const AuthProvider = ({ children }) => {
       }
 
       locking = true;
+      cancelAssistantRequest(user, { reason: "locked" });
       clearPrivateClientState();
       setSessionSecurityState((current) => ({
         ...normalizeSessionSecurity(current),
@@ -134,6 +140,9 @@ const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const handleSessionInvalidated = () => {
+      if (user) {
+        clearAssistantUserState(user);
+      }
       clearPrivateClientState();
       setUser(null);
       applySessionSecurity(null);
@@ -141,6 +150,9 @@ const AuthProvider = ({ children }) => {
     };
 
     const handleAppLocked = () => {
+      if (user) {
+        cancelAssistantRequest(user, { reason: "locked" });
+      }
       clearPrivateClientState();
       setSessionSecurityState((current) => ({
         ...normalizeSessionSecurity(current),
@@ -170,26 +182,39 @@ const AuthProvider = ({ children }) => {
         handleAppLocked,
       );
     };
-  }, [applySessionSecurity, clearPrivateClientState]);
+  }, [applySessionSecurity, clearPrivateClientState, user]);
 
   const completeAuthentication = useCallback(
     (authenticatedUser, nextSessionSecurity = null) => {
+      if (
+        user &&
+        getAssistantUserId(user) !== getAssistantUserId(authenticatedUser)
+      ) {
+        clearAssistantUserState(user);
+      }
       clearPrivateClientState();
       setUser(authenticatedUser);
       applySessionSecurity(nextSessionSecurity);
       setIsAuthLoading(false);
     },
-    [applySessionSecurity, clearPrivateClientState],
+    [applySessionSecurity, clearPrivateClientState, user],
   );
 
   const clearAuthentication = useCallback(() => {
+    if (user) {
+      clearAssistantUserState(user);
+    }
     clearPrivateClientState();
     setUser(null);
     applySessionSecurity(null);
     setIsAuthLoading(false);
-  }, [applySessionSecurity, clearPrivateClientState]);
+  }, [applySessionSecurity, clearPrivateClientState, user]);
 
   const logout = useCallback(async () => {
+    if (user) {
+      clearAssistantUserState(user);
+    }
+
     try {
       await logoutRequest();
     } finally {
@@ -198,7 +223,7 @@ const AuthProvider = ({ children }) => {
       applySessionSecurity(null);
       setIsAuthLoading(false);
     }
-  }, [applySessionSecurity, clearPrivateClientState]);
+  }, [applySessionSecurity, clearPrivateClientState, user]);
 
   const value = useMemo(
     () => ({

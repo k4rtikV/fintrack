@@ -20,7 +20,8 @@
     "test:v2-investments": "node src/scripts/testV2Investments.js",
     "test:v2-phase61": "node src/scripts/testV2Phase61.js",
     "test:v2-research": "node src/scripts/testV2ResearchAnalytics.js",
-    "test:v2-assistant": "node src/scripts/testV2AssistantUpdate.js"
+    "test:v2-assistant": "node src/scripts/testV2AssistantUpdate.js",
+    "test:v2-stale-navigation": "node src/scripts/testV2StaleNavigation.js"
   },
   "keywords": [
     "finance",

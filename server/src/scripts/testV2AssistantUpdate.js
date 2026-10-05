@@ -12,6 +12,8 @@ const assistantService = read("server/src/services/assistant.service.js");
 const assistantResponse = read("server/src/services/assistantResponse.service.js");
 const assistantPage = read("client/src/pages/AssistantPage.jsx");
 const assistantClient = read("client/src/services/assistantService.js");
+const assistantConversation = read("client/src/services/assistantConversationService.js");
+const authContext = read("client/src/context/AuthContext.jsx");
 const assistantCard = read("client/src/components/assistant/AssistantResponseCard.jsx");
 const settings = read("client/src/pages/SettingsPage.jsx");
 const stock = read("client/src/pages/StockDetailPage.jsx");
@@ -129,17 +131,20 @@ assert(
   "Starter prompts must represent the current FinTrack V2 domains",
 );
 assert(
-  assistantPage.includes("new AbortController()") &&
-    assistantPage.includes("requestControllerRef.current?.abort()") &&
+  !assistantPage.includes("requestControllerRef") &&
+    assistantPage.includes("subscribeAssistantConversation") &&
+    assistantConversation.includes("new AbortController()") &&
+    assistantConversation.includes("fintrack_assistant_pending:") &&
     assistantClient.includes("signal") &&
     assistantClient.includes("timeout: ASSISTANT_REQUEST_TIMEOUT_MS"),
-  "Assistant requests must be cancellable without losing the bounded timeout",
+  "Assistant requests must survive ordinary route navigation while retaining bounded/security cancellation",
 );
 assert(
   assistantPage.includes("isPinLocked") &&
     assistantPage.includes("FinTrack is locked. Assistant requests are paused") &&
-    assistantPage.includes("storageOwnerId"),
-  "PIN lock and account changes must not allow stale assistant responses to cross sessions",
+    authContext.includes('cancelAssistantRequest(user, { reason: "locked" })') &&
+    authContext.includes("clearAssistantUserState(user)"),
+  "PIN lock and account/session changes must cancel or discard stale assistant responses",
 );
 assert(
   assistantPage.includes("retryPrompt") && assistantPage.includes("Retry") &&

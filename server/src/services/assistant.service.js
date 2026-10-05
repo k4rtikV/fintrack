@@ -54,9 +54,30 @@ const isFallbackEnabled = () =>
   String(process.env.GEMINI_ENABLE_FALLBACK || "true").toLowerCase() !==
   "false";
 
-const sleep = (milliseconds) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
+const createCanceledError = () => {
+  const error = new Error("Assistant request canceled");
+  error.code = "ERR_CANCELED";
+  return error;
+};
+
+const sleep = (milliseconds, signal) =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createCanceledError());
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, milliseconds);
+
+    const handleAbort = () => {
+      clearTimeout(timeoutId);
+      reject(createCanceledError());
+    };
+
+    signal?.addEventListener("abort", handleAbort, { once: true });
   });
 
 const parseDurationMs = (value) => {
@@ -170,6 +191,7 @@ const requestGeminiWithRetry = async ({
   headers,
   timeout,
   model,
+  signal,
 }) => {
   let lastError;
 
@@ -178,6 +200,7 @@ const requestGeminiWithRetry = async ({
       return await axios.post(url, body, {
         headers,
         timeout,
+        signal,
       });
     } catch (error) {
       lastError = error;
@@ -204,7 +227,7 @@ const requestGeminiWithRetry = async ({
         delayMs,
       });
 
-      await sleep(delayMs);
+      await sleep(delayMs, signal);
     }
   }
 
@@ -305,6 +328,7 @@ const requestModel = async ({
   allowedFunctionNames = null,
   structuredOutput = false,
   useTools = true,
+  signal,
 }) => {
   const makeRequest = async (useStructuredOutput) => {
     const generationConfig = {
@@ -378,6 +402,7 @@ const requestModel = async ({
       },
       timeout: 30000,
       model,
+      signal,
     });
 
     response.fintrackStructuredOutput = useStructuredOutput;
@@ -914,6 +939,7 @@ const runDirectAdvancedToolFlow = async ({
   message,
   history,
   directRequest,
+  signal,
 }) => {
   const asOf = getDateOnlyAsOfInTimeZone(new Date(), user.timezone);
   const toolResult = await executeAssistantTool({
@@ -978,6 +1004,7 @@ Return plain prose only. Do not return JSON, arrays, key-value objects, schema f
     functionCallingMode: "NONE",
     structuredOutput: false,
     useTools: false,
+    signal,
   });
 
   const rawReply = extractGeminiText(response.data);
@@ -1025,6 +1052,7 @@ const runAgentWithModel = async ({
   user,
   message,
   history,
+  signal,
 }) => {
   const currentDateAsOf = getDateOnlyAsOfInTimeZone(
     new Date(),
@@ -1085,6 +1113,7 @@ const runAgentWithModel = async ({
       message,
       history,
       directRequest,
+      signal,
     });
   }
 
@@ -1120,6 +1149,7 @@ const runAgentWithModel = async ({
           ? initialAllowedFunctionNames
           : null,
       structuredOutput: false,
+      signal,
     });
     modelRequestCount += 1;
 
@@ -1252,6 +1282,7 @@ ${JSON.stringify(
     contents,
     functionCallingMode: "NONE",
     structuredOutput: false,
+    signal,
   });
   modelRequestCount += 1;
 
@@ -1330,6 +1361,7 @@ const getAssistantReply = async ({
   user,
   message,
   history = [],
+  signal,
 }) => {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -1350,6 +1382,7 @@ const getAssistantReply = async ({
         user,
         message,
         history,
+        signal,
       });
 
       console.info("FinTrack tool-calling assistant completed", {
@@ -1390,6 +1423,7 @@ const getAssistantReply = async ({
           user,
           message,
           history,
+          signal,
         });
 
         console.info("Gemini fallback model served tool-calling assistant request", {
@@ -1418,6 +1452,10 @@ const getAssistantReply = async ({
       }
     }
   } catch (error) {
+    if (signal?.aborted || error?.code === "ERR_CANCELED") {
+      throw error;
+    }
+
     if (error instanceof AppError) {
       throw error;
     }

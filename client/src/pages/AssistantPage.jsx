@@ -9,7 +9,6 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
 
 import AssistantResponseCard from "../components/assistant/AssistantResponseCard";
 import DashboardCard from "../components/layout/DashboardCard";
@@ -17,7 +16,14 @@ import PageContainer from "../components/layout/PageContainer";
 import Button from "../components/ui/Button";
 import useAuth from "../hooks/useAuth";
 import { sendAssistantMessage } from "../services/assistantService";
-import getApiError from "../utils/getApiError";
+import {
+  clearAssistantConversation,
+  getAssistantConversationSnapshot,
+  getAssistantUserId,
+  setAssistantDraft,
+  submitAssistantMessage,
+  subscribeAssistantConversation,
+} from "../services/assistantConversationService";
 
 const starterPrompts = [
   "How is my investment portfolio performing?",
@@ -28,236 +34,57 @@ const starterPrompts = [
   "What spending looks unusual or out of pattern this month?",
 ];
 
-const welcomeMessage = {
-  id: "welcome",
-  role: "assistant",
-  content:
-    "Ask me about your FinTrack accounts, transactions, transfers, Autopay, budgets, goals, forecasts, investment holdings, recorded stock trades, watchlist, or read-only market research. I’ll use the relevant FinTrack data instead of treating one ledger as a substitute for another.",
-};
-
-const makeMessage = (role, content, metadata = {}) => ({
-  id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  role,
-  content,
-  ...metadata,
-});
-
-const getUserStorageId = (user) =>
-  user?._id || user?.id || user?.email || "current-user";
-
-const getChatStorageKey = (user) =>
-  `fintrack_assistant_chat:${getUserStorageId(user)}`;
-
-const getDraftStorageKey = (user) =>
-  `fintrack_assistant_draft:${getUserStorageId(user)}`;
-
-const getCooldownStorageKey = (user) =>
-  `fintrack_assistant_cooldown:${getUserStorageId(user)}`;
-
-const loadStoredCooldownUntil = (user) => {
-  try {
-    const stored = Number(sessionStorage.getItem(getCooldownStorageKey(user)));
-
-    return Number.isFinite(stored) && stored > Date.now() ? stored : 0;
-  } catch {
-    return 0;
-  }
-};
-
-const getRetryAfterSeconds = (error) => {
-  const structuredRetry = error.response?.data?.errors?.retryAfterSeconds;
-
-  if (Number.isFinite(structuredRetry) && structuredRetry > 0) {
-    return Math.ceil(structuredRetry);
-  }
-
-  const retryAfterHeader = error.response?.headers?.["retry-after"];
-
-  if (retryAfterHeader !== undefined) {
-    const seconds = Number(retryAfterHeader);
-
-    if (Number.isFinite(seconds) && seconds > 0) {
-      return Math.ceil(seconds);
-    }
-
-    const retryDate = Date.parse(retryAfterHeader);
-
-    if (!Number.isNaN(retryDate)) {
-      return Math.max(Math.ceil((retryDate - Date.now()) / 1000), 1);
-    }
-  }
-
-  const message = error.response?.data?.message || error.message || "";
-  const match = String(message).match(/(?:about|in)\s+(\d+)\s+seconds?/i);
-
-  return match ? Math.max(Number(match[1]), 1) : null;
-};
-
-const loadStoredMessages = (user) => {
-  try {
-    const stored = sessionStorage.getItem(getChatStorageKey(user));
-
-    if (!stored) {
-      return [welcomeMessage];
-    }
-
-    const parsed = JSON.parse(stored);
-
-    if (!Array.isArray(parsed)) {
-      return [welcomeMessage];
-    }
-
-    const validMessages = parsed.filter(
-      (message) =>
-        message &&
-        (message.role === "user" || message.role === "assistant") &&
-        typeof message.content === "string" &&
-        message.content.trim(),
-    );
-
-    return validMessages.length ? validMessages : [welcomeMessage];
-  } catch {
-    return [welcomeMessage];
-  }
-};
-
-const loadStoredDraft = (user) => {
-  try {
-    return sessionStorage.getItem(getDraftStorageKey(user)) || "";
-  } catch {
-    return "";
-  }
-};
-
-const isCanceledRequest = (error) =>
-  error?.code === "ERR_CANCELED" || error?.name === "CanceledError";
-
 const AssistantPage = () => {
   const { user, isPinLocked } = useAuth();
-  const userStorageId = getUserStorageId(user);
-
-  const [messages, setMessages] = useState(() => loadStoredMessages(user));
-  const [input, setInput] = useState(() => loadStoredDraft(user));
-  const [isSending, setIsSending] = useState(false);
-  const [storageOwnerId, setStorageOwnerId] = useState(userStorageId);
-  const [cooldownUntil, setCooldownUntil] = useState(() =>
-    loadStoredCooldownUntil(user),
+  const userStorageId = getAssistantUserId(user);
+  const [conversation, setConversation] = useState(() =>
+    getAssistantConversationSnapshot(user),
   );
   const [cooldownSeconds, setCooldownSeconds] = useState(() =>
     Math.max(
-      Math.ceil((loadStoredCooldownUntil(user) - Date.now()) / 1000),
+      Math.ceil((getAssistantConversationSnapshot(user).cooldownUntil - Date.now()) / 1000),
       0,
     ),
   );
 
   const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
-  const requestControllerRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
 
+  const messages = conversation.messages;
+  const input = conversation.draft;
+  const isSending = Boolean(conversation.pending);
   const isCoolingDown = cooldownSeconds > 0;
   const interactionDisabled = isSending || isCoolingDown || isPinLocked;
 
   useEffect(() => {
-    if (storageOwnerId === userStorageId) {
-      return;
-    }
-
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = null;
-    setIsSending(false);
-    setMessages(loadStoredMessages(user));
-    setInput(loadStoredDraft(user));
-
-    const nextCooldown = loadStoredCooldownUntil(user);
-    setCooldownUntil(nextCooldown);
-    setCooldownSeconds(
-      Math.max(Math.ceil((nextCooldown - Date.now()) / 1000), 0),
-    );
-    setStorageOwnerId(userStorageId);
     shouldStickToBottomRef.current = true;
     forceScrollRef.current = true;
-  }, [storageOwnerId, user, userStorageId]);
+
+    return subscribeAssistantConversation(user, (next) => {
+      setConversation(next);
+    });
+  }, [user, userStorageId]);
 
   useEffect(() => {
-    if (storageOwnerId !== userStorageId) {
-      return;
-    }
+    const cooldownUntil = conversation.cooldownUntil;
 
-    try {
-      sessionStorage.setItem(
-        getChatStorageKey(user),
-        JSON.stringify(messages),
-      );
-    } catch {
-      // Session persistence is optional; chat remains usable in memory.
-    }
-  }, [messages, storageOwnerId, user, userStorageId]);
-
-  useEffect(() => {
-    if (storageOwnerId !== userStorageId) {
-      return;
-    }
-
-    try {
-      if (input) {
-        sessionStorage.setItem(getDraftStorageKey(user), input);
-      } else {
-        sessionStorage.removeItem(getDraftStorageKey(user));
-      }
-    } catch {
-      // Draft persistence is optional and should never block chat usage.
-    }
-  }, [input, storageOwnerId, user, userStorageId]);
-
-  useEffect(() => {
-    if (!cooldownUntil) {
+    if (!cooldownUntil || cooldownUntil <= Date.now()) {
       setCooldownSeconds(0);
       return undefined;
     }
 
     const updateCountdown = () => {
-      const secondsRemaining = Math.max(
-        Math.ceil((cooldownUntil - Date.now()) / 1000),
-        0,
+      setCooldownSeconds(
+        Math.max(Math.ceil((cooldownUntil - Date.now()) / 1000), 0),
       );
-
-      setCooldownSeconds(secondsRemaining);
-
-      if (secondsRemaining <= 0) {
-        setCooldownUntil(0);
-
-        try {
-          sessionStorage.removeItem(getCooldownStorageKey(user));
-        } catch {
-          // Cooldown storage is optional.
-        }
-      }
     };
 
     updateCountdown();
     const intervalId = window.setInterval(updateCountdown, 1000);
-
     return () => window.clearInterval(intervalId);
-  }, [cooldownUntil, user]);
-
-  useEffect(() => {
-    if (!isPinLocked) {
-      return;
-    }
-
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = null;
-    setIsSending(false);
-  }, [isPinLocked]);
-
-  useEffect(
-    () => () => {
-      requestControllerRef.current?.abort();
-    },
-    [],
-  );
+  }, [conversation.cooldownUntil]);
 
   useEffect(() => {
     if (!forceScrollRef.current && !shouldStickToBottomRef.current) {
@@ -278,125 +105,20 @@ const AssistantPage = () => {
   };
 
   const clearChat = () => {
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = null;
-    setIsSending(false);
-    setMessages([welcomeMessage]);
-    setInput("");
+    if (!clearAssistantConversation(user)) return;
     shouldStickToBottomRef.current = true;
     forceScrollRef.current = true;
-
-    try {
-      sessionStorage.removeItem(getChatStorageKey(user));
-      sessionStorage.removeItem(getDraftStorageKey(user));
-    } catch {
-      // Ignore storage cleanup failures.
-    }
   };
 
-  const handleSend = async (prompt = input) => {
+  const handleSend = (prompt = input) => {
     const message = String(prompt || "").trim();
+    if (!message || interactionDisabled) return;
 
-    if (!message || interactionDisabled) {
-      return;
-    }
+    const result = submitAssistantMessage(user, message, sendAssistantMessage);
+    if (!result.accepted) return;
 
-    const history = messages
-      .filter(
-        (item) =>
-          item.id !== "welcome" &&
-          !item.isError &&
-          !String(item.content).startsWith("I couldn’t complete that request."),
-      )
-      .slice(-10)
-      .map((item) => ({
-        role: item.role,
-        content: item.content,
-      }));
-
-    const pendingMessage = makeMessage("user", message);
-    const requestOwnerId = userStorageId;
-    const controller = new AbortController();
-
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = controller;
     shouldStickToBottomRef.current = true;
     forceScrollRef.current = true;
-    setMessages((current) => [...current, pendingMessage]);
-    setInput("");
-    setIsSending(true);
-
-    try {
-      const result = await sendAssistantMessage({
-        message,
-        history,
-        signal: controller.signal,
-      });
-
-      if (
-        controller.signal.aborted ||
-        requestOwnerId !== getUserStorageId(user)
-      ) {
-        return;
-      }
-
-      setMessages((current) => [
-        ...current,
-        makeMessage("assistant", result.reply, {
-          presentation: result.presentation,
-          toolsUsed: result.toolsUsed,
-          model: result.model,
-          generatedAt: result.generatedAt,
-        }),
-      ]);
-    } catch (error) {
-      if (controller.signal.aborted || isCanceledRequest(error)) {
-        return;
-      }
-
-      const messageText = getApiError(error);
-      const retryAfterSeconds = getRetryAfterSeconds(error);
-
-      if (error.response?.status === 429 && retryAfterSeconds) {
-        const nextCooldownUntil = Date.now() + retryAfterSeconds * 1000;
-
-        setMessages((current) =>
-          current.filter((item) => item.id !== pendingMessage.id),
-        );
-        setInput(message);
-        setCooldownUntil(nextCooldownUntil);
-        setCooldownSeconds(retryAfterSeconds);
-
-        try {
-          sessionStorage.setItem(
-            getCooldownStorageKey(user),
-            String(nextCooldownUntil),
-          );
-        } catch {
-          // The countdown still works in memory if storage is unavailable.
-        }
-
-        toast.error(
-          `Gemini is rate-limited. Sending will unlock in ${retryAfterSeconds}s.`,
-        );
-        return;
-      }
-
-      toast.error(messageText);
-      setMessages((current) => [
-        ...current,
-        makeMessage(
-          "assistant",
-          `I couldn’t complete that request. ${messageText}`,
-          { isError: true, retryPrompt: message },
-        ),
-      ]);
-    } finally {
-      if (requestControllerRef.current === controller) {
-        requestControllerRef.current = null;
-        setIsSending(false);
-      }
-    }
   };
 
   const handleKeyDown = (event) => {
@@ -513,7 +235,7 @@ const AssistantPage = () => {
             <div className="flex items-end gap-3">
               <textarea
                 value={input}
-                onChange={(event) => setInput(event.target.value)}
+                onChange={(event) => setAssistantDraft(user, event.target.value)}
                 onKeyDown={handleKeyDown}
                 maxLength={1200}
                 rows={2}
