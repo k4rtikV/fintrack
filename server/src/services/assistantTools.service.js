@@ -1,3 +1,4 @@
+import Account from "../models/Account.js";
 import Category from "../models/Category.js";
 import RecurringTransaction from "../models/RecurringTransaction.js";
 import Transaction from "../models/Transaction.js";
@@ -33,6 +34,18 @@ import {
 } from "./assistantSimulation.service.js";
 import { getBudgetsForUser } from "./budget.service.js";
 import { getGoalsForUser } from "./goal.service.js";
+import {
+  ACCOUNT_ACTIVITY_TYPES,
+  HISTORY_PERIODS,
+  INVESTMENT_ACTIVITY_TYPES,
+  STOCK_RESEARCH_SCOPES,
+  getAccountActivityTool,
+  getInvestmentActivityTool,
+  getInvestmentCalendarTool,
+  getInvestmentPortfolioTool,
+  getInvestmentWatchlistTool,
+  getStockResearchTool,
+} from "./assistantInvestmentTools.service.js";
 
 const PERIODS = [
   "CURRENT_MONTH_TO_DATE",
@@ -57,6 +70,35 @@ const clampInteger = (value, { min, max, fallback }) => {
 
 const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const resolveUserAccountByName = async ({ userId, accountName }) => {
+  const requested = String(accountName || "").trim();
+
+  if (!requested) {
+    return { account: null, requested: null, matches: [] };
+  }
+
+  const accounts = await Account.find({ user: userId })
+    .select("_id name type currency isArchived")
+    .sort({ isArchived: 1, createdAt: -1 })
+    .lean();
+  const lowered = requested.toLowerCase();
+  const exact = accounts.find((account) => account.name.toLowerCase() === lowered);
+
+  if (exact) {
+    return { account: exact, requested, matches: [exact.name] };
+  }
+
+  const partial = accounts.filter((account) =>
+    account.name.toLowerCase().includes(lowered),
+  );
+
+  return {
+    account: partial.length === 1 ? partial[0] : null,
+    requested,
+    matches: partial.slice(0, 6).map((account) => account.name),
+  };
+};
 
 const toDateKey = (date) => date.toISOString().slice(0, 10);
 
@@ -901,6 +943,39 @@ const getRecentTransactionsTool = async ({ user, args, asOf }) => {
     $lte: new Date(asOf),
   };
 
+  const accountResolution = await resolveUserAccountByName({
+    userId: user._id,
+    accountName: args.account,
+  });
+
+  if (args.account && !accountResolution.account) {
+    return {
+      dataCoverage: {
+        days,
+        startDate: toDateKey(startDate),
+        endDate: toDateKey(new Date(asOf)),
+      },
+      preferredCurrency: user.preferredCurrency || "INR",
+      filters: {
+        type,
+        category: String(args.category || "").trim() || null,
+        account: null,
+        limit,
+      },
+      transactions: [],
+      note: accountResolution.matches.length
+        ? `The account name was ambiguous. Matching accounts: ${accountResolution.matches.join(", ")}.`
+        : `No FinTrack account matched "${accountResolution.requested}".`,
+    };
+  }
+
+  if (accountResolution.account) {
+    query.$or = [
+      { account: accountResolution.account._id },
+      { destinationAccount: accountResolution.account._id },
+    ];
+  }
+
   const categoryName = String(args.category || "").trim();
 
   if (categoryName) {
@@ -949,6 +1024,7 @@ const getRecentTransactionsTool = async ({ user, args, asOf }) => {
     filters: {
       type,
       category: categoryName || null,
+      account: accountResolution.account?.name || null,
       limit,
     },
     transactions: transactions.map(simplifyTransaction),
@@ -976,6 +1052,37 @@ const getRecurringTransactionsTool = async ({ user, args, asOf }) => {
 
   if (type) {
     query.type = type;
+  }
+
+  const accountResolution = await resolveUserAccountByName({
+    userId: user._id,
+    accountName: args.account,
+  });
+
+  if (args.account && !accountResolution.account) {
+    return {
+      dataCoverage: {
+        asOf,
+        horizonDays,
+        through: horizon.toISOString(),
+      },
+      preferredCurrency: user.preferredCurrency || "INR",
+      count: 0,
+      expenseByCurrency: {},
+      incomeByCurrency: {},
+      transferByCurrency: {},
+      items: [],
+      note: accountResolution.matches.length
+        ? `The account name was ambiguous. Matching accounts: ${accountResolution.matches.join(", ")}.`
+        : `No FinTrack account matched "${accountResolution.requested}".`,
+    };
+  }
+
+  if (accountResolution.account) {
+    query.$or = [
+      { account: accountResolution.account._id },
+      { destinationAccount: accountResolution.account._id },
+    ];
   }
 
   const recurring = await RecurringTransaction.find(query)
@@ -1007,6 +1114,10 @@ const getRecurringTransactionsTool = async ({ user, args, asOf }) => {
       through: horizon.toISOString(),
     },
     preferredCurrency: user.preferredCurrency || "INR",
+    filters: {
+      type,
+      account: accountResolution.account?.name || null,
+    },
     count: items.length,
     expenseByCurrency,
     incomeByCurrency,
@@ -1979,7 +2090,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_account_balances",
     description:
-      "Gets active FinTrack account balances and totals grouped by currency. Use for account, cash balance, wallet, bank, card, or investment-account balance questions. Never sum mixed currencies yourself.",
+      "Gets active FinTrack account balances and totals grouped by currency. Use for account, cash balance, wallet, bank, card, or investment-account cash-balance questions. For an INVESTMENT account this balance is broker cash only; use get_investment_portfolio for holdings or total investment value. Never sum mixed currencies yourself.",
     parameters: {
       type: "object",
       properties: {},
@@ -1988,7 +2099,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_recent_transactions",
     description:
-      "Gets recent recorded transactions with account, category, amount, currency, payment method, and date. Use when the user asks what specific transactions contributed to a result or asks about recent activity.",
+      "Gets recent ordinary FinTrack transactions (income, expense, transfer) with account, category, amount, currency, payment method, and date. It does not include InvestmentTrade BUY/SELL rows; use get_investment_activity or get_account_activity for those.",
     parameters: {
       type: "object",
       properties: {
@@ -2000,6 +2111,10 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
         category: {
           type: "string",
           description: "Optional exact category name filter.",
+        },
+        account: {
+          type: "string",
+          description: "Optional FinTrack account name or unambiguous partial name.",
         },
         days: {
           type: "integer",
@@ -2019,7 +2134,7 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
   {
     name: "get_recurring_transactions",
     description:
-      "Gets active Autopay expenses, income, or transfers due within a future horizon. Use for upcoming bills, subscriptions, salary, scheduled transfers, investment funding, or other scheduled cash flow.",
+      "Gets active Autopay expenses, income, or transfers due within a future horizon. These are actual scheduled FinTrack Autopay rules, not inferred recurring patterns. Use for upcoming bills, subscriptions, salary, scheduled transfers, investment funding, or other scheduled cash flow.",
     parameters: {
       type: "object",
       properties: {
@@ -2028,6 +2143,10 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
           enum: TRANSACTION_TYPES,
           description: "Optional INCOME, EXPENSE, or TRANSFER filter.",
         },
+        account: {
+          type: "string",
+          description: "Optional FinTrack account name or unambiguous partial name.",
+        },
         horizonDays: {
           type: "integer",
           minimum: 1,
@@ -2035,6 +2154,88 @@ const ASSISTANT_FUNCTION_DECLARATIONS = [
           description: "Future horizon in days. Defaults to 30.",
         },
       },
+    },
+  },
+  {
+    name: "get_investment_portfolio",
+    description:
+      "Gets the user's actual FinTrack investment holdings, current valuation, cost basis, realised/unrealised P&L, concentration, and quote freshness. Use whenever the user asks about their investment portfolio, holdings, shares they own, average cost, cost basis, portfolio P&L, or how their stocks are performing. Do not substitute ordinary Investment-category transactions for this tool.",
+    parameters: {
+      type: "object",
+      properties: {
+        symbol: {
+          type: "string",
+          description: "Optional trading symbol or company-name fragment to narrow current holdings.",
+        },
+        exchange: {
+          type: "string",
+          enum: ["NSE", "BSE"],
+          description: "Optional exchange when the symbol exists on more than one exchange.",
+        },
+        account: {
+          type: "string",
+          description: "Optional FinTrack investment-account name or unambiguous partial name.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_investment_activity",
+    description:
+      "Gets actual FinTrack InvestmentTrade BUY/SELL records with quantity, execution price, fees, cash movement and realised P&L. Use for questions about stocks the user bought or sold, investment activity, execution history, or realised gains/losses. BUY/SELL activity is not ordinary income or expense.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: INVESTMENT_ACTIVITY_TYPES },
+        symbol: { type: "string", description: "Optional trading symbol." },
+        exchange: { type: "string", enum: ["NSE", "BSE"] },
+        account: { type: "string", description: "Optional investment-account name." },
+        days: { type: "integer", minimum: 1, maximum: 730, description: "Look-back window. Defaults to 90 days." },
+        limit: { type: "integer", minimum: 1, maximum: 30, description: "Maximum trades. Defaults to 12." },
+      },
+    },
+  },
+  {
+    name: "get_investment_watchlist",
+    description:
+      "Gets the user's FinTrack watchlist with NSE/BSE quote changes and freshness. A watchlist item is not a holding and must never be described as owned unless it also appears in get_investment_portfolio.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "get_investment_calendar",
+    description:
+      "Gets upcoming NSE/BSE market holidays and corporate actions for instruments the user holds or watchlists inside FinTrack. Use for investment-calendar, upcoming corporate-action, dividend/split/bonus event, or market-holiday questions. This never reads the user's Upstox brokerage account.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "get_stock_research",
+    description:
+      "Gets read-only public NSE/BSE market data for a named stock: quote/freshness, historical price summary, fundamentals, corporate actions, or recent news. Use for stock-specific market/research questions. This is Upstox public market data only and never reads the user's Upstox brokerage account. Do not use it to recommend a stock or predict future prices.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Trading symbol, company name, or ISIN." },
+        exchange: { type: "string", enum: ["NSE", "BSE"], description: "Optional exchange disambiguation." },
+        scope: { type: "string", enum: STOCK_RESEARCH_SCOPES, description: "QUOTE, HISTORY, FUNDAMENTALS, NEWS, or FULL. Defaults to QUOTE." },
+        period: { type: "string", enum: HISTORY_PERIODS, description: "History range when scope includes HISTORY. Defaults to 1M." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_account_activity",
+    description:
+      "Gets the unified FinTrack activity history for one named account, combining ordinary income/expense/transfer rows with InvestmentTrade BUY/SELL rows when applicable. Use for account-specific transaction history, especially investment accounts. Investment trades stay separate from income/expense accounting.",
+    parameters: {
+      type: "object",
+      properties: {
+        account: { type: "string", description: "FinTrack account name or unambiguous partial name." },
+        type: { type: "string", enum: ACCOUNT_ACTIVITY_TYPES, description: "Optional activity type filter." },
+        search: { type: "string", description: "Optional title/symbol text filter." },
+        days: { type: "integer", minimum: 1, maximum: 730, description: "Look-back window. Defaults to 90 days." },
+        limit: { type: "integer", minimum: 1, maximum: 30, description: "Maximum activity rows. Defaults to 15." },
+      },
+      required: ["account"],
     },
   },
   {
@@ -2134,6 +2335,12 @@ const TOOL_EXECUTORS = {
   get_account_balances: getAccountBalancesTool,
   get_recent_transactions: getRecentTransactionsTool,
   get_recurring_transactions: getRecurringTransactionsTool,
+  get_investment_portfolio: getInvestmentPortfolioTool,
+  get_investment_activity: getInvestmentActivityTool,
+  get_investment_calendar: getInvestmentCalendarTool,
+  get_investment_watchlist: getInvestmentWatchlistTool,
+  get_stock_research: getStockResearchTool,
+  get_account_activity: getAccountActivityTool,
   get_monthly_trend: getMonthlyTrendTool,
   analyze_spending_patterns: getSpendingPatternsTool,
   get_financial_forecast: getFinancialForecastTool,
@@ -2167,7 +2374,7 @@ const executeAssistantTool = async ({ name, args = {}, user, asOf }) => {
     return {
       ok: true,
       authoritative: true,
-      source: "FINTRACK_DATABASE",
+      source: data?.source || "FINTRACK_DATABASE",
       generatedAt: new Date().toISOString(),
       data: sanitizeFiniteNumbers(data),
     };

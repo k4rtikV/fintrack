@@ -363,411 +363,413 @@ const SettingsPage = () => {
       description="Manage your FinTrack profile, alerts, and account security."
     >
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        <DashboardCard>
-          <SettingsSectionTitle
-            icon={UserRound}
-            title="Profile"
-            description="Update the personal and regional preferences used across FinTrack."
-          />
+        <div className="space-y-5">
+          <DashboardCard>
+            <SettingsSectionTitle
+              icon={UserRound}
+              title="Profile"
+              description="Update the personal and regional preferences used across FinTrack."
+            />
 
-          <form className="space-y-4" onSubmit={handleProfileSave}>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Full name
-              <input
-                value={profile.fullName}
-                onChange={(event) =>
-                  setProfile((current) => ({
-                    ...current,
-                    fullName: event.target.value,
-                  }))
-                }
-                className={inputClass}
-                maxLength={60}
-              />
-            </label>
-
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Email address
-              <div className="relative">
-                <input
-                  value={profile.email}
-                  readOnly
-                  className={`${inputClass} cursor-not-allowed pr-10 opacity-70`}
-                />
-                <CheckCircle2
-                  size={17}
-                  className="absolute right-3.5 top-1/2 mt-1 -translate-y-1/2 text-emerald-500"
-                />
-              </div>
-              <span className="mt-1.5 block text-xs text-slate-400">
-                Email changes require a new verification flow and are kept locked here.
-              </span>
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
+            <form className="space-y-4" onSubmit={handleProfileSave}>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                Preferred currency
-                <select
-                  value={profile.preferredCurrency}
+                Full name
+                <input
+                  value={profile.fullName}
                   onChange={(event) =>
                     setProfile((current) => ({
                       ...current,
-                      preferredCurrency: event.target.value,
+                      fullName: event.target.value,
                     }))
                   }
                   className={inputClass}
-                >
-                  <option value="INR">INR — Indian Rupee</option>
-                  <option value="USD">USD — US Dollar</option>
-                  <option value="EUR">EUR — Euro</option>
-                  <option value="GBP">GBP — British Pound</option>
-                </select>
+                  maxLength={60}
+                />
               </label>
 
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                Timezone
-                <select
-                  value={profile.timezone}
-                  onChange={(event) =>
-                    setProfile((current) => ({
-                      ...current,
-                      timezone: event.target.value,
-                    }))
-                  }
-                  className={inputClass}
-                >
-                  <option value="Asia/Kolkata">India — Asia/Kolkata</option>
-                  <option value="UTC">UTC</option>
-                  <option value="Europe/London">Europe — London</option>
-                  <option value="America/New_York">America — New York</option>
-                  <option value="Asia/Singapore">Asia — Singapore</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <Button type="submit" disabled={profileSaving || !profile.fullName.trim()}>
-                <Save size={17} />
-                {profileSaving ? "Saving…" : "Save profile"}
-              </Button>
-            </div>
-          </form>
-        </DashboardCard>
-
-        <DashboardCard>
-          <SettingsSectionTitle
-            icon={BellRing}
-            title="Notifications"
-            description="Choose which financial events FinTrack should alert you about."
-          />
-
-          <div className="space-y-3">
-            <Toggle
-              checked={notifications.budgetAlerts}
-              onChange={(checked) =>
-                setNotifications((current) => ({
-                  ...current,
-                  budgetAlerts: checked,
-                }))
-              }
-              label="Budget alerts"
-              description="Notify me when a monthly category budget reaches 80% or is exceeded."
-            />
-
-            <Toggle
-              checked={notifications.goalAlerts}
-              onChange={(checked) =>
-                setNotifications((current) => ({
-                  ...current,
-                  goalAlerts: checked,
-                }))
-              }
-              label="Goal milestones"
-              description="Notify me when a savings goal reaches 50%, 75%, or 100%."
-            />
-
-            <Toggle
-              checked={notifications.recurringAlerts}
-              onChange={(checked) =>
-                setNotifications((current) => ({
-                  ...current,
-                  recurringAlerts: checked,
-                }))
-              }
-              label="Autopay alerts"
-              description="Notify me when an Autopay rule records a due transaction."
-            />
-
-            <Toggle
-              checked={notifications.emailEnabled}
-              onChange={(checked) =>
-                setNotifications((current) => ({
-                  ...current,
-                  emailEnabled: checked,
-                }))
-              }
-              label="Email copies"
-              description="Also send enabled FinTrack alerts to my verified email address."
-            />
-          </div>
-
-          <p className="mt-4 text-xs leading-5 text-slate-400">
-            Security login alerts are always sent to your verified email and are not
-            controlled by these financial-alert preferences.
-          </p>
-
-          <div className="mt-5 flex justify-end">
-            <Button onClick={handleNotificationSave} disabled={notificationSaving}>
-              <Save size={17} />
-              {notificationSaving ? "Saving…" : "Save notifications"}
-            </Button>
-          </div>
-        </DashboardCard>
-
-        <DashboardCard>
-          <SettingsSectionTitle
-            icon={LockKeyhole}
-            title="Authentication"
-            description="Google is FinTrack v2's primary identity provider. FinTrack still enforces its own server-side sessions."
-          />
-
-          {authentication.googleLinked ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="text-emerald-600 dark:text-emerald-300" size={20} />
-                <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">
-                    Google authentication connected
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {authentication.googleEmail || profile.email}
-                  </p>
+                Email address
+                <div className="relative">
+                  <input
+                    value={profile.email}
+                    readOnly
+                    className={`${inputClass} cursor-not-allowed pr-10 opacity-70`}
+                  />
+                  <CheckCircle2
+                    size={17}
+                    className="absolute right-3.5 top-1/2 mt-1 -translate-y-1/2 text-emerald-500"
+                  />
                 </div>
-              </div>
-              <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                Password and email-OTP login are disabled. Device/session revocation below remains enforced by FinTrack independently of Google.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                  One-time v1 migration required
-                </p>
-                <p className="mt-1 text-xs leading-5 text-amber-700/80 dark:text-amber-200/70">
-                  Enter your existing FinTrack password, then verify the Google account using the same email. The local password/OTP credentials are removed after migration.
-                </p>
-              </div>
-
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                Current FinTrack password
-                <input
-                  type="password"
-                  value={legacyMigrationPassword}
-                  onChange={(event) => setLegacyMigrationPassword(event.target.value)}
-                  className={inputClass}
-                  autoComplete="current-password"
-                  placeholder="Used only for this migration"
-                />
+                <span className="mt-1.5 block text-xs text-slate-400">
+                  Email changes require a new verification flow and are kept locked here.
+                </span>
               </label>
 
-              <GoogleSignInButton
-                onCredential={handleGoogleMigrationCredential}
-                disabled={migrationSaving}
-              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Preferred currency
+                  <select
+                    value={profile.preferredCurrency}
+                    onChange={(event) =>
+                      setProfile((current) => ({
+                        ...current,
+                        preferredCurrency: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="INR">INR — Indian Rupee</option>
+                    <option value="USD">USD — US Dollar</option>
+                    <option value="EUR">EUR — Euro</option>
+                    <option value="GBP">GBP — British Pound</option>
+                  </select>
+                </label>
 
-              {migrationSaving && (
-                <p className="text-center text-xs text-slate-400">
-                  Verifying Google identity and rotating FinTrack sessions…
-                </p>
-              )}
-            </div>
-          )}
-        </DashboardCard>
-      </div>
-
-      <div className="mt-5 grid items-start gap-5 xl:grid-cols-2">
-        <PinSecurityCard />
-
-        <DashboardCard>
-          <SettingsSectionTitle
-            icon={MonitorCog}
-            title="Active sessions"
-            description="Devices currently allowed to use your FinTrack account."
-            action={
-              <button
-                type="button"
-                onClick={() => loadSecurityData({ silent: true })}
-                disabled={securityLoading || securityRefreshing}
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                aria-label="Refresh security sessions"
-                title="Refresh"
-              >
-                <RefreshCw
-                  size={17}
-                  className={securityRefreshing ? "animate-spin" : ""}
-                />
-              </button>
-            }
-          />
-
-          {securityLoading ? (
-            <div className="space-y-3">
-              {[1, 2].map((item) => (
-                <div
-                  key={item}
-                  className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
-                />
-              ))}
-            </div>
-          ) : sessions.length ? (
-            <div className="space-y-3">
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-slate-900 dark:text-white">
-                          {session.deviceLabel}
-                        </p>
-                        {session.current && (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-                            Current
-                          </span>
-                        )}
-                        {session.pinEnabled && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                            PIN protected
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {session.deviceType} · {session.ipAddress}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Last active{" "}
-                        {formatSecurityTime(session.lastSeenAt, profile.timezone)}
-                      </p>
-                    </div>
-
-                    {!session.current && (
-                      <Button
-                        variant="danger"
-                        className="px-3 py-2"
-                        onClick={() => handleRevokeSession(session)}
-                        disabled={Boolean(securityActionId)}
-                      >
-                        <LogOut size={15} />
-                        {securityActionId === session.id ? "Revoking…" : "Revoke"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Timezone
+                  <select
+                    value={profile.timezone}
+                    onChange={(event) =>
+                      setProfile((current) => ({
+                        ...current,
+                        timezone: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="Asia/Kolkata">India — Asia/Kolkata</option>
+                    <option value="UTC">UTC</option>
+                    <option value="Europe/London">Europe — London</option>
+                    <option value="America/New_York">America — New York</option>
+                    <option value="Asia/Singapore">Asia — Singapore</option>
+                  </select>
+                </label>
+              </div>
 
               <div className="flex justify-end pt-1">
-                <Button
-                  variant="secondary"
-                  onClick={handleRevokeOtherSessions}
-                  disabled={
-                    Boolean(securityActionId) ||
-                    !sessions.some((session) => !session.current)
-                  }
-                >
-                  <LogOut size={16} />
-                  {securityActionId === "revoke-others"
-                    ? "Revoking…"
-                    : "Log out other devices"}
+                <Button type="submit" disabled={profileSaving || !profile.fullName.trim()}>
+                  <Save size={17} />
+                  {profileSaving ? "Saving…" : "Save profile"}
                 </Button>
               </div>
-            </div>
-          ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              No active FinTrack sessions were found.
-            </p>
-          )}
+            </form>
+          </DashboardCard>
 
-          <p className="mt-4 text-xs leading-5 text-slate-400">
-            Session revocation is enforced server-side. A revoked device cannot keep using
-            a previously issued FinTrack token.
-          </p>
-        </DashboardCard>
+          <DashboardCard>
+            <SettingsSectionTitle
+              icon={LockKeyhole}
+              title="Authentication"
+              description="Google is FinTrack v2's primary identity provider. FinTrack still enforces its own server-side sessions."
+            />
 
-        <DashboardCard>
-          <SettingsSectionTitle
-            icon={LockKeyhole}
-            title="Security activity"
-            description="Recent authentication and session-security events for your account."
-          />
-
-          {securityLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
-                />
-              ))}
-            </div>
-          ) : securityActivity.length ? (
-            <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
-              {securityActivity.map((event) => (
-                <div
-                  key={event.id}
-                  className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                          {event.title}
-                        </p>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                            activityTone[event.severity] || activityTone.info
-                          }`}
-                        >
-                          {event.severity}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                        {event.description}
-                      </p>
-                    </div>
-                    <span className="whitespace-nowrap text-[11px] text-slate-400">
-                      {formatSecurityTime(event.createdAt, profile.timezone)}
-                    </span>
+            {authentication.googleLinked ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="text-emerald-600 dark:text-emerald-300" size={20} />
+                  <div>
+                    <p className="font-semibold text-slate-900 dark:text-white">
+                      Google authentication connected
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {authentication.googleEmail || profile.email}
+                    </p>
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-400">
-                    {event.deviceLabel} · {event.ipAddress}
-                  </p>
-                  {event.metadata?.targetDeviceLabel && (
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Target: {event.metadata.targetDeviceLabel}
-                    </p>
-                  )}
-                  {Number.isFinite(event.metadata?.revokedCount) && (
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Sessions revoked: {event.metadata.revokedCount}
-                    </p>
-                  )}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              No security activity has been recorded yet.
-            </p>
-          )}
+                <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  Password and email-OTP login are disabled. Device/session revocation below remains enforced by FinTrack independently of Google.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    One-time v1 migration required
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-700/80 dark:text-amber-200/70">
+                    Enter your existing FinTrack password, then verify the Google account using the same email. The local password/OTP credentials are removed after migration.
+                  </p>
+                </div>
 
-          <p className="mt-4 text-xs leading-5 text-slate-400">
-            FinTrack records security events only. Google credentials, session tokens,
-            and financial transaction contents are never written to this activity log.
-          </p>
-        </DashboardCard>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Current FinTrack password
+                  <input
+                    type="password"
+                    value={legacyMigrationPassword}
+                    onChange={(event) => setLegacyMigrationPassword(event.target.value)}
+                    className={inputClass}
+                    autoComplete="current-password"
+                    placeholder="Used only for this migration"
+                  />
+                </label>
+
+                <GoogleSignInButton
+                  onCredential={handleGoogleMigrationCredential}
+                  disabled={migrationSaving}
+                />
+
+                {migrationSaving && (
+                  <p className="text-center text-xs text-slate-400">
+                    Verifying Google identity and rotating FinTrack sessions…
+                  </p>
+                )}
+              </div>
+            )}
+          </DashboardCard>
+          <PinSecurityCard />
+
+        </div>
+
+        <div className="space-y-5">
+          <DashboardCard>
+            <SettingsSectionTitle
+              icon={BellRing}
+              title="Notifications"
+              description="Choose which financial events FinTrack should alert you about."
+            />
+
+            <div className="space-y-3">
+              <Toggle
+                checked={notifications.budgetAlerts}
+                onChange={(checked) =>
+                  setNotifications((current) => ({
+                    ...current,
+                    budgetAlerts: checked,
+                  }))
+                }
+                label="Budget alerts"
+                description="Notify me when a monthly category budget reaches 80% or is exceeded."
+              />
+
+              <Toggle
+                checked={notifications.goalAlerts}
+                onChange={(checked) =>
+                  setNotifications((current) => ({
+                    ...current,
+                    goalAlerts: checked,
+                  }))
+                }
+                label="Goal milestones"
+                description="Notify me when a savings goal reaches 50%, 75%, or 100%."
+              />
+
+              <Toggle
+                checked={notifications.recurringAlerts}
+                onChange={(checked) =>
+                  setNotifications((current) => ({
+                    ...current,
+                    recurringAlerts: checked,
+                  }))
+                }
+                label="Autopay alerts"
+                description="Notify me when an Autopay rule records a due transaction."
+              />
+
+              <Toggle
+                checked={notifications.emailEnabled}
+                onChange={(checked) =>
+                  setNotifications((current) => ({
+                    ...current,
+                    emailEnabled: checked,
+                  }))
+                }
+                label="Email copies"
+                description="Also send enabled FinTrack alerts to my verified email address."
+              />
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-slate-400">
+              Security login alerts are always sent to your verified email and are not
+              controlled by these financial-alert preferences.
+            </p>
+
+            <div className="mt-5 flex justify-end">
+              <Button onClick={handleNotificationSave} disabled={notificationSaving}>
+                <Save size={17} />
+                {notificationSaving ? "Saving…" : "Save notifications"}
+              </Button>
+            </div>
+          </DashboardCard>
+
+          <DashboardCard>
+            <SettingsSectionTitle
+              icon={MonitorCog}
+              title="Active sessions"
+              description="Devices currently allowed to use your FinTrack account."
+              action={
+                <button
+                  type="button"
+                  onClick={() => loadSecurityData({ silent: true })}
+                  disabled={securityLoading || securityRefreshing}
+                  className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Refresh security sessions"
+                  title="Refresh"
+                >
+                  <RefreshCw
+                    size={17}
+                    className={securityRefreshing ? "animate-spin" : ""}
+                  />
+                </button>
+              }
+            />
+
+            {securityLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((item) => (
+                  <div
+                    key={item}
+                    className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                  />
+                ))}
+              </div>
+            ) : sessions.length ? (
+              <div className="space-y-3">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-slate-900 dark:text-white">
+                            {session.deviceLabel}
+                          </p>
+                          {session.current && (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                              Current
+                            </span>
+                          )}
+                          {session.pinEnabled && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                              PIN protected
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {session.deviceType} · {session.ipAddress}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Last active{" "}
+                          {formatSecurityTime(session.lastSeenAt, profile.timezone)}
+                        </p>
+                      </div>
+
+                      {!session.current && (
+                        <Button
+                          variant="danger"
+                          className="px-3 py-2"
+                          onClick={() => handleRevokeSession(session)}
+                          disabled={Boolean(securityActionId)}
+                        >
+                          <LogOut size={15} />
+                          {securityActionId === session.id ? "Revoking…" : "Revoke"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex justify-end pt-1">
+                  <Button
+                    variant="secondary"
+                    onClick={handleRevokeOtherSessions}
+                    disabled={
+                      Boolean(securityActionId) ||
+                      !sessions.some((session) => !session.current)
+                    }
+                  >
+                    <LogOut size={16} />
+                    {securityActionId === "revoke-others"
+                      ? "Revoking…"
+                      : "Log out other devices"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                No active FinTrack sessions were found.
+              </p>
+            )}
+
+            <p className="mt-4 text-xs leading-5 text-slate-400">
+              Session revocation is enforced server-side. A revoked device cannot keep using
+              a previously issued FinTrack token.
+            </p>
+          </DashboardCard>
+
+          <DashboardCard>
+            <SettingsSectionTitle
+              icon={LockKeyhole}
+              title="Security activity"
+              description="Recent authentication and session-security events for your account."
+            />
+
+            {securityLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((item) => (
+                  <div
+                    key={item}
+                    className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                  />
+                ))}
+              </div>
+            ) : securityActivity.length ? (
+              <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+                {securityActivity.map((event) => (
+                  <div
+                    key={event.id}
+                    className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {event.title}
+                          </p>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              activityTone[event.severity] || activityTone.info
+                            }`}
+                          >
+                            {event.severity}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                          {event.description}
+                        </p>
+                      </div>
+                      <span className="whitespace-nowrap text-[11px] text-slate-400">
+                        {formatSecurityTime(event.createdAt, profile.timezone)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-400">
+                      {event.deviceLabel} · {event.ipAddress}
+                    </p>
+                    {event.metadata?.targetDeviceLabel && (
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Target: {event.metadata.targetDeviceLabel}
+                      </p>
+                    )}
+                    {Number.isFinite(event.metadata?.revokedCount) && (
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Sessions revoked: {event.metadata.revokedCount}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                No security activity has been recorded yet.
+              </p>
+            )}
+
+            <p className="mt-4 text-xs leading-5 text-slate-400">
+              FinTrack records security events only. Google credentials, session tokens,
+              and financial transaction contents are never written to this activity log.
+            </p>
+          </DashboardCard>
+        </div>
       </div>
 
       <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">

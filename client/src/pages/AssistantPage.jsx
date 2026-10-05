@@ -1,6 +1,7 @@
 import {
   Bot,
   BrainCircuit,
+  RefreshCw,
   Send,
   ShieldCheck,
   Sparkles,
@@ -19,19 +20,19 @@ import { sendAssistantMessage } from "../services/assistantService";
 import getApiError from "../utils/getApiError";
 
 const starterPrompts = [
+  "How is my investment portfolio performing?",
+  "Show my recent investment trades and realised P&L.",
   "How am I doing financially this month?",
-  "Am I on track with my current budgets?",
+  "What Autopay payments are coming up?",
+  "Am I on track with my budgets and savings goals?",
   "What spending looks unusual or out of pattern this month?",
-  "How am I projected to finish this month?",
-  "What if I spend ₹25,000 more this month?",
-  "Review my savings goals and priorities.",
 ];
 
 const welcomeMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Ask me about spending, budgets, cash flow, unusual patterns, forecasts, what-if scenarios, accounts, Autopay, or savings goals. I’ll answer using the financial data already in your FinTrack account.",
+    "Ask me about your FinTrack accounts, transactions, transfers, Autopay, budgets, goals, forecasts, investment holdings, recorded stock trades, watchlist, or read-only market research. I’ll use the relevant FinTrack data instead of treating one ledger as a substitute for another.",
 };
 
 const makeMessage = (role, content, metadata = {}) => ({
@@ -64,8 +65,7 @@ const loadStoredCooldownUntil = (user) => {
 };
 
 const getRetryAfterSeconds = (error) => {
-  const structuredRetry =
-    error.response?.data?.errors?.retryAfterSeconds;
+  const structuredRetry = error.response?.data?.errors?.retryAfterSeconds;
 
   if (Number.isFinite(structuredRetry) && structuredRetry > 0) {
     return Math.ceil(structuredRetry);
@@ -129,12 +129,17 @@ const loadStoredDraft = (user) => {
   }
 };
 
+const isCanceledRequest = (error) =>
+  error?.code === "ERR_CANCELED" || error?.name === "CanceledError";
+
 const AssistantPage = () => {
-  const { user } = useAuth();
+  const { user, isPinLocked } = useAuth();
+  const userStorageId = getUserStorageId(user);
 
   const [messages, setMessages] = useState(() => loadStoredMessages(user));
   const [input, setInput] = useState(() => loadStoredDraft(user));
   const [isSending, setIsSending] = useState(false);
+  const [storageOwnerId, setStorageOwnerId] = useState(userStorageId);
   const [cooldownUntil, setCooldownUntil] = useState(() =>
     loadStoredCooldownUntil(user),
   );
@@ -144,23 +149,57 @@ const AssistantPage = () => {
       0,
     ),
   );
+
   const messagesEndRef = useRef(null);
+  const messagesScrollRef = useRef(null);
+  const requestControllerRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
+  const forceScrollRef = useRef(false);
 
   const isCoolingDown = cooldownSeconds > 0;
+  const interactionDisabled = isSending || isCoolingDown || isPinLocked;
 
   useEffect(() => {
+    if (storageOwnerId === userStorageId) {
+      return;
+    }
+
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    setIsSending(false);
+    setMessages(loadStoredMessages(user));
+    setInput(loadStoredDraft(user));
+
+    const nextCooldown = loadStoredCooldownUntil(user);
+    setCooldownUntil(nextCooldown);
+    setCooldownSeconds(
+      Math.max(Math.ceil((nextCooldown - Date.now()) / 1000), 0),
+    );
+    setStorageOwnerId(userStorageId);
+    shouldStickToBottomRef.current = true;
+    forceScrollRef.current = true;
+  }, [storageOwnerId, user, userStorageId]);
+
+  useEffect(() => {
+    if (storageOwnerId !== userStorageId) {
+      return;
+    }
+
     try {
       sessionStorage.setItem(
         getChatStorageKey(user),
         JSON.stringify(messages),
       );
     } catch {
-      // If sessionStorage is unavailable/full, the assistant still works;
-      // only session persistence is skipped.
+      // Session persistence is optional; chat remains usable in memory.
     }
-  }, [messages, user]);
+  }, [messages, storageOwnerId, user, userStorageId]);
 
   useEffect(() => {
+    if (storageOwnerId !== userStorageId) {
+      return;
+    }
+
     try {
       if (input) {
         sessionStorage.setItem(getDraftStorageKey(user), input);
@@ -170,7 +209,7 @@ const AssistantPage = () => {
     } catch {
       // Draft persistence is optional and should never block chat usage.
     }
-  }, [input, user]);
+  }, [input, storageOwnerId, user, userStorageId]);
 
   useEffect(() => {
     if (!cooldownUntil) {
@@ -204,15 +243,48 @@ const AssistantPage = () => {
   }, [cooldownUntil, user]);
 
   useEffect(() => {
+    if (!isPinLocked) {
+      return;
+    }
+
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    setIsSending(false);
+  }, [isPinLocked]);
+
+  useEffect(
+    () => () => {
+      requestControllerRef.current?.abort();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!forceScrollRef.current && !shouldStickToBottomRef.current) {
+      return;
+    }
+
     messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
+      behavior: forceScrollRef.current ? "smooth" : "auto",
       block: "nearest",
     });
+    forceScrollRef.current = false;
   }, [messages, isSending]);
 
+  const handleConversationScroll = (event) => {
+    const element = event.currentTarget;
+    const gap = element.scrollHeight - element.scrollTop - element.clientHeight;
+    shouldStickToBottomRef.current = gap < 120;
+  };
+
   const clearChat = () => {
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    setIsSending(false);
     setMessages([welcomeMessage]);
     setInput("");
+    shouldStickToBottomRef.current = true;
+    forceScrollRef.current = true;
 
     try {
       sessionStorage.removeItem(getChatStorageKey(user));
@@ -223,9 +295,9 @@ const AssistantPage = () => {
   };
 
   const handleSend = async (prompt = input) => {
-    const message = prompt.trim();
+    const message = String(prompt || "").trim();
 
-    if (!message || isSending || isCoolingDown) {
+    if (!message || interactionDisabled) {
       return;
     }
 
@@ -243,7 +315,13 @@ const AssistantPage = () => {
       }));
 
     const pendingMessage = makeMessage("user", message);
+    const requestOwnerId = userStorageId;
+    const controller = new AbortController();
 
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
+    shouldStickToBottomRef.current = true;
+    forceScrollRef.current = true;
     setMessages((current) => [...current, pendingMessage]);
     setInput("");
     setIsSending(true);
@@ -252,7 +330,15 @@ const AssistantPage = () => {
       const result = await sendAssistantMessage({
         message,
         history,
+        signal: controller.signal,
       });
+
+      if (
+        controller.signal.aborted ||
+        requestOwnerId !== getUserStorageId(user)
+      ) {
+        return;
+      }
 
       setMessages((current) => [
         ...current,
@@ -264,12 +350,15 @@ const AssistantPage = () => {
         }),
       ]);
     } catch (error) {
+      if (controller.signal.aborted || isCanceledRequest(error)) {
+        return;
+      }
+
       const messageText = getApiError(error);
       const retryAfterSeconds = getRetryAfterSeconds(error);
 
       if (error.response?.status === 429 && retryAfterSeconds) {
-        const nextCooldownUntil =
-          Date.now() + retryAfterSeconds * 1000;
+        const nextCooldownUntil = Date.now() + retryAfterSeconds * 1000;
 
         setMessages((current) =>
           current.filter((item) => item.id !== pendingMessage.id),
@@ -290,22 +379,23 @@ const AssistantPage = () => {
         toast.error(
           `Gemini is rate-limited. Sending will unlock in ${retryAfterSeconds}s.`,
         );
-
         return;
       }
 
       toast.error(messageText);
-
       setMessages((current) => [
         ...current,
         makeMessage(
           "assistant",
           `I couldn’t complete that request. ${messageText}`,
-          { isError: true },
+          { isError: true, retryPrompt: message },
         ),
       ]);
     } finally {
-      setIsSending(false);
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+        setIsSending(false);
+      }
     }
   };
 
@@ -319,7 +409,7 @@ const AssistantPage = () => {
   return (
     <PageContainer
       title="AI Assistant"
-      description="Ask questions about your FinTrack data and get grounded explanations, spending insights, and practical next steps."
+      description="Ask questions across your FinTrack finances, investments, and read-only market research with the appropriate ledger and data source kept distinct."
       action={
         <Button
           variant="secondary"
@@ -333,23 +423,25 @@ const AssistantPage = () => {
     >
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <DashboardCard className="self-start flex h-[calc(100vh-220px)] min-h-[560px] max-h-[760px] flex-col overflow-hidden p-0!">
-          <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+          <div className="border-b border-slate-800 px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-copper-400 to-steel-500 text-slate-950">
                 <Bot size={20} />
               </div>
               <div>
-                <p className="font-semibold text-slate-950 dark:text-white">
-                  FinTrack Assistant
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Grounded in your current FinTrack data
+                <p className="font-semibold text-white">FinTrack Assistant</p>
+                <p className="text-xs text-slate-400">
+                  Read-only · grounded in the relevant FinTrack data
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+          <div
+            ref={messagesScrollRef}
+            onScroll={handleConversationScroll}
+            className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6"
+          >
             {messages.map((message) => {
               const assistant = message.role === "assistant";
 
@@ -362,17 +454,30 @@ const AssistantPage = () => {
                     <div className="w-full max-w-[94%] sm:max-w-[88%]">
                       <AssistantResponseCard
                         presentation={message.presentation}
+                        onSuggestion={handleSend}
+                        suggestionsDisabled={interactionDisabled}
                       />
                     </div>
                   ) : (
                     <div
                       className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[78%] ${
                         assistant
-                          ? "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                          : "bg-copper-500 text-white shadow-sm shadow-copper-950/20 dark:text-slate-950"
+                          ? "border border-slate-700 bg-slate-800 text-slate-200"
+                          : "bg-copper-500 text-slate-950 shadow-sm shadow-copper-950/20"
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{message.content}</p>
+                      {message.isError && message.retryPrompt && (
+                        <button
+                          type="button"
+                          onClick={() => handleSend(message.retryPrompt)}
+                          disabled={interactionDisabled}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-600 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-copper-500/60 hover:text-copper-200 disabled:opacity-50"
+                        >
+                          <RefreshCw size={13} />
+                          Retry
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -381,9 +486,9 @@ const AssistantPage = () => {
 
             {isSending && (
               <div className="flex justify-start">
-                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-400">
                   <Sparkles size={16} className="animate-pulse text-copper-500" />
-                  Analyzing your FinTrack data…
+                  Selecting and analyzing the relevant FinTrack data…
                 </div>
               </div>
             )}
@@ -391,11 +496,17 @@ const AssistantPage = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+          <div className="border-t border-slate-800 bg-slate-900 p-4 sm:p-5">
             {isCoolingDown && (
-              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300">
+              <div className="mb-3 rounded-xl border border-amber-900/60 bg-amber-500/10 px-3.5 py-2.5 text-xs leading-5 text-amber-300">
                 Gemini is temporarily rate-limited. Your question has been restored below, and sending will unlock automatically in{" "}
                 <span className="font-semibold">{cooldownSeconds}s</span>.
+              </div>
+            )}
+
+            {isPinLocked && (
+              <div className="mb-3 rounded-xl border border-steel-600/50 bg-steel-500/10 px-3.5 py-2.5 text-xs leading-5 text-steel-200">
+                FinTrack is locked. Assistant requests are paused until this device is unlocked.
               </div>
             )}
 
@@ -406,19 +517,21 @@ const AssistantPage = () => {
                 onKeyDown={handleKeyDown}
                 maxLength={1200}
                 rows={2}
-                placeholder="Ask about spending, budgets, goals, or cash flow…"
-                className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-copper-400 focus:ring-2 focus:ring-copper-400/15 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                disabled={isSending}
+                placeholder="Ask about finances, investments, Autopay, goals, or a tracked stock…"
+                className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-copper-400 focus:ring-2 focus:ring-copper-400/15"
+                disabled={isSending || isPinLocked}
               />
 
               <Button
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isSending || isCoolingDown}
+                disabled={!input.trim() || interactionDisabled}
                 className="h-[52px] w-[52px] px-0"
                 aria-label={
-                  isCoolingDown
-                    ? `Send available in ${cooldownSeconds} seconds`
-                    : "Send message"
+                  isPinLocked
+                    ? "Unlock FinTrack to send"
+                    : isCoolingDown
+                      ? `Send available in ${cooldownSeconds} seconds`
+                      : "Send message"
                 }
               >
                 <Send size={18} />
@@ -439,15 +552,13 @@ const AssistantPage = () => {
         <div className="space-y-5 self-start">
           <DashboardCard>
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-copper-500/10 text-copper-300">
                 <BrainCircuit size={18} />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-950 dark:text-white">
-                  Try asking
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Start with one of these questions or write your own.
+                <h2 className="font-semibold text-white">Try asking</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  These prompts exercise different FinTrack data domains.
                 </p>
               </div>
             </div>
@@ -458,8 +569,8 @@ const AssistantPage = () => {
                   key={prompt}
                   type="button"
                   onClick={() => handleSend(prompt)}
-                  disabled={isSending || isCoolingDown}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-left text-sm leading-5 text-slate-700 transition hover:border-copper-300 hover:bg-copper-50/60 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-copper-700 dark:hover:bg-copper-500/10"
+                  disabled={interactionDisabled}
+                  className="w-full rounded-xl border border-slate-700 px-3.5 py-3 text-left text-sm leading-5 text-slate-200 transition hover:border-copper-700 hover:bg-copper-500/10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {prompt}
                 </button>
@@ -469,37 +580,33 @@ const AssistantPage = () => {
 
           <DashboardCard>
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-500/10 dark:text-cyan-400">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-steel-500/10 text-steel-200">
                 <WalletCards size={18} />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-950 dark:text-white">
-                  What it can analyze
-                </h2>
+                <h2 className="font-semibold text-white">What it can analyze</h2>
               </div>
             </div>
 
-            <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              <p>• Current-month income, expenses, and savings</p>
-              <p>• Spending anomalies, spikes, and scheduled patterns</p>
-              <p>• Budgets, pacing, and month-end forecasts</p>
-              <p>• Read-only what-if cash-flow simulations</p>
-              <p>• Accounts, goals, Autopay rules, and trends</p>
+            <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+              <p>• Income, expenses, transfers, accounts, and unified activity</p>
+              <p>• Budgets, goals, Autopay rules, anomalies, and forecasts</p>
+              <p>• FinTrack investment holdings, BUY/SELL history, and P&amp;L</p>
+              <p>• Watchlist and read-only NSE/BSE market research</p>
+              <p>• Deterministic what-if cash-flow simulations</p>
             </div>
           </DashboardCard>
 
           <DashboardCard>
             <div className="flex items-start gap-3">
-              <ShieldCheck size={20} className="mt-0.5 shrink-0 text-emerald-500" />
+              <ShieldCheck size={20} className="mt-0.5 shrink-0 text-copper-400" />
               <div>
-                <h2 className="font-semibold text-slate-950 dark:text-white">
-                  Privacy & scope
-                </h2>
-                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Your Gemini API key stays on the FinTrack server. Assistant requests send the relevant FinTrack financial context to the configured Gemini API service, and the assistant cannot modify your records.
+                <h2 className="font-semibold text-white">Privacy & scope</h2>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  The assistant is read-only. Relevant FinTrack context and, when needed, read-only public market data are sent through the server to the configured Gemini API service. Your Upstox brokerage account, funds, orders, and broker holdings are not connected or synchronized.
                 </p>
-                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Review the Gemini API provider’s current data-use terms before using real financial data. Responses are informational and may be imperfect; verify important financial decisions independently.
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  Market quotes may be live, delayed, closed-market, cached, or unavailable and are labelled accordingly. FinTrack does not use the assistant for future stock-price predictions or personalized buy/sell recommendations.
                 </p>
               </div>
             </div>

@@ -1881,6 +1881,267 @@ const simulationPresentation = ({ reply, data }) => {
   };
 };
 
+const pnlTone = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric === 0) return "neutral";
+  return numeric > 0 ? "positive" : "warning";
+};
+
+const freshnessLabel = (value) => {
+  const labels = {
+    LIVE: "Live market quote",
+    DELAYED: "Recent/delayed quote",
+    CACHED: "Cached quote",
+    CLOSED_MARKET: "Market closed · last available quote",
+    UNAVAILABLE: "Market quote unavailable",
+  };
+  return labels[value] || "Quote status unavailable";
+};
+
+const investmentPortfolioPresentation = ({ reply, data }) => {
+  const portfolioSummary = data.summary || {};
+  const holdings = Array.isArray(data.holdings) ? data.holdings : [];
+  const filtered = Boolean(data.filters?.symbol || data.filters?.exchange || data.filters?.account);
+  const summary = filtered ? (data.selectionSummary || portfolioSummary) : portfolioSummary;
+  const best = [...holdings].sort((a, b) => Number(b.totalPnl || 0) - Number(a.totalPnl || 0))[0];
+  const worst = [...holdings].sort((a, b) => Number(a.totalPnl || 0) - Number(b.totalPnl || 0))[0];
+  const visibleValue = holdings.reduce((sum, item) => sum + Number(item.marketValue || 0), 0);
+  const fallbackCount = holdings.filter((item) => item.priceIsCostEstimate || ["CACHED", "UNAVAILABLE"].includes(item.quote?.freshness)).length;
+
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: holdings.length
+      ? `${filtered ? `${holdings.length} matching holding${holdings.length === 1 ? "" : "s"}` : `${summary.holdings || holdings.length} portfolio holding${Number(summary.holdings || holdings.length) === 1 ? "" : "s"}`} · ${formatMoney(filtered ? visibleValue : summary.marketValue, "INR")} market value.`
+      : data.note || "No current FinTrack investment holdings matched this request.",
+    status: pnlTone(summary.totalPnl),
+    statusLabel: Number(summary.totalPnl) > 0 ? "Positive P&L" : Number(summary.totalPnl) < 0 ? "Negative P&L" : "Portfolio",
+    metrics: [
+      {
+        label: filtered ? "Matching market value" : "Portfolio market value",
+        value: formatMoney(filtered ? visibleValue : summary.marketValue, "INR"),
+        detail: filtered ? "Filtered current holdings" : `${summary.holdings || holdings.length} active holding${Number(summary.holdings || holdings.length) === 1 ? "" : "s"}`,
+        tone: "neutral",
+      },
+      {
+        label: "Unrealised P&L",
+        value: formatMoney(summary.unrealizedPnl, "INR"),
+        detail: "Current valuation versus open cost basis",
+        tone: pnlTone(summary.unrealizedPnl),
+      },
+      {
+        label: "Realised P&L",
+        value: formatMoney(summary.realizedPnl, "INR"),
+        detail: "Recorded completed sells",
+        tone: pnlTone(summary.realizedPnl),
+      },
+      {
+        label: "Broker cash",
+        value: formatMoney(data.analytics?.cash, "INR"),
+        detail: `${formatPercent(data.analytics?.cashPercent)} of tracked investment value`,
+        tone: "neutral",
+      },
+    ].slice(0, 4),
+    insights: [
+      best && holdings.length > 1
+        ? `${best.symbol} · ${best.exchange} currently has the highest total P&L among the retrieved holdings at ${formatMoney(best.totalPnl, "INR")}.`
+        : null,
+      worst && holdings.length > 1 && worst.symbol !== best?.symbol
+        ? `${worst.symbol} · ${worst.exchange} currently has the lowest total P&L among the retrieved holdings at ${formatMoney(worst.totalPnl, "INR")}.`
+        : null,
+      fallbackCount > 0
+        ? `${fallbackCount} retrieved holding${fallbackCount === 1 ? " uses" : "s use"} cached/unavailable market data or cost-basis fallback; treat that valuation accordingly.`
+        : null,
+      Number(data.analytics?.topHoldingPercent || 0) > 0
+        ? `The largest holding represents ${formatPercent(data.analytics.topHoldingPercent)} of current equity value.`
+        : null,
+    ].filter(Boolean).slice(0, 4),
+    recommendations: [],
+    confidence: fallbackCount > 0 ? "medium" : "high",
+    evidence: [
+      "FinTrack investment ledger",
+      `Upstox read-only market data · ${Object.entries(data.market?.exchangeStatus || {}).map(([exchange, state]) => `${exchange} ${state}`).join(" · ") || "exchange status unavailable"}`,
+    ],
+    links: [{ label: "Open Investments", href: "/investments" }],
+    suggestions: [
+      "Show my recent investment trades.",
+      "What is my realised versus unrealised P&L?",
+      "What is on my investment watchlist?",
+    ],
+  };
+};
+
+const investmentActivityPresentation = ({ reply, data }) => {
+  const trades = Array.isArray(data.trades) ? data.trades : [];
+  const latest = trades[0];
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: data.note || `${trades.length} investment trade${trades.length === 1 ? "" : "s"} were retrieved from the FinTrack investment ledger.`,
+    status: pnlTone(data.summary?.realizedPnl),
+    statusLabel: "Investment activity",
+    metrics: [
+      { label: "Trades", value: String(data.summary?.count ?? trades.length), detail: `${data.summary?.buys || 0} buys · ${data.summary?.sells || 0} sells`, tone: "neutral" },
+      { label: "Net cash movement", value: formatMoney(data.summary?.netCashMovement, "INR"), detail: "BUY/SELL cash effect; not income/expense", tone: "neutral" },
+      { label: "Realised P&L", value: formatMoney(data.summary?.realizedPnl, "INR"), detail: "Realised on retrieved SELL records", tone: pnlTone(data.summary?.realizedPnl) },
+      latest ? { label: "Latest trade", value: `${latest.type} ${latest.symbol || "—"}`, detail: `${latest.quantity || 0} shares · ${formatMoney(latest.price, "INR")}`, tone: "neutral" } : null,
+    ].filter(Boolean).slice(0, 4),
+    insights: latest
+      ? [`Latest retrieved investment activity: ${latest.type} ${latest.quantity} ${latest.symbol} · ${latest.exchange} at ${formatMoney(latest.price, "INR")}.`]
+      : [],
+    recommendations: [],
+    confidence: "high",
+    evidence: ["FinTrack InvestmentTrade ledger", data.dataCoverage ? `${data.dataCoverage.startDate} → ${data.dataCoverage.endDate}` : null].filter(Boolean),
+    links: [{ label: "Open Investment activity", href: "/investments" }],
+    suggestions: ["How is my investment portfolio performing?", "Show my realised P&L by recent sells."],
+  };
+};
+
+const investmentWatchlistPresentation = ({ reply, data }) => {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const available = items.filter((item) => Number.isFinite(Number(item.quote?.lastPrice)));
+  const biggestMove = [...available].sort((a, b) => Math.abs(Number(b.quote?.changePercent || 0)) - Math.abs(Number(a.quote?.changePercent || 0)))[0];
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: `${items.length} stock${items.length === 1 ? " is" : "s are"} currently on your FinTrack watchlist.`,
+    status: "neutral",
+    statusLabel: "Watchlist",
+    metrics: items.slice(0, 4).map((item) => ({
+      label: `${item.symbol} · ${item.exchange}`,
+      value: item.quote?.lastPrice == null ? "—" : formatMoney(item.quote.lastPrice, "INR"),
+      detail: `${item.quote?.changePercent == null ? "Change unavailable" : `${Number(item.quote.changePercent) >= 0 ? "+" : ""}${formatPercent(item.quote.changePercent)}`} · ${freshnessLabel(item.quote?.freshness)}`,
+      tone: pnlTone(item.quote?.change),
+    })),
+    insights: biggestMove
+      ? [`${biggestMove.symbol} has the largest absolute daily move in the retrieved watchlist at ${formatPercent(biggestMove.quote.changePercent)}. A watchlist item is not necessarily owned.`]
+      : [],
+    recommendations: [],
+    confidence: items.some((item) => ["CACHED", "UNAVAILABLE"].includes(item.quote?.freshness)) ? "medium" : "high",
+    evidence: ["FinTrack watchlist", "Upstox read-only market quotes"],
+    links: [{ label: "Open Watchlist", href: "/investments" }],
+    suggestions: ["How is my actual investment portfolio performing?", "Show my recent investment trades."],
+  };
+};
+
+const investmentCalendarPresentation = ({ reply, data }) => {
+  const holidays = Array.isArray(data.marketHolidays) ? data.marketHolidays : [];
+  const actions = Array.isArray(data.corporateActions) ? data.corporateActions : [];
+  const nextHoliday = holidays[0];
+  const nextAction = actions[0];
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: data.warning
+      ? `Investment calendar loaded with partial provider availability · ${holidays.length} market holiday${holidays.length === 1 ? "" : "s"} and ${actions.length} corporate action${actions.length === 1 ? "" : "s"}.`
+      : `${holidays.length} upcoming NSE/BSE market holiday${holidays.length === 1 ? "" : "s"} and ${actions.length} tracked corporate action${actions.length === 1 ? "" : "s"} are currently available.`,
+    status: data.warning ? "warning" : "neutral",
+    statusLabel: "Investment calendar",
+    metrics: [
+      { label: "Tracked instruments", value: String(data.trackedInstruments || 0), detail: "FinTrack holdings + watchlist", tone: "neutral" },
+      { label: "Market holidays", value: String(holidays.length), detail: nextHoliday ? `${nextHoliday.date} · ${nextHoliday.name}` : "No upcoming holiday returned", tone: "neutral" },
+      { label: "Corporate actions", value: String(actions.length), detail: nextAction ? `${nextAction.symbol || "Stock"} · ${nextAction.name}` : "No tracked action returned", tone: "neutral" },
+      { label: "Provider availability", value: data.warning ? "Partial" : "Available", detail: data.fetchedAt ? `Checked ${data.fetchedAt}` : "Upstox calendar data", tone: data.warning ? "warning" : "neutral" },
+    ],
+    insights: [
+      nextHoliday ? `Next retrieved market holiday: ${nextHoliday.date} · ${nextHoliday.name}${nextHoliday.exchanges?.length ? ` · ${nextHoliday.exchanges.join("/")}` : ""}.` : null,
+      nextAction ? `Next retrieved tracked-company action: ${nextAction.symbol || "Stock"} · ${nextAction.name}${nextAction.dateLabel ? ` · ${nextAction.dateLabel}` : ""}.` : null,
+      data.warning || null,
+    ].filter(Boolean).slice(0, 4),
+    recommendations: [],
+    confidence: data.warning ? "medium" : "high",
+    evidence: [
+      "FinTrack held/watchlisted instruments",
+      "Upstox read-only market holidays/corporate actions",
+      "No Upstox brokerage-account data is connected",
+    ],
+    links: [{ label: "Open Investment calendar", href: "/investments" }],
+    suggestions: ["Show my investment portfolio.", "What is on my watchlist?"],
+  };
+};
+
+const stockResearchPresentation = ({ reply, data }) => {
+  if (!data.resolved) {
+    return {
+      answer: getFallbackAnswer(reply),
+      summary: data.note || "FinTrack could not resolve that NSE/BSE instrument safely.",
+      status: "warning",
+      metrics: [],
+      insights: (data.candidates || []).slice(0, 4).map((item) => `${item.symbol} · ${item.exchange} · ${item.name}`),
+      recommendations: [],
+      confidence: "low",
+      evidence: ["FinTrack instrument index"],
+      suggestions: [],
+    };
+  }
+
+  const quote = data.quote || {};
+  const symbol = data.instrument?.symbol || "Stock";
+  const exchange = data.instrument?.exchange || "";
+  const history = data.history;
+  const profile = data.fundamentals;
+  const metrics = [
+    { label: "Last price", value: quote.lastPrice == null ? "—" : formatMoney(quote.lastPrice, "INR"), detail: freshnessLabel(quote.freshness), tone: pnlTone(quote.change) },
+    { label: "Daily change", value: quote.changePercent == null ? "—" : `${Number(quote.changePercent) >= 0 ? "+" : ""}${formatPercent(quote.changePercent)}`, detail: quote.previousClose == null ? "Previous close unavailable" : `Previous close ${formatMoney(quote.previousClose, "INR")}`, tone: pnlTone(quote.change) },
+    history ? { label: `${history.period} change`, value: history.changePercent == null ? "—" : `${Number(history.changePercent) >= 0 ? "+" : ""}${formatPercent(history.changePercent)}`, detail: `${history.points} historical candle${history.points === 1 ? "" : "s"}`, tone: pnlTone(history.change) } : null,
+    quote.yearHigh != null && quote.yearLow != null ? { label: "52-week range", value: `${formatMoney(quote.yearLow, "INR")} – ${formatMoney(quote.yearHigh, "INR")}`, detail: `${symbol} · ${exchange}`, tone: "neutral" } : null,
+  ].filter(Boolean).slice(0, 4);
+
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: `${symbol} · ${exchange}${quote.lastPrice == null ? " market data is currently unavailable." : ` last available price is ${formatMoney(quote.lastPrice, "INR")}.`}`,
+    status: pnlTone(quote.change),
+    statusLabel: "Market data",
+    metrics,
+    insights: [
+      profile?.sector ? `Sector: ${profile.sector}.` : null,
+      Array.isArray(data.news) && data.news[0]?.heading ? `Latest retrieved headline: ${data.news[0].heading}` : null,
+      data.market?.warning || null,
+    ].filter(Boolean).slice(0, 4),
+    recommendations: [],
+    confidence: ["LIVE", "CLOSED_MARKET", "DELAYED"].includes(quote.freshness) ? "high" : "medium",
+    evidence: [
+      `Upstox read-only market/research data · ${data.market?.exchangeStatus || "UNKNOWN"}`,
+      quote.lastTradeAt ? `Last trade ${quote.lastTradeAt}` : null,
+      "No Upstox brokerage-account data is connected",
+    ].filter(Boolean),
+    links: data.navigationPath
+      ? [{ label: `Open ${symbol} details`, href: data.navigationPath }]
+      : [{ label: "Open Investments", href: "/investments" }],
+    suggestions: [
+      `Show ${symbol} price history.`,
+      `Show recent news for ${symbol}.`,
+      `Show fundamentals for ${symbol}.`,
+    ],
+    chart: history?.sampled?.length > 1 ? {
+      label: `${symbol} · ${history.period}`,
+      points: history.sampled.map((point) => ({ label: point.at, value: point.close })),
+      changePercent: history.changePercent,
+    } : null,
+  };
+};
+
+const accountActivityPresentation = ({ reply, data }) => {
+  const rows = Array.isArray(data.activity) ? data.activity : [];
+  const investmentCount = rows.filter((row) => row.recordKind === "INVESTMENT_TRADE").length;
+  const ordinaryCount = rows.length - investmentCount;
+  return {
+    answer: getFallbackAnswer(reply),
+    summary: data.note || `${rows.length} activity row${rows.length === 1 ? "" : "s"} were retrieved for ${data.account?.name || "the selected account"}.`,
+    status: "neutral",
+    statusLabel: "Account activity",
+    metrics: [
+      { label: data.account?.type === "INVESTMENT" ? "Broker cash" : "Account balance", value: formatMoney(data.account?.balance, data.account?.currency || "INR"), detail: data.account?.type === "INVESTMENT" ? `${data.account?.name || "Investment account"} · holdings valued separately` : data.account?.name || "Account", tone: "neutral" },
+      { label: "Activity rows", value: String(rows.length), detail: `${ordinaryCount} ordinary · ${investmentCount} investment`, tone: "neutral" },
+      rows[0] ? { label: "Latest activity", value: rows[0].type || "—", detail: `${rows[0].title || "Activity"} · ${formatMoney(rows[0].amount, rows[0].currency || "INR")}`, tone: "neutral" } : null,
+    ].filter(Boolean),
+    insights: investmentCount > 0
+      ? ["Investment BUY/SELL rows are included for account history but remain separate from ordinary income/expense accounting."]
+      : [],
+    recommendations: [],
+    confidence: "high",
+    evidence: ["FinTrack unified activity feed", data.dataCoverage ? `${data.dataCoverage.startDate} → ${data.dataCoverage.endDate}` : null].filter(Boolean),
+    links: [{ label: "Open Transactions", href: "/transactions" }],
+    suggestions: ["Show upcoming Autopay items for this account.", "Show my recent transfers."],
+  };
+};
+
 const limitationPresentation = ({
   reply,
   data,
@@ -1940,6 +2201,48 @@ const buildDeterministicPresentation = ({
     return spendingPatternsPresentation({
       reply,
       data: toolResults.get("analyze_spending_patterns"),
+    });
+  }
+
+  if (toolResults.has("get_investment_portfolio")) {
+    return investmentPortfolioPresentation({
+      reply,
+      data: toolResults.get("get_investment_portfolio"),
+    });
+  }
+
+  if (toolResults.has("get_investment_activity")) {
+    return investmentActivityPresentation({
+      reply,
+      data: toolResults.get("get_investment_activity"),
+    });
+  }
+
+  if (toolResults.has("get_investment_calendar")) {
+    return investmentCalendarPresentation({
+      reply,
+      data: toolResults.get("get_investment_calendar"),
+    });
+  }
+
+  if (toolResults.has("get_stock_research")) {
+    return stockResearchPresentation({
+      reply,
+      data: toolResults.get("get_stock_research"),
+    });
+  }
+
+  if (toolResults.has("get_investment_watchlist")) {
+    return investmentWatchlistPresentation({
+      reply,
+      data: toolResults.get("get_investment_watchlist"),
+    });
+  }
+
+  if (toolResults.has("get_account_activity")) {
+    return accountActivityPresentation({
+      reply,
+      data: toolResults.get("get_account_activity"),
     });
   }
 

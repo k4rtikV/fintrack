@@ -5,7 +5,7 @@ import api from "../api/axios";
 // slowing down or masking timeouts for the rest of FinTrack.
 const ASSISTANT_REQUEST_TIMEOUT_MS = 90000;
 
-const sendAssistantMessage = async ({ message, history = [] }) => {
+const sendAssistantMessage = async ({ message, history = [], signal }) => {
   const response = await api.post(
     "/assistant/chat",
     {
@@ -14,6 +14,7 @@ const sendAssistantMessage = async ({ message, history = [] }) => {
     },
     {
       timeout: ASSISTANT_REQUEST_TIMEOUT_MS,
+      signal,
     },
   );
 
