@@ -1,4 +1,6 @@
 import api from "../api/axios";
+import exportTransactionsCsv from "../utils/exportTransactionsCsv";
+import { getDateKeyInTimeZone } from "../utils/dateUtils";
 
 const getTransactions = async (params = {}) => {
   const response = await api.get("/transactions/activity", { params });
@@ -8,7 +10,7 @@ const getTransactions = async (params = {}) => {
   };
 };
 
-const getTransactionsForExport = async (params = {}) => {
+const getTransactionsForExport = async (params = {}, { signal } = {}) => {
   const exportFilters = { ...params };
   delete exportFilters.page;
   delete exportFilters.limit;
@@ -19,12 +21,14 @@ const getTransactionsForExport = async (params = {}) => {
   let totalPages = 1;
 
   do {
+    if (signal?.aborted) throw Object.assign(new Error("Transaction export canceled"), { code: "ERR_CANCELED" });
     const response = await api.get("/transactions/activity", {
       params: {
         ...exportFilters,
         page,
         limit: pageSize,
       },
+      signal,
     });
 
     const rows = response.data.data.transactions || [];
@@ -38,6 +42,48 @@ const getTransactionsForExport = async (params = {}) => {
   } while (page <= totalPages);
 
   return transactions;
+};
+
+// Route-independent CSV exports behave like the monthly PDF coordinator:
+// leaving Transactions doesn't discard the job, re-entry can't duplicate it,
+// and PIN lock / logout suppresses any later private file download.
+const activeExports = new Map();
+const exportListeners = new Set();
+const notifyExports = () => exportListeners.forEach((listener) => listener());
+const subscribeTransactionExports = (listener) => {
+  exportListeners.add(listener);
+  return () => exportListeners.delete(listener);
+};
+const getTransactionExportSnapshot = () => [...activeExports.keys()].sort().join("|");
+const cancelPendingTransactionExports = () => {
+  for (const job of activeExports.values()) job.controller.abort();
+  activeExports.clear();
+  notifyExports();
+};
+const downloadTransactionsCsv = ({ params, userId, timezone }) => {
+  const key = String(userId || "active-user");
+  const existing = activeExports.get(key);
+  if (existing) return existing.promise;
+  const controller = new AbortController();
+  const promise = getTransactionsForExport(params, { signal: controller.signal })
+    .then((rows) => {
+      if (controller.signal.aborted) throw Object.assign(new Error("Transaction export canceled"), { code: "ERR_CANCELED" });
+      if (!rows.length) return 0;
+      exportTransactionsCsv({
+        transactions: rows,
+        filename: `fintrack-transactions-${getDateKeyInTimeZone(new Date(), timezone)}.csv`,
+      });
+      return rows.length;
+    })
+    .finally(() => {
+      if (activeExports.get(key)?.controller === controller) {
+        activeExports.delete(key);
+        notifyExports();
+      }
+    });
+  activeExports.set(key, { controller, promise });
+  notifyExports();
+  return promise;
 };
 
 const createTransaction = async (payload) =>
@@ -60,6 +106,8 @@ const getCategories = async (type) =>
   ).data.data.categories;
 
 export {
+  cancelPendingTransactionExports, downloadTransactionsCsv,
+  getTransactionExportSnapshot, subscribeTransactionExports,
   createTransaction,
   deleteTransaction,
   getAccounts,

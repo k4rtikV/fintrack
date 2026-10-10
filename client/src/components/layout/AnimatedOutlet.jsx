@@ -21,9 +21,11 @@ const AnimatedOutlet = () => {
     if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
   }, [location.pathname]);
 
+  // Query/hash navigation within the same route must not remount local state.
+  // Only a different pathname triggers a new route stage / animation.
   return (
     <div
-      key={location.key || location.pathname}
+      key={location.pathname}
       className={`ft-route-stage ft-route-${direction}`}
       data-route-direction={direction}
     >

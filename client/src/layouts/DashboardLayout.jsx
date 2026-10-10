@@ -1,13 +1,17 @@
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import useAuth from "../hooks/useAuth";
 
 import AnimatedOutlet from "../components/layout/AnimatedOutlet";
+import StatementImportHost from "../components/transactions/StatementImportHost";
 import Topbar from "../components/layout/Topbar";
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
+    <StatementImportHost key={user?._id || user?.id}>
     <div className="min-h-screen bg-slate-50 text-slate-950 transition-colors dark:bg-slate-950 dark:text-slate-100">
       <Topbar />
 
@@ -24,6 +28,7 @@ const DashboardLayout = () => {
         <Plus size={24} />
       </button>
     </div>
+    </StatementImportHost>
   );
 };
 

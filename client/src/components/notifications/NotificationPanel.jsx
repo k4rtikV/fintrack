@@ -31,13 +31,15 @@ const NotificationPanel = ({
 }) => {
   const navigate = useNavigate();
 
-  const openNotification = async (notification) => {
-    if (!notification.isRead) {
-      await onMarkRead(notification._id);
-    }
+  const openNotification = (notification) => {
+    // Navigation must not wait for a secondary read-receipt request. A slow
+    // notification API used to freeze the click-to-open workflow.
     if (notification.actionUrl) {
-      navigate(notification.actionUrl);
       onClose();
+      navigate(notification.actionUrl);
+    }
+    if (!notification.isRead) {
+      void Promise.resolve().then(() => onMarkRead(notification._id));
     }
   };
 

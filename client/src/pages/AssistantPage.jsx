@@ -47,7 +47,6 @@ const AssistantPage = () => {
     ),
   );
 
-  const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const forceScrollRef = useRef(false);
@@ -91,10 +90,17 @@ const AssistantPage = () => {
       return;
     }
 
-    messagesEndRef.current?.scrollIntoView({
-      behavior: forceScrollRef.current ? "smooth" : "auto",
-      block: "nearest",
-    });
+    // scrollIntoView can scroll the *document* as well as the chat pane,
+    // causing a route-enter / navigation chain to jump down the workspace.
+    const pane = messagesScrollRef.current;
+    if (pane) {
+      pane.scrollTo({
+        top: pane.scrollHeight,
+        behavior: forceScrollRef.current &&
+          !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "smooth" : "auto",
+      });
+    }
     forceScrollRef.current = false;
   }, [messages, isSending]);
 
@@ -215,7 +221,7 @@ const AssistantPage = () => {
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+
           </div>
 
           <div className="border-t border-slate-800 bg-slate-900 p-4 sm:p-5">

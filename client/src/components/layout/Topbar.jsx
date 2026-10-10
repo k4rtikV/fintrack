@@ -17,13 +17,19 @@ const Topbar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const notificationAreaRef = useRef(null);
+  const notificationsRevisionRef = useRef(0);
 
   const loadNotifications = useCallback(async ({ silent = false } = {}) => {
+    const revision = ++notificationsRevisionRef.current;
     if (!silent) setNotificationsLoading(true);
     try {
       const response = await getNotifications(30);
-      setNotifications(response.data.notifications || []);
-      setUnreadCount(response.data.unreadCount || 0);
+      // Polls and manual refreshes can finish out of order. Do not replace a
+      // newer/read notification state with an older HTTP response.
+      if (revision === notificationsRevisionRef.current) {
+        setNotifications(response.data.notifications || []);
+        setUnreadCount(response.data.unreadCount || 0);
+      }
     } catch (error) {
       if (!silent) console.error("Could not load notifications", error);
     } finally {
@@ -77,7 +83,7 @@ const Topbar = () => {
   }, [notificationsOpen]);
 
   const handleMarkRead = async (notificationId) => {
-    await markNotificationRead(notificationId);
+    notificationsRevisionRef.current += 1;
     setNotifications((items) =>
       items.map((item) =>
         item._id === notificationId
@@ -86,10 +92,15 @@ const Topbar = () => {
       ),
     );
     setUnreadCount((count) => Math.max(0, count - 1));
+    try {
+      await markNotificationRead(notificationId);
+    } catch {
+      await loadNotifications({ silent: true });
+    }
   };
 
   const handleMarkAllRead = async () => {
-    await markAllNotificationsRead();
+    notificationsRevisionRef.current += 1;
     setNotifications((items) =>
       items.map((item) => ({
         ...item,
@@ -98,6 +109,11 @@ const Topbar = () => {
       })),
     );
     setUnreadCount(0);
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      await loadNotifications({ silent: true });
+    }
   };
 
   return (

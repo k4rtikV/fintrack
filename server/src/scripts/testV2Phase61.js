@@ -24,7 +24,7 @@ assert(activity.includes("{ $unionWith:") && activity.includes("InvestmentTrade.
 assert(activity.includes("{ user }") && activity.includes("trade.account = account"), "Activity trade search must be user-owned and account-filtered");
 assert(activity.includes('recordKind: "INVESTMENT_TRADE"') && !activity.includes("InvestmentTrade.create"), "Investment activity must be read-only without duplicate ledger writes");
 assert(activity.includes('ordinary._id = { $exists: false }') && activity.includes('trade._id = { $exists: false }'), "Investment and ordinary filters must remain mutually exclusive");
-assert(transactionService.includes('api.get("/transactions/activity"') && transactionPage.includes("getTransactionsForExport"), "Table and CSV must use unified activity feed");
+assert(transactionService.includes('api.get("/transactions/activity"') && transactionPage.includes("downloadTransactionsCsv") && transactionService.includes("getTransactionsForExport(params"), "Table and CSV must use unified activity feed");
 assert(table.includes('disabled={isTrade}') && table.includes('recordKind === "INVESTMENT_TRADE"'), "Investment trades must not enter ordinary transaction edit/bulk-delete paths");
 assert(csv.includes('"Net cash movement"') && csv.includes('"Realised P&L"') && csv.includes("neutralizeSpreadsheetFormula"), "CSV must retain investment-specific columns and spreadsheet safety");
 assert(accounts.includes('navigate(`/transactions?accountId='), "Account history shortcut must preserve accountId in the URL");

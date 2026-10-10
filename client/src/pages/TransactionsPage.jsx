@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, FileUp, Plus, ReceiptText, Repeat2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -10,12 +10,12 @@ import PageContainer from "../components/layout/PageContainer";
 import TransactionFilters from "../components/transactions/TransactionFilters";
 import TransactionModal from "../components/transactions/TransactionModal";
 import TransactionTable from "../components/transactions/TransactionTable";
-import StatementImportModal from "../components/transactions/StatementImportModal";
 import TransactionWorkspaceNav from "../components/transactions/TransactionWorkspaceNav";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
 import useAuth from "../hooks/useAuth";
+import useStatementImport from "../hooks/useStatementImport";
 import { createAccount, getAccounts as getAccountDirectory } from "../services/accountService";
 import {
   createTransaction,
@@ -23,11 +23,11 @@ import {
   getAccounts,
   getCategories,
   getTransactions,
-  getTransactionsForExport,
+  downloadTransactionsCsv,
+  getTransactionExportSnapshot,
+  subscribeTransactionExports,
   updateTransaction,
 } from "../services/transactionService";
-import { getDateKeyInTimeZone } from "../utils/dateUtils";
-import exportTransactionsCsv from "../utils/exportTransactionsCsv";
 import getApiError from "../utils/getApiError";
 import { announceNotificationsChanged } from "../utils/notificationEvents";
 import { readTemplates, saveTemplate } from "../utils/transactionTemplates";
@@ -47,20 +47,21 @@ const initialFilters = {
 
 const TransactionsPage = () => {
   const { user } = useAuth();
+  const { openStatementImport } = useStatementImport();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const accountFromUrl = searchParams.get("accountId") || "";
   const [filters, setFilters] = useState(() => ({ ...initialFilters, accountId: /^[a-f0-9]{24}$/i.test(accountFromUrl) ? accountFromUrl : "" }));
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAccountOnboardingOpen, setIsAccountOnboardingOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [deletingId, setDeletingId] = useState("");
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const activeExports = useSyncExternalStore(subscribeTransactionExports, getTransactionExportSnapshot);
+  const isExporting = activeExports.split("|").includes(String(user?._id || user?.id || "active-user"));
   const [templates, setTemplates] = useState(() => readTemplates(user));
   const [debouncedSearch, setDebouncedSearch] = useState(initialFilters.search);
 
@@ -218,6 +219,8 @@ const TransactionsPage = () => {
 
   useEffect(() => {
     const handleShortcut = (event) => {
+      if (event.defaultPrevented || event.repeat || event.isComposing ||
+          document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         document.getElementById("transaction-search")?.focus();
@@ -273,37 +276,52 @@ const TransactionsPage = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!selectedIds.length || !window.confirm(`Delete ${selectedIds.length} selected transactions? Account balances will be restored.`)) return;
+    if (isBulkDeleting || !selectedIds.length || !window.confirm(`Delete ${selectedIds.length} selected transactions? Account balances will be restored.`)) return;
     setIsBulkDeleting(true);
+    const ids = [...selectedIds];
+    let deleted = 0;
+    let failed = 0;
+    // Many selected rows can affect the SAME account. Parallel MongoDB
+    // balance transactions can write-conflict or finish partially. Serialize
+    // deliberately and reconcile the list only after the batch finishes.
+    for (const id of ids) {
+      try {
+        await deleteTransaction(id);
+        deleted += 1;
+      } catch {
+        failed += 1;
+      }
+    }
     try {
-      await Promise.all(selectedIds.map((id) => deleteTransaction(id)));
-      toast.success(`${selectedIds.length} transactions deleted`);
       await refreshFinanceData();
-    } catch (error) {
-      toast.error(getApiError(error, "Some transactions could not be deleted"));
-      await refreshFinanceData();
+    } catch {
+      // A read-cache error must never turn successfully committed deletes
+      // into a misleading "delete failed" message.
     } finally {
       setIsBulkDeleting(false);
     }
+    if (failed) toast.error(`${deleted} deleted; ${failed} could not be deleted. Review the refreshed history before retrying.`);
+    else toast.success(`${deleted} transactions deleted`);
   };
 
   const handleExport = async () => {
-    setIsExporting(true);
+    if (isExporting) return;
+    const exportFilters = Object.fromEntries(
+      Object.entries({ ...filters, search: filters.search.trim() })
+        .filter(([, value]) => value !== ""),
+    );
     try {
-      const exportFilters = Object.fromEntries(
-        Object.entries({
-          ...filters,
-          search: filters.search.trim(),
-        }).filter(([, value]) => value !== ""),
-      );
-      const exportRows = await getTransactionsForExport(exportFilters);
-      if (!exportRows.length) return toast.error("There are no matching transactions to export");
-      exportTransactionsCsv({ transactions: exportRows, filename: `fintrack-transactions-${getDateKeyInTimeZone(new Date(), user?.timezone)}.csv` });
-      toast.success(`${exportRows.length} transactions exported`);
+      const count = await downloadTransactionsCsv({
+        params: exportFilters,
+        userId: user?._id || user?.id,
+        timezone: user?.timezone,
+      });
+      if (!count) toast.error("There are no matching transactions to export");
+      else toast.success(`${count} transactions exported`);
     } catch (error) {
-      toast.error(getApiError(error, "Unable to export transactions"));
-    } finally {
-      setIsExporting(false);
+      if (error?.code !== "ERR_CANCELED" && error?.name !== "CanceledError") {
+        toast.error(getApiError(error, "Unable to export transactions"));
+      }
     }
   };
 
@@ -317,7 +335,7 @@ const TransactionsPage = () => {
     <PageContainer
       title="Transactions"
       description="Review expenses, income, transfers, and investment trades in one activity view. Autopay handles scheduled movements."
-      action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={() => setIsImportOpen(true)}><FileUp size={17}/>Import statement</Button><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button variant="secondary" onClick={() => navigate("/transactions/autopay")}><Repeat2 size={17} />Set up Autopay</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
+      action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={openStatementImport}><FileUp size={17}/>Import statement</Button><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button variant="secondary" onClick={() => navigate("/transactions/autopay")}><Repeat2 size={17} />Set up Autopay</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
     >
       <TransactionWorkspaceNav />
 
@@ -357,7 +375,6 @@ const TransactionsPage = () => {
         )}
       </DashboardCard>
 
-      <StatementImportModal open={isImportOpen} accounts={accounts} categories={categories} onClose={() => setIsImportOpen(false)} onImported={refreshFinanceData} />
       <TransactionModal accounts={accounts} categories={categories} isOpen={isModalOpen} isSaving={saveMutation.isPending} transaction={selectedTransaction} template={selectedTemplate} timezone={user?.timezone} onClose={() => { if (!saveMutation.isPending) { setIsModalOpen(false); setSelectedTransaction(null); setSelectedTemplate(null); } }} onSubmit={(payload) => saveMutation.mutateAsync(payload)} />
 
       <AccountModal

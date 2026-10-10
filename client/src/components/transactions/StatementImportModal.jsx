@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, RefreshCw, UploadCloud, X } from "lucide-react";
 import toast from "react-hot-toast";
 import Button from "../ui/Button";
@@ -42,6 +42,14 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
   const [error, setError] = useState("");
   const [history, setHistory] = useState([]);
   const [completion, setCompletion] = useState(null);
+  const aliveRef = useRef(false);
+  const activeActionRef = useRef("");
+  const dialogRef = useRef(null);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const availableAccounts = useMemo(() => accounts.filter((item) => !item.isArchived && item.currency === "INR" && item.type === "BANK"), [accounts]);
   const incomeCategories = useMemo(() => categories.filter((item) => item.type === "INCOME" && !item.isArchived), [categories]);
@@ -53,13 +61,37 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
   useEffect(() => {
     if (!open) return undefined;
     const oldOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement;
     document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
     let alive = true;
     getImportHistory().then((list) => { if (alive) setHistory(list); }).catch(() => {});
-    return () => { alive = false; document.body.style.overflow = oldOverflow; };
+    return () => {
+      alive = false;
+      document.body.style.overflow = oldOverflow;
+      if (previousFocus?.isConnected && typeof previousFocus.focus === "function") previousFocus.focus();
+    };
   }, [open]);
 
   if (!open) return null;
+  const handleDialogKeyDown = (event) => {
+    if (event.key === "Escape" && !activeActionRef.current) {
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...(dialogRef.current?.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ) || [])].filter((item) => item.getClientRects().length > 0);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first.focus();
+    }
+  };
   const setField = (field, value) => {
     setMapping((current) => ({ ...current, [field]: value }));
     setAnalysis(null);
@@ -70,21 +102,24 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
   const handleUpload = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || activeActionRef.current) return;
+    activeActionRef.current = "upload";
     setError(""); setBusy("upload"); setCompletion(null);
     try {
       const response = await uploadStatement(file);
+      if (!aliveRef.current) return;
       setDraft(response);
       setMapping(suggestedMapping(response.headers));
       setAccountId(availableAccounts[0]?._id || "");
       setIncomeCategoryId(incomeCategories[0]?._id || "");
       setExpenseCategoryId(expenseCategories[0]?._id || "");
       setAnalysis(null); setSelected([]); setConfirmed(false);
-    } catch (err) { setError(getApiError(err, err.message || "Unable to read statement")); }
-    finally { setBusy(""); }
+    } catch (err) { if (aliveRef.current) setError(getApiError(err, err.message || "Unable to read statement")); }
+    finally { activeActionRef.current = ""; if (aliveRef.current) setBusy(""); }
   };
   const handlePrepare = async () => {
-    if (!draft || !mapping || !accountId) return;
+    if (!draft || !mapping || !accountId || activeActionRef.current) return;
+    activeActionRef.current = "prepare";
     setError(""); setBusy("prepare"); setConfirmed(false);
     try {
       const response = await prepareStatement({
@@ -93,13 +128,15 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
         mapping,
         categories: { incomeCategoryId: incomeCategoryId || undefined, expenseCategoryId: expenseCategoryId || undefined },
       });
+      if (!aliveRef.current) return;
       setAnalysis(response);
       setSelected(response.rows.filter((row) => row.status === "READY").map((row) => row.rowIndex));
-    } catch (err) { setError(getApiError(err, "Unable to preview statement mapping")); setAnalysis(null); }
-    finally { setBusy(""); }
+    } catch (err) { if (aliveRef.current) { setError(getApiError(err, "Unable to preview statement mapping")); setAnalysis(null); } }
+    finally { activeActionRef.current = ""; if (aliveRef.current) setBusy(""); }
   };
   const handleCommit = async () => {
-    if (!analysis || !confirmed || !selected.length || busy) return;
+    if (!analysis || !confirmed || !selected.length || busy || activeActionRef.current) return;
+    activeActionRef.current = "commit";
     setError(""); setBusy("commit");
     try {
       const response = await commitStatement({
@@ -107,33 +144,45 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
         preparedToken: analysis.preparedToken,
         selectedRows: selected,
       });
+      // A PIN lock/logout unmounts the protected shell. The server may have
+      // finished the atomic commit, but no old-user result should be shown.
+      if (!aliveRef.current) return;
       setCompletion(response.data);
       setAnalysis(null); setDraft(null); setSelected([]); setConfirmed(false);
-      setHistory(await getImportHistory().catch(() => history));
-      try { await onImported?.(); }
-      catch { /* Import is committed; a cache refresh failure must not report rollback. */ }
+      // The financial operation is now committed. Secondary history/cache
+      // refreshes must not keep the UI pretending it is still committing.
+      setBusy("");
+      activeActionRef.current = "";
       toast.success(response.message);
+      void getImportHistory().then((items) => {
+        if (aliveRef.current) setHistory(items);
+      }).catch(() => {});
+      void Promise.resolve().then(() => onImported?.()).catch(() => {
+        // Stale read caches are retryable; never misreport a committed write.
+      });
     } catch (err) {
-      setError(getApiError(err, "Statement could not be imported. No partial changes were applied."));
-    } finally { setBusy(""); }
+      if (aliveRef.current) setError(getApiError(err,
+        "Import response unavailable. Check recent import history before retrying: the server may already have committed this batch."));
+    } finally { activeActionRef.current = ""; if (aliveRef.current) setBusy(""); }
   };
   const options = (includeNone = false) => <>
     {includeNone && <option value={-1}>Not present</option>}
     {headers.map((text, i) => <option key={i} value={i}>{String.fromCharCode(65 + Math.min(25, i))} · {text || `Column ${i + 1}`}</option>)}
   </>;
   const mappingField = (label, key, includeNone = false) => <label className="block text-xs font-medium text-slate-300">{label}
-    <select className={`${fieldClass} mt-1`} value={mapping?.[key] ?? -1} onChange={(event) => setField(key, Number(event.target.value))}>{options(includeNone)}</select>
+    <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={mapping?.[key] ?? -1} onChange={(event) => setField(key, Number(event.target.value))}>{options(includeNone)}</select>
   </label>;
   const errorPanel = error ? <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p> : null;
-  return <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/75 px-3 py-6 sm:items-center" role="dialog" aria-modal="true" aria-label="Import bank statement">
+  return <div ref={dialogRef} onKeyDown={handleDialogKeyDown} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/75 px-3 py-6 sm:items-center" role="dialog" aria-modal="true" aria-label="Import bank statement">
     <div className="w-full max-w-5xl rounded-3xl border border-steel-600 bg-steel-900 p-4 text-slate-100 shadow-2xl sm:p-6">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div><h2 className="flex items-center gap-2 text-xl font-bold"><FileSpreadsheet size={21} className="text-copper-300"/>Statement Import</h2>
           <p className="mt-1 text-sm text-slate-400">Review a CSV/XLSX bank statement, map columns, and approve each import. Nothing is recorded during preview.</p>
         </div>
-        <button type="button" onClick={onClose} disabled={Boolean(busy)} aria-label="Close statement import" className="rounded-lg p-2 text-slate-300 hover:bg-steel-700 disabled:opacity-40"><X size={20}/></button>
+        <button ref={closeRef} type="button" onClick={onClose} disabled={Boolean(busy)} aria-label="Close statement import" className="rounded-lg p-2 text-slate-300 hover:bg-steel-700 disabled:opacity-40"><X size={20}/></button>
       </div>
       {errorPanel}
+      {busy === "commit" && <p role="status" className="mb-3 rounded-lg bg-copper-500/10 px-3 py-2 text-xs text-copper-200">Your import is being committed. You can navigate between pages without interrupting it; do not reload or sign out until the result is confirmed.</p>}
       {!draft && !completion && <div className="mt-4 rounded-2xl border border-dashed border-steel-600 p-5 text-center">
         <p className="mb-3 text-sm text-slate-300">Select a bank CSV or XLSX · maximum 3 MB · up to 500 transactions per batch</p>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-copper-500 px-4 py-2.5 text-sm font-semibold text-steel-950">
@@ -147,29 +196,29 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
         {availableAccounts.length === 0 && <p className="rounded-lg bg-amber-500/10 p-3 text-xs text-amber-300">Create an INR bank account on the Accounts page before importing.</p>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-xs font-medium text-slate-300">Import into INR bank account
-            <select className={`${fieldClass} mt-1`} value={accountId} onChange={(e) => {setAccountId(e.target.value);setAnalysis(null);setConfirmed(false);}}>
+            <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={accountId} onChange={(e) => {setAccountId(e.target.value);setAnalysis(null);setConfirmed(false);}}>
               <option value="">Select account</option>{availableAccounts.map((a) => <option key={a._id} value={a._id}>{a.name} · INR</option>)}
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-300">Income category
-            <select className={`${fieldClass} mt-1`} value={incomeCategoryId} onChange={(e) => {setIncomeCategoryId(e.target.value);setAnalysis(null);setConfirmed(false);}}>
+            <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={incomeCategoryId} onChange={(e) => {setIncomeCategoryId(e.target.value);setAnalysis(null);setConfirmed(false);}}>
               <option value="">No income in file</option>{incomeCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-300">Expense category
-            <select className={`${fieldClass} mt-1`} value={expenseCategoryId} onChange={(e) => {setExpenseCategoryId(e.target.value);setAnalysis(null);setConfirmed(false);}}>
+            <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={expenseCategoryId} onChange={(e) => {setExpenseCategoryId(e.target.value);setAnalysis(null);setConfirmed(false);}}>
               <option value="">No expenses in file</option>{expenseCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-300">Header row
-            <select className={`${fieldClass} mt-1`} value={mapping.headerRow} onChange={(e) => {const headerRow = Number(e.target.value);setMapping({...suggestedMapping(draft.headerCandidates?.[headerRow] || []),headerRow});setAnalysis(null);setConfirmed(false);}}>
+            <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={mapping.headerRow} onChange={(e) => {const headerRow = Number(e.target.value);setMapping({...suggestedMapping(draft.headerCandidates?.[headerRow] || []),headerRow});setAnalysis(null);setConfirmed(false);}}>
               {(draft.headerCandidates || [draft.headers]).map((row, i) => <option key={i} value={i}>Row {i+1} · {row.slice(0,2).join(" / ").slice(0,42)}</option>)}
             </select>
           </label>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-xs font-medium text-slate-300">Statement amount layout
-            <select className={`${fieldClass} mt-1`} value={mapping.mode} onChange={(e) => setField("mode", e.target.value)}>
+            <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={mapping.mode} onChange={(e) => setField("mode", e.target.value)}>
               <option value="DEBIT_CREDIT">Separate debit / credit columns</option>
               <option value="SIGNED_AMOUNT">Single signed amount (+in / −out)</option>
             </select>
@@ -180,7 +229,7 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
           {mapping.mode === "DEBIT_CREDIT" && mappingField("Credit / deposit column", "creditColumn")}
           {mappingField("Reference / UTR (optional)", "referenceColumn", true)}
           <label className="block text-xs font-medium text-slate-300">Date format (for ambiguous dates)
-            <select className={`${fieldClass} mt-1`} value={mapping.dateOrder} onChange={(e) => setField("dateOrder", e.target.value)}><option value="DMY">DD/MM/YYYY (India)</option><option value="MDY">MM/DD/YYYY</option></select>
+            <select className={`${fieldClass} mt-1`} disabled={Boolean(busy)} value={mapping.dateOrder} onChange={(e) => setField("dateOrder", e.target.value)}><option value="DMY">DD/MM/YYYY (India)</option><option value="MDY">MM/DD/YYYY</option></select>
           </label>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -190,6 +239,11 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
       </div>}
       {analysis && <div className="mt-5 space-y-3">
         <div className="flex flex-wrap items-center gap-3 text-sm"><strong className="text-copper-300">{analysis.readyCount} ready</strong><span>{analysis.duplicateCount} already imported</span><span className="text-amber-300">{analysis.invalidCount} invalid</span><span>{totalSelected} selected</span></div>
+        {analysis.rows.some((row) => row.status !== "INVALID" && !row.reference) && (
+          <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+            Some statement rows have no bank reference/UTR. Identical dated amounts and descriptions across partial statements may be flagged as duplicates; compare your account history before treating those rows as definitely imported.
+          </p>
+        )}
         <div className="max-h-72 overflow-auto overscroll-contain rounded-xl border border-steel-700" tabIndex={0} aria-label="Statement import row review">
           <table className="w-full min-w-[660px] text-left text-xs">
             <thead className="sticky top-0 bg-steel-800"><tr><th className="p-2">Include</th><th className="p-2">Date</th><th className="p-2">Description</th><th className="p-2">Type</th><th className="p-2 text-right">Amount</th><th className="p-2">Status</th></tr></thead>

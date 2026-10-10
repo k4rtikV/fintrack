@@ -15,8 +15,8 @@ const assistantController = read("server/src/controllers/assistant.controller.js
 const assistantServer = read("server/src/services/assistant.service.js");
 
 assert(
-  animatedOutlet.includes("key={location.key || location.pathname}"),
-  "Route navigation must still remount page content so stale-navigation coverage is meaningful",
+  animatedOutlet.includes("key={location.pathname}") && !animatedOutlet.includes("key={location.key"),
+  "Real page switches must remount, but same-route query changes must not orphan page state",
 );
 assert(
   !assistantPage.includes("requestControllerRef") &&

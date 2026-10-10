@@ -22,7 +22,8 @@
     "test:v2-research": "node src/scripts/testV2ResearchAnalytics.js",
     "test:v2-assistant": "node src/scripts/testV2AssistantUpdate.js",
     "test:v2-completion": "node src/scripts/testV2CompletionPass.js",
-    "test:v2-stale-navigation": "node src/scripts/testV2StaleNavigation.js"
+    "test:v2-stale-navigation": "node src/scripts/testV2StaleNavigation.js",
+    "test:v2-navigation-chains": "node src/scripts/testV2NavigationChains.js"
   },
   "keywords": [
     "finance",
