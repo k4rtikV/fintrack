@@ -57,6 +57,19 @@ const amountPaise = (input) => {
   return (explicitNegative || suffix === "DR" ? -1 : 1) * magnitude;
 };
 
+// Separate debit/credit columns already determine the transaction direction.
+// Do not silently turn a negative credit into income, or accept a CR marker
+// under the Debit column (and vice versa). A matching DR/CR suffix is fine.
+// Statements using signed values should be mapped in SIGNED_AMOUNT mode.
+const columnAmountPaise = (input, direction) => {
+  const source = String(input ?? "").trim();
+  if (/^[\s]*[-(]/.test(source)) return null;
+  const suffix = /(?:CR|DR)$/i.exec(source)?.[0]?.toUpperCase();
+  if (suffix && suffix !== (direction === "DEBIT" ? "DR" : "CR")) return null;
+  const parsed = amountPaise(source);
+  return parsed === null ? null : Math.abs(parsed);
+};
+
 const parseStatementDate = (input, dateOrder = "DMY", date1904 = false) => {
   const source = String(input ?? "").trim();
   if (/^\d{5}(?:\.0+)?$/.test(source)) {
@@ -106,10 +119,10 @@ const normalizeStatementRows = ({ rows, mapping, date1904 }) => {
       if (signed === null || signed === 0) error = "Amount is missing or invalid";
       else { paise = Math.abs(signed); type = signed < 0 ? "EXPENSE" : "INCOME"; }
     } else {
-      const debit = amountPaise(value(m.debitColumn));
-      const credit = amountPaise(value(m.creditColumn));
+      const debit = columnAmountPaise(value(m.debitColumn), "DEBIT");
+      const credit = columnAmountPaise(value(m.creditColumn), "CREDIT");
       if (debit === null || credit === null || (Math.abs(debit) > 0 && Math.abs(credit) > 0) || (!debit && !credit)) {
-        error = "Exactly one valid debit or credit amount is required";
+        error = "Exactly one nonnegative debit or credit amount is required; use signed-amount mode for signed values";
       } else {
         type = Math.abs(debit) > 0 ? "EXPENSE" : "INCOME";
         paise = Math.abs(debit || credit);

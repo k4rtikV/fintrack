@@ -20,6 +20,18 @@ assert.equal(rows.length, 3);
 assert.equal(rows[0].type, "EXPENSE");
 assert.equal(rows[0].paise, 12550);
 assert.equal(rows[1].type, "INCOME");
+// Directional column amounts must not quietly reverse a bank movement.
+const directionRows = (debit, credit) => normalizeStatementRows({
+  rows: [["Date", "Description", "Debit", "Credit", "Reference"],
+    ["03/10/2026", "Bank entry", debit, credit, "REF-2"]], mapping,
+}).rows[0];
+assert.equal(directionRows("125.40 DR", "").type, "EXPENSE", "DR notation inside debit column is valid");
+assert.equal(directionRows("", "125.40 CR").type, "INCOME", "CR notation inside credit column is valid");
+assert.match(directionRows("", "-125.40").error, /nonnegative/, "Negative credit must not become income");
+assert.match(directionRows("-125.40", "").error, /nonnegative/, "Negative debit must not become expense");
+assert.match(directionRows("125.40 CR", "").error, /nonnegative/, "CR marker cannot appear in debit column");
+assert.match(directionRows("", "125.40 DR").error, /nonnegative/, "DR marker cannot appear in credit column");
+
 assert.equal(rows[1].paise, 5000000);
 assert.notEqual(rows[1].fingerprint, rows[2].fingerprint, "Legitimate repeated same-day rows need distinct ordinal fingerprints");
 assert.deepEqual(rows, normalizeStatementRows({ rows: parsed.rows, mapping }).rows, "Re-import fingerprints must be stable");

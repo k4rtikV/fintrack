@@ -234,7 +234,7 @@ const StatementImportModal = ({ open, accounts, categories, onClose, onImported 
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={handlePrepare} disabled={Boolean(busy) || !accountId}><RefreshCw size={16}/>{busy === "prepare" ? "Checking…" : "Preview & check duplicates"}</Button>
-          <p className="text-xs text-slate-400">Transfer pairs and investment trades must be recorded separately; this import handles bank income/expenses only.</p>
+          <p className="text-xs text-slate-400">Separate debit/credit columns require nonnegative amounts (matching DR/CR labels are accepted). Use signed amount mode for negative values. Transfers and investment trades must be recorded separately.</p>
         </div>
       </div>}
       {analysis && <div className="mt-5 space-y-3">
