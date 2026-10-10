@@ -3,6 +3,7 @@ const schema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   account: { type: mongoose.Schema.Types.ObjectId, ref: "Account", required: true },
   requestKey: { type: String, required: true },
+  invalidatedAt: { type: Date, default: null },
   filename: { type: String, maxlength: 120, required: true },
   importedCount: { type: Number, required: true, min: 0 },
   duplicateCount: { type: Number, required: true, min: 0 },

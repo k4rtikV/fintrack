@@ -4,6 +4,7 @@ import Budget from "../models/Budget.js";
 import Category from "../models/Category.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../utils/AppError.js";
+import { buildCurrencyScopedTransactionStages } from "../utils/financialPolicy.js";
 
 const ensureValidObjectId = (id, label = "budget") => {
   if (!mongoose.isValidObjectId(id)) {
@@ -72,6 +73,9 @@ const addBudgetProgress = async ({
       category: { $in: categoryIds.map((id) => new mongoose.Types.ObjectId(id)) },
       transactionDate: { $gte: startDate, $lt: endDate },
     } },
+    // V2 budgets are INR; legacy foreign-currency transactions must not
+    // inflate spending or trigger incorrect INR threshold alerts.
+    ...buildCurrencyScopedTransactionStages("INR"),
     { $group: {
       _id: {
         category: "$category",

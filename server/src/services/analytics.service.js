@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Account from "../models/Account.js";
 import InvestmentHolding from "../models/InvestmentHolding.js";
 import Transaction from "../models/Transaction.js";
+import AppError from "../utils/AppError.js";
 import {
   endOfUtcDateOnly,
   getDateKeyInTimeZone,
@@ -209,10 +210,12 @@ const getMonthlyTrendForUser = async ({
   let rangeEnd;
 
   if (hasDateRange) {
-    rangeStart = startDate ? toUtcDateOnly(startDate) : new Date(0);
     rangeEnd = endDate
       ? toUtcDateOnly(endDate)
       : toUtcDateOnly(getDateKeyInTimeZone(new Date(), timezone));
+    rangeStart = startDate ? toUtcDateOnly(startDate) : new Date(Date.UTC(
+      rangeEnd.getUTCFullYear(), rangeEnd.getUTCMonth() - 23, 1,
+    ));
   } else {
     rangeEnd = toUtcDateOnly(getDateKeyInTimeZone(new Date(), timezone));
     rangeStart = new Date(
@@ -222,6 +225,12 @@ const getMonthlyTrendForUser = async ({
         1,
       ),
     );
+  }
+
+  const monthSpan = (rangeEnd.getUTCFullYear() - rangeStart.getUTCFullYear()) * 12 +
+    rangeEnd.getUTCMonth() - rangeStart.getUTCMonth() + 1;
+  if (rangeStart > rangeEnd || monthSpan < 1 || monthSpan > 24) {
+    throw new AppError("Monthly trend is limited to an ordered 24-month date range", 400);
   }
 
   const inclusiveEndDate = endOfUtcDateOnly(rangeEnd);

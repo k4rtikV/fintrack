@@ -137,6 +137,8 @@ const createInvestmentTradeForUser = async ({
           quantityOriginal: numericQuantity,
           quantityRemaining: numericQuantity,
           unitCost: lotUnitCost,
+          costBasisOriginalPaise: Math.round(totalCashOut * 100),
+          costBasisRemainingPaise: Math.round(totalCashOut * 100),
           acquiredAt: toUtcDateOnly(tradeDate),
         }],
         { session },
@@ -165,7 +167,11 @@ const createInvestmentTradeForUser = async ({
         .sort({ acquiredAt: 1, _id: 1 })
         .session(session);
 
-      const salePlan = planFifoSale({ lots, quantity: numericQuantity });
+      const salePlan = planFifoSale({
+        lots, quantity: numericQuantity,
+        // Needed to finish historical legacy lots without dropping fees.
+        holdingCostBasis: Number(holding.costBasis || 0),
+      });
       if (salePlan.unallocated > 1e-6) {
         throw new AppError("Investment lot history is inconsistent with the holding quantity", 409);
       }
@@ -174,6 +180,9 @@ const createInvestmentTradeForUser = async ({
       for (const allocation of salePlan.allocations) {
         const lot = lotById.get(allocation.lotId);
         lot.quantityRemaining = allocation.quantityRemaining;
+        if (allocation.costBasisRemainingPaise !== null) {
+          lot.costBasisRemainingPaise = allocation.costBasisRemainingPaise;
+        }
         await lot.save({ session, validateModifiedOnly: true });
       }
 

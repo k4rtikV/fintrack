@@ -6,6 +6,7 @@ import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
+import { buildCurrencyScopedTransactionStages } from "../utils/financialPolicy.js";
 import { sendNotificationEmail } from "./email.service.js";
 
 const toMonthKey = (dateValue) => {
@@ -141,6 +142,8 @@ const syncBudgetAlertsForTransactionUnsafe = async ({ userId, categoryId, transa
         transactionDate: { $gte: startDate, $lt: endDate },
       },
     },
+    // INR budgets must not count old USD/EUR/GBP account transactions.
+    ...buildCurrencyScopedTransactionStages("INR"),
     { $group: { _id: null, spent: { $sum: "$amount" } } },
   ]);
 

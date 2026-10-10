@@ -62,8 +62,11 @@ const amountPaise = (input) => {
 // under the Debit column (and vice versa). A matching DR/CR suffix is fine.
 // Statements using signed values should be mapped in SIGNED_AMOUNT mode.
 const columnAmountPaise = (input, direction) => {
-  const source = String(input ?? "").trim();
-  if (/^[\s]*[-(]/.test(source)) return null;
+  // Strip currency tokens BEFORE checking signs: `₹-123`, `INR-123` and
+  // `Rs. (123)` are negative amounts despite the prefix. Never take abs of
+  // a signed value in directional columns, including negative zero.
+  const source = String(input ?? "").trim().replace(/\s|₹|INR|Rs\.?/gi, "");
+  if (/[-()]/.test(source)) return null;
   const suffix = /(?:CR|DR)$/i.exec(source)?.[0]?.toUpperCase();
   if (suffix && suffix !== (direction === "DEBIT" ? "DR" : "CR")) return null;
   const parsed = amountPaise(source);

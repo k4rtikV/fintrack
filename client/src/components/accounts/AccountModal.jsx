@@ -194,6 +194,9 @@ const AccountModal = ({
           </div>
 
           {account && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">An account type can be changed only if it has no transaction, Autopay, statement import, or investment history. Otherwise, create a new account.</p>
+          )}
+          {account && (
             <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
               Account balances are changed through transactions, so the current
               balance cannot be edited directly.

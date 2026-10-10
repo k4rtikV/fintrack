@@ -9,6 +9,10 @@ const investmentLotSchema = new mongoose.Schema(
     quantityOriginal: { type: Number, required: true, min: 0.000001 },
     quantityRemaining: { type: Number, required: true, min: 0 },
     unitCost: { type: Number, required: true, min: 0 },
+    // Exact cash-out basis; null identifies legacy lots without paise tracking.
+    // Unit cost is presentation-only and cannot preserve fractional fees.
+    costBasisOriginalPaise: { type: Number, default: null, min: 0 },
+    costBasisRemainingPaise: { type: Number, default: null, min: 0 },
     acquiredAt: { type: Date, required: true, index: true },
   },
   { timestamps: true, versionKey: false },

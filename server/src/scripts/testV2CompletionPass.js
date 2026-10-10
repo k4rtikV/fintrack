@@ -31,6 +31,11 @@ assert.match(directionRows("", "-125.40").error, /nonnegative/, "Negative credit
 assert.match(directionRows("-125.40", "").error, /nonnegative/, "Negative debit must not become expense");
 assert.match(directionRows("125.40 CR", "").error, /nonnegative/, "CR marker cannot appear in debit column");
 assert.match(directionRows("", "125.40 DR").error, /nonnegative/, "DR marker cannot appear in credit column");
+for (const value of ["₹-125.40", "INR-125.40", "Rs. -125.40", "₹(125.40)", "INR -0.00"]) {
+  assert.match(directionRows("", value).error, /nonnegative/, `${value} must not become income`);
+  assert.match(directionRows(value, "").error, /nonnegative/, `${value} must not become an expense`);
+}
+
 
 assert.equal(rows[1].paise, 5000000);
 assert.notEqual(rows[1].fingerprint, rows[2].fingerprint, "Legitimate repeated same-day rows need distinct ordinal fingerprints");

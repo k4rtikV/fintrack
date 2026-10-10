@@ -115,16 +115,32 @@ const commitStatementImport = async ({ userId, draftId, preparedToken, selectedR
     return row;
   });
   const requestKey = digest(JSON.stringify({ accountId, preparedToken, selectedRows: [...selectedRows].sort((a, b) => a - b) }));
-  const oldBatch = await StatementImportBatch.findOne({ user: userId, requestKey }).lean();
-  if (oldBatch) return { batch: oldBatch, alreadyCommitted: true };
   let batchResult;
+  let alreadyCommitted = false;
   let committedExpenseDates = [];
   try {
     await mongoose.connection.transaction(async (session) => {
-      const account = await lookupImportAccount({ userId, accountId, session });
-      const categoriesByType = await verifyCategories({ normalized: requested, categoryIds, userId, session });
+      // A receipt is replayable only while every requested fingerprint is
+      // still present. Historical duplicate-only batches may have been made
+      // before someone deleted an imported transaction from a DIFFERENT batch.
+      // Reconcile against live entries in this transaction, not a stale count.
+      const oldBatch = await StatementImportBatch.findOne({ user: userId, requestKey }).session(session).lean();
       const existing = await getExisting({ userId, accountId, fingerprints: requested.map((r) => r.fingerprint), session });
       const ready = requested.filter((row) => !existing.has(row.fingerprint));
+      if (oldBatch && !ready.length) {
+        batchResult = oldBatch;
+        alreadyCommitted = true;
+        return;
+      }
+      const account = await lookupImportAccount({ userId, accountId, session });
+      const categoriesByType = await verifyCategories({ normalized: requested, categoryIds, userId, session });
+      if (oldBatch) {
+        await StatementImportBatch.updateOne(
+          { _id: oldBatch._id, user: userId, requestKey },
+          { $set: { requestKey: `superseded:${String(oldBatch._id)}`, invalidatedAt: new Date() } },
+          { session },
+        );
+      }
       // Only notify for rows inserted by this transaction, not duplicates.
       committedExpenseDates = ready.filter((row) => row.type === "EXPENSE").map((row) => row.date);
       const incomePaise = ready.filter((row) => row.type === "INCOME").reduce((sum, row) => sum + row.paise, 0);
@@ -161,7 +177,7 @@ const commitStatementImport = async ({ userId, draftId, preparedToken, selectedR
   }
   // Alerts are secondary; never turn a committed financial operation into
   // a failed response because a notification provider is down.
-  if (batchResult.importedCount > 0) {
+  if (!alreadyCommitted && batchResult.importedCount > 0) {
     const monthDates = new Map(committedExpenseDates.map((date) => [date.slice(0, 7), date]));
     for (const date of monthDates.values()) {
       try {
@@ -169,7 +185,7 @@ const commitStatementImport = async ({ userId, draftId, preparedToken, selectedR
       } catch (error) { console.warn("Statement import budget alert unavailable:", error.message); }
     }
   }
-  return { batch: batchResult, alreadyCommitted: false };
+  return { batch: batchResult, alreadyCommitted };
 };
 
 const listStatementImports = async ({ userId }) => StatementImportBatch.find({ user: userId })

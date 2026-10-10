@@ -4,6 +4,7 @@ import Account from "../models/Account.js";
 import Category from "../models/Category.js";
 import Transaction from "../models/Transaction.js";
 import StatementImportEntry from "../models/StatementImportEntry.js";
+import StatementImportBatch from "../models/StatementImportBatch.js";
 import AppError from "../utils/AppError.js";
 import { endOfUtcDateOnly, toUtcDateOnly } from "../utils/dateOnly.js";
 import { buildBalanceDeltas, mergeBalanceDeltas } from "../utils/transactionSemantics.js";
@@ -354,7 +355,19 @@ const deleteTransactionForUser = async ({ transactionId, userId }) => {
     // A deleted imported transaction may be intentionally reimported later.
     // Remove its fingerprint in the SAME financial transaction so the source
     // row and duplicate marker cannot disagree after a partial failure.
-    await StatementImportEntry.deleteOne({ user: userId, transaction: transaction._id }, { session });
+    const importEntry = await StatementImportEntry.findOne({ user: userId, transaction: transaction._id }).session(session);
+    if (importEntry) {
+      await importEntry.deleteOne({ session });
+      // Preserve the historical batch record, but retire its replay receipt.
+      // A later identical selection can now reimport the deleted row, while
+      // fingerprint uniqueness still excludes rows that remain committed.
+      // The receipt mutation and balance reversal share one DB transaction.
+      await StatementImportBatch.updateOne(
+        { _id: importEntry.batch, user: userId },
+        { $set: { requestKey: `superseded:${String(importEntry.batch)}`, invalidatedAt: new Date() } },
+        { session },
+      );
+    }
   });
 };
 

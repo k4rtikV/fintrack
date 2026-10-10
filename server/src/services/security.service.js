@@ -58,12 +58,29 @@ const createAuthenticatedSession = async ({
     // users/profiles often share those values; this is an auth boundary.
     await UserSession.updateMany({
       user: userId,
-      sessionId: { $ne: sessionId },
+      _id: { $lt: session._id },
       revokedAt: null,
       $or: sameBrowserScopes,
     }, {
       $set: { revokedAt: now, revokeReason: "SAME_BROWSER_SIGN_IN" },
     });
+    // A parallel later-created session wins deterministically. Without this
+    // guard both requests could revoke each other and return dead tokens.
+    const newer = await UserSession.exists({
+      user: userId,
+      _id: { $gt: session._id },
+      revokedAt: null,
+      $or: sameBrowserScopes,
+    });
+    if (newer) {
+      await UserSession.updateOne(
+        { _id: session._id, revokedAt: null },
+        { $set: { revokedAt: new Date(), revokeReason: "SAME_BROWSER_SIGN_IN" } },
+      );
+      throw new AppError("A newer sign-in is already active in this browser; use that session", 409, {
+        code: "CONCURRENT_BROWSER_SIGN_IN",
+      });
+    }
   }
 
   return {
