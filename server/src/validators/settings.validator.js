@@ -10,7 +10,7 @@ export const updateProfileSettingsSchema = z.object({
       .min(2, "Full name must contain at least 2 characters")
       .max(60, "Full name cannot exceed 60 characters"),
 
-    preferredCurrency: z.enum(["INR", "USD", "EUR", "GBP"]),
+    preferredCurrency: z.literal("INR"),
 
     timezone: z.enum([
       "Asia/Kolkata",

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
 import { getNavigationDirection } from "../../navigation/primaryNavigation";
@@ -11,18 +11,14 @@ const AnimatedOutlet = () => {
     location.pathname,
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     previousPathRef.current = location.pathname;
 
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "auto",
-    });
+    // Run before paint to prevent an old page's bottom scroll position from
+    // becoming visible on the next route. Never move the nav rail vertically.
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
   }, [location.pathname]);
 
   return (

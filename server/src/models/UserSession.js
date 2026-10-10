@@ -24,6 +24,14 @@ const userSessionSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Random opaque browser-profile token hash; never derive identity from IP/UA.
+    browserInstanceHash: {
+      type: String,
+      default: null,
+      index: true,
+      select: false,
+    },
+
     userAgent: {
       type: String,
       default: "Unknown",
@@ -100,6 +108,7 @@ const userSessionSchema = new mongoose.Schema(
         "LOGOUT",
         "USER_REVOKED",
         "OTHER_SESSIONS_REVOKED",
+        "SAME_BROWSER_SIGN_IN",
         "PASSWORD_CHANGED",
         "GOOGLE_ACCOUNT_LINKED",
         "GOOGLE_ACCOUNT_RECLAIMED",
@@ -111,6 +120,8 @@ const userSessionSchema = new mongoose.Schema(
     versionKey: false,
   },
 );
+
+userSessionSchema.index({ user: 1, browserInstanceHash: 1, revokedAt: 1 });
 
 userSessionSchema.index({
   user: 1,

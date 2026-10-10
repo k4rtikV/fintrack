@@ -27,7 +27,7 @@ const createInitialForm = (account, defaultCurrency = "INR", defaultType = "BANK
   name: account?.name || "",
   type: account?.type || defaultType,
   balance: account ? String(account.balance ?? 0) : "0",
-  currency: account?.currency || defaultCurrency,
+  currency: account?.currency || "INR",
   color: account?.color || "emerald",
   icon: account?.icon || "wallet",
 });
@@ -84,7 +84,7 @@ const AccountModal = ({
     const payload = {
       name,
       type: form.type,
-      currency: form.currency,
+      ...(!account || account.currency === "INR" ? { currency: "INR" } : {}),
       color: form.color,
       icon: form.icon,
     };
@@ -153,15 +153,13 @@ const AccountModal = ({
             <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Currency
               <select
-                value={form.currency}
-                onChange={(event) => updateField("currency", event.target.value)}
+                value={account?.currency !== "INR" && account ? "LEGACY" : "INR"}
+                onChange={() => {}}
                 className={fieldClassName}
-                disabled={fixedCurrency}
+                disabled
               >
                 <option value="INR">INR — Indian Rupee</option>
-                <option value="USD">USD — US Dollar</option>
-                <option value="EUR">EUR — Euro</option>
-                <option value="GBP">GBP — British Pound</option>
+                {account && account.currency !== "INR" && <option value="LEGACY" disabled>Legacy account currency (read-only)</option>}
               </select>
             </label>
 

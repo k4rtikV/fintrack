@@ -66,11 +66,12 @@ const TopNavigation = () => {
       "(prefers-reduced-motion: reduce)",
     ).matches;
 
-    node.scrollIntoView({
-      behavior: reducedMotion ? "auto" : "smooth",
-      block: "nearest",
-      inline: "center",
-    });
+    // scrollIntoView also scrolls document vertically when the topbar is out
+    // of view, sending the newly navigated workspace to a stale position.
+    const rail = navRef.current;
+    if (!rail) return;
+    const left = node.offsetLeft - (rail.clientWidth - node.clientWidth) / 2;
+    rail.scrollTo({ left: Math.max(0, left), behavior: reducedMotion ? "auto" : "smooth" });
   }, [activePath]);
 
   return (

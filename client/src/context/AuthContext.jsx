@@ -12,6 +12,7 @@ import {
   logout as logoutRequest,
 } from "../services/authService";
 import { lockPin as lockPinRequest } from "../services/securityService";
+import { cancelPendingReportDownloads } from "../services/reportService";
 import {
   cancelAssistantRequest,
   clearAssistantUserState,
@@ -47,6 +48,7 @@ const AuthProvider = ({ children }) => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const clearPrivateClientState = useCallback(() => {
+    cancelPendingReportDownloads();
     queryClient.clear();
   }, [queryClient]);
 

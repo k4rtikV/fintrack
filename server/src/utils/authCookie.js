@@ -1,6 +1,7 @@
 const AUTH_COOKIE_NAME = "fintrack_token";
 const GOOGLE_NONCE_COOKIE_NAME = "fintrack_google_nonce";
 const TRUSTED_DEVICE_COOKIE_NAME = "fintrack_device";
+const BROWSER_INSTANCE_COOKIE_NAME = "fintrack_browser_instance";
 
 const getAuthCookieOptions = () => {
   const isProduction = process.env.NODE_ENV === "production";
@@ -12,6 +13,15 @@ const getAuthCookieOptions = () => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
     path: "/",
   };
+};
+
+const getBrowserInstanceCookieOptions = () => ({
+  ...getAuthCookieOptions(),
+  maxAge: 365 * 24 * 60 * 60 * 1000,
+});
+
+const setBrowserInstanceCookie = (res, token) => {
+  res.cookie(BROWSER_INSTANCE_COOKIE_NAME, token, getBrowserInstanceCookieOptions());
 };
 
 const getGoogleNonceCookieOptions = () => {
@@ -88,6 +98,7 @@ const clearTrustedDeviceCookie = (res) => {
 
 export {
   AUTH_COOKIE_NAME,
+  BROWSER_INSTANCE_COOKIE_NAME,
   GOOGLE_NONCE_COOKIE_NAME,
   TRUSTED_DEVICE_COOKIE_NAME,
   clearAuthCookie,
@@ -97,6 +108,7 @@ export {
   getGoogleNonceCookieOptions,
   getTrustedDeviceCookieOptions,
   setAuthCookie,
+  setBrowserInstanceCookie,
   setGoogleNonceCookie,
   setTrustedDeviceCookie,
 };

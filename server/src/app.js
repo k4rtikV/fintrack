@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import { rateLimit } from "express-rate-limit";
 import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -31,6 +32,7 @@ import reportRoutes from "./routes/report.routes.js";
 import securityRoutes from "./routes/security.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import transactionRoutes from "./routes/transaction.routes.js";
+import statementImportRoutes from "./routes/statementImport.routes.js";
 
 const app = express();
 
@@ -114,6 +116,12 @@ app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
 app.use(protectCookieAuthenticatedMutation);
+// Only this route accepts binary uploads. Limit attempted uploads before
+// parsing the body; all other APIs retain their existing 10 KB JSON cap.
+app.use("/api/statement-imports/preview",
+  rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: "draft-8", legacyHeaders: false }),
+  express.raw({ type: "application/octet-stream", limit: "3mb" }),
+);
 
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
@@ -146,6 +154,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/accounts", accountRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/transactions", transactionRoutes);
+app.use("/api/statement-imports", statementImportRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/budgets", budgetRoutes);

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 
 import {
   authenticateWithGoogle,
@@ -18,19 +18,31 @@ import {
 } from "../services/security.service.js";
 import { resolveTrustedDeviceFromCookie } from "../services/pin.service.js";
 import {
+  BROWSER_INSTANCE_COOKIE_NAME,
   GOOGLE_NONCE_COOKIE_NAME,
   TRUSTED_DEVICE_COOKIE_NAME,
   clearAuthCookie,
   clearGoogleNonceCookie,
   clearTrustedDeviceCookie,
   setAuthCookie,
+  setBrowserInstanceCookie,
   setGoogleNonceCookie,
 } from "../utils/authCookie.js";
 import { getRequestSecurityContext } from "../utils/securityContext.js";
 
+const getOrSetBrowserInstance = (req, res) => {
+  const supplied = req.cookies?.[BROWSER_INSTANCE_COOKIE_NAME];
+  const value = typeof supplied === "string" && /^[A-Za-z0-9_-]{43}$/.test(supplied)
+    ? supplied
+    : randomBytes(32).toString("base64url");
+  if (value !== supplied) setBrowserInstanceCookie(res, value);
+  return createHash("sha256").update(value).digest("hex");
+};
+
 const googleConfig = async (req, res) => {
   const nonce = randomBytes(32).toString("base64url");
 
+  getOrSetBrowserInstance(req, res);
   setGoogleNonceCookie(res, nonce);
 
   res.status(200).json({
@@ -84,6 +96,7 @@ const completeGoogleSession = async ({
     userId: user._id,
     securityContext,
     trustedDeviceId: trustedDevice?._id || null,
+    browserInstanceHash: getOrSetBrowserInstance(req, res),
   });
 
   setAuthCookie(res, token);

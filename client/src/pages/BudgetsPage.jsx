@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CalendarDays,
-  CircleDollarSign,
+  IndianRupee,
   Plus,
   RefreshCw,
   TrendingDown,
@@ -45,15 +45,15 @@ const BudgetsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [selectedMonth, setSelectedMonth] = useState(() =>
-    getMonthKeyInTimeZone(new Date(), user?.timezone),
-  );
+  const currentMonth = getMonthKeyInTimeZone(new Date(), user?.timezone);
+  // Empty month is deliberately "all budgets", including earlier years.
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState(null);
 
   const budgetsQuery = useQuery({
     queryKey: ["budgets", selectedMonth],
-    queryFn: () => getBudgets(selectedMonth),
+    queryFn: () => getBudgets(selectedMonth || undefined),
   });
 
   const categoriesQuery = useQuery({
@@ -134,7 +134,7 @@ const BudgetsPage = () => {
 
   const handleDelete = (budget) => {
     const confirmed = window.confirm(
-      `Delete the ${budget.category?.name || "selected"} budget for ${formatMonthLabel(selectedMonth)}?`,
+      `Delete the ${budget.category?.name || "selected"} budget for ${formatMonthLabel(budget.month)}?`,
     );
 
     if (confirmed) {
@@ -164,22 +164,27 @@ const BudgetsPage = () => {
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Budget month
+              Budget history
             </p>
             <p className="font-bold text-slate-900 dark:text-white">
-              {formatMonthLabel(selectedMonth)}
+              {selectedMonth ? formatMonthLabel(selectedMonth) : "All months · all years"}
             </p>
           </div>
         </div>
 
-        <NativeDateInput
-          type="month"
-          value={selectedMonth}
-          onChange={(event) => setSelectedMonth(event.target.value)}
-          className="w-full sm:w-[13.5rem]"
-          inputClassName="font-semibold text-slate-700 dark:text-slate-200"
-          pickerLabel="Choose budget month"
-        />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <Button variant={selectedMonth ? "secondary" : "primary"} onClick={() => setSelectedMonth("")}>
+            All months
+          </Button>
+          <NativeDateInput
+            type="month"
+            value={selectedMonth || currentMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            className="min-w-0 flex-1 sm:w-[13.5rem]"
+            inputClassName="font-semibold text-slate-700 dark:text-slate-200"
+            pickerLabel="Filter budgets by month"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -190,7 +195,7 @@ const BudgetsPage = () => {
             </div>
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Total budget
+                {selectedMonth ? "Total budget" : "All-time budgets"}
               </p>
               <p className="mt-0.5 text-xl font-bold text-slate-950 dark:text-white">
                 {formatCurrency(summary.totalBudget, currency)}
@@ -206,7 +211,7 @@ const BudgetsPage = () => {
             </div>
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Spent
+                {selectedMonth ? "Spent" : "All-time spent"}
               </p>
               <p className="mt-0.5 text-xl font-bold text-slate-950 dark:text-white">
                 {formatCurrency(summary.totalSpent, currency)}
@@ -218,7 +223,7 @@ const BudgetsPage = () => {
         <DashboardCard>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
-              <CircleDollarSign size={21} />
+              <IndianRupee size={21} />
             </div>
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -260,7 +265,7 @@ const BudgetsPage = () => {
             Category budgets
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Spending is calculated automatically from expense transactions in the selected month.
+            All historical budgets are shown by default. Select a month to narrow the view. Spending is calculated for each budget’s own month.
           </p>
         </div>
 
@@ -289,8 +294,8 @@ const BudgetsPage = () => {
           />
         ) : budgets.length === 0 ? (
           <EmptyState
-            icon={CircleDollarSign}
-            title={`No budgets for ${formatMonthLabel(selectedMonth)}`}
+            icon={IndianRupee}
+            title={selectedMonth ? `No budgets for ${formatMonthLabel(selectedMonth)}` : "No budgets yet"}
             description="Create category budgets to start tracking how much of each monthly limit you have used."
             action={
               <Button onClick={openCreateModal}>
@@ -300,15 +305,16 @@ const BudgetsPage = () => {
             }
           />
         ) : (
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {budgets.map((budget) => (
-              <BudgetCard
-                key={budget._id}
-                budget={budget}
-                currency={currency}
-                onEdit={openEditModal}
-                onDelete={handleDelete}
-              />
+          <div className="mt-5 space-y-7">
+            {[...new Set(budgets.map((budget) => budget.month))].map((month) => (
+              <section key={month} aria-label={`Budgets for ${formatMonthLabel(month)}`}>
+                <h3 className="mb-3 text-sm font-semibold text-copper-300">{formatMonthLabel(month)}</h3>
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {budgets.filter((budget) => budget.month === month).map((budget) => (
+                    <BudgetCard key={budget._id} budget={budget} currency={currency} onEdit={openEditModal} onDelete={handleDelete} />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
@@ -317,10 +323,10 @@ const BudgetsPage = () => {
       <BudgetModal
         budget={selectedBudget}
         categories={categories}
-        existingBudgets={budgets}
+        existingBudgets={budgets.filter((item) => item.month === (selectedBudget?.month || selectedMonth || currentMonth))}
         isOpen={isModalOpen}
         isSaving={saveMutation.isPending}
-        month={selectedMonth}
+        month={selectedBudget?.month || selectedMonth || currentMonth}
         onClose={() => {
           if (!saveMutation.isPending) {
             setIsModalOpen(false);

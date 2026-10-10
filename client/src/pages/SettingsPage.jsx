@@ -211,7 +211,7 @@ const SettingsPage = () => {
     try {
       const response = await updateProfileSettings({
         fullName: profile.fullName.trim(),
-        preferredCurrency: profile.preferredCurrency,
+        preferredCurrency: "INR",
         timezone: profile.timezone,
       });
 
@@ -409,19 +409,16 @@ const SettingsPage = () => {
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                   Preferred currency
                   <select
-                    value={profile.preferredCurrency}
+                    value="INR"
                     onChange={(event) =>
                       setProfile((current) => ({
                         ...current,
-                        preferredCurrency: event.target.value,
+                        preferredCurrency: "INR",
                       }))
                     }
                     className={inputClass}
                   >
                     <option value="INR">INR — Indian Rupee</option>
-                    <option value="USD">USD — US Dollar</option>
-                    <option value="EUR">EUR — Euro</option>
-                    <option value="GBP">GBP — British Pound</option>
                   </select>
                 </label>
 

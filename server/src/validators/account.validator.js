@@ -8,7 +8,7 @@ const accountTypeSchema = z.enum([
   "INVESTMENT",
 ]);
 
-const currencySchema = z.enum(["INR", "USD", "EUR", "GBP"]);
+const currencySchema = z.literal("INR");
 
 export const createAccountSchema = z.object({
   body: z.object({

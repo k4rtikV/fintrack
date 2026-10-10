@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Account from "../models/Account.js";
 import Category from "../models/Category.js";
 import Transaction from "../models/Transaction.js";
+import StatementImportEntry from "../models/StatementImportEntry.js";
 import AppError from "../utils/AppError.js";
 import { endOfUtcDateOnly, toUtcDateOnly } from "../utils/dateOnly.js";
 import { buildBalanceDeltas, mergeBalanceDeltas } from "../utils/transactionSemantics.js";
@@ -350,6 +351,10 @@ const deleteTransactionForUser = async ({ transactionId, userId }) => {
     });
     await applyBalanceDeltas({ deltas, accountDocuments, session });
     await transaction.deleteOne({ session });
+    // A deleted imported transaction may be intentionally reimported later.
+    // Remove its fingerprint in the SAME financial transaction so the source
+    // row and duplicate marker cannot disagree after a partial failure.
+    await StatementImportEntry.deleteOne({ user: userId, transaction: transaction._id }, { session });
   });
 };
 

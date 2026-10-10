@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
-  CircleDollarSign,
+  IndianRupee,
   Clock3,
   Plus,
   RefreshCw,
@@ -201,7 +201,7 @@ const GoalsPage = () => {
         <DashboardCard>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-              <CircleDollarSign size={21} />
+              <IndianRupee size={21} />
             </div>
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400">

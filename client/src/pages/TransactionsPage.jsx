@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, Plus, ReceiptText, Repeat2, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileUp, Plus, ReceiptText, Repeat2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -10,6 +10,7 @@ import PageContainer from "../components/layout/PageContainer";
 import TransactionFilters from "../components/transactions/TransactionFilters";
 import TransactionModal from "../components/transactions/TransactionModal";
 import TransactionTable from "../components/transactions/TransactionTable";
+import StatementImportModal from "../components/transactions/StatementImportModal";
 import TransactionWorkspaceNav from "../components/transactions/TransactionWorkspaceNav";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
@@ -52,6 +53,7 @@ const TransactionsPage = () => {
   const accountFromUrl = searchParams.get("accountId") || "";
   const [filters, setFilters] = useState(() => ({ ...initialFilters, accountId: /^[a-f0-9]{24}$/i.test(accountFromUrl) ? accountFromUrl : "" }));
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAccountOnboardingOpen, setIsAccountOnboardingOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -315,7 +317,7 @@ const TransactionsPage = () => {
     <PageContainer
       title="Transactions"
       description="Review expenses, income, transfers, and investment trades in one activity view. Autopay handles scheduled movements."
-      action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button variant="secondary" onClick={() => navigate("/transactions/autopay")}><Repeat2 size={17} />Set up Autopay</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
+      action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={() => setIsImportOpen(true)}><FileUp size={17}/>Import statement</Button><Button variant="secondary" onClick={handleExport} disabled={isExporting}><Download size={17} />{isExporting ? "Exporting..." : "Export CSV"}</Button><Button variant="secondary" onClick={() => navigate("/transactions/autopay")}><Repeat2 size={17} />Set up Autopay</Button><Button onClick={() => openCreateModal()}><Plus size={18} />Add transaction</Button></div>}
     >
       <TransactionWorkspaceNav />
 
@@ -355,6 +357,7 @@ const TransactionsPage = () => {
         )}
       </DashboardCard>
 
+      <StatementImportModal open={isImportOpen} accounts={accounts} categories={categories} onClose={() => setIsImportOpen(false)} onImported={refreshFinanceData} />
       <TransactionModal accounts={accounts} categories={categories} isOpen={isModalOpen} isSaving={saveMutation.isPending} transaction={selectedTransaction} template={selectedTemplate} timezone={user?.timezone} onClose={() => { if (!saveMutation.isPending) { setIsModalOpen(false); setSelectedTransaction(null); setSelectedTemplate(null); } }} onSubmit={(payload) => saveMutation.mutateAsync(payload)} />
 
       <AccountModal

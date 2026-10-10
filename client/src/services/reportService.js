@@ -26,13 +26,36 @@ const getReportAnalytics = async ({ startDate, endDate }) => {
   };
 };
 
-const downloadMonthlyPdf = async ({ month }) => {
+// PDF downloads survive ordinary route unmounts, but never survive auth teardown.
+// Re-entering Reports cannot spawn the same export twice.
+const activeExports = new Map();
+const exportListeners = new Set();
+const exportSnapshot = () => [...activeExports.keys()].sort().join("|");
+const subscribeReportExports = (listener) => {
+  exportListeners.add(listener);
+  return () => exportListeners.delete(listener);
+};
+const notifyExports = () => exportListeners.forEach((listener) => listener());
+const getReportExportsSnapshot = () => exportSnapshot();
+const cancelPendingReportDownloads = () => {
+  for (const task of activeExports.values()) task.controller.abort();
+  activeExports.clear();
+  notifyExports();
+};
+
+const performMonthlyPdfDownload = async ({ month, signal }) => {
   try {
     const response = await api.get("/reports/monthly-pdf", {
       params: { month },
       responseType: "blob",
       timeout: 45000,
+      signal,
     });
+    if (signal.aborted) {
+      const error = new Error("Monthly report download was canceled");
+      error.code = "ERR_CANCELED";
+      throw error;
+    }
     const contentDisposition = response.headers["content-disposition"] || "";
     const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
     const filename =
@@ -74,4 +97,23 @@ const downloadMonthlyPdf = async ({ month }) => {
   }
 };
 
-export { downloadMonthlyPdf, getReportAnalytics };
+const downloadMonthlyPdf = ({ month, userId }) => {
+  const key = `${String(userId || "active-user")}:${month}`;
+  if (activeExports.has(key)) return activeExports.get(key).promise;
+  const controller = new AbortController();
+  const promise = performMonthlyPdfDownload({ month, signal: controller.signal }).finally(() => {
+    // A canceled task must not erase a later task with the same key.
+    if (activeExports.get(key)?.controller === controller) {
+      activeExports.delete(key);
+      notifyExports();
+    }
+  });
+  activeExports.set(key, { controller, promise });
+  notifyExports();
+  return promise;
+};
+
+export {
+  cancelPendingReportDownloads, downloadMonthlyPdf, getReportAnalytics,
+  getReportExportsSnapshot, subscribeReportExports,
+};

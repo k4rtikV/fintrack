@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Download, PiggyBank, ReceiptText, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import toast from "react-hot-toast";
 
 import DashboardStatCard from "../components/dashboard/DashboardStatCard";
@@ -15,7 +15,7 @@ import EmptyState from "../components/ui/EmptyState";
 import Loader from "../components/ui/Loader";
 import NativeDateInput from "../components/ui/NativeDateInput";
 import useAuth from "../hooks/useAuth";
-import { downloadMonthlyPdf, getReportAnalytics } from "../services/reportService";
+import { downloadMonthlyPdf, getReportAnalytics, getReportExportsSnapshot, subscribeReportExports } from "../services/reportService";
 import {
   addMonthsToDateKey,
   getDateKeyInTimeZone,
@@ -61,7 +61,9 @@ const ReportsPage = () => {
   const [preset, setPreset] = useState("this-month");
   const [range, setRange] = useState(defaultRange);
   const [pdfMonth, setPdfMonth] = useState(defaultRange.startDate.slice(0, 7));
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const activeExports = useSyncExternalStore(subscribeReportExports, getReportExportsSnapshot);
+  const exportKey = `${user?._id || user?.id || "active-user"}:${pdfMonth}`;
+  const isDownloadingPdf = activeExports.split("|").includes(exportKey);
   const currency = user?.preferredCurrency || "INR";
 
   const reportQuery = useQuery({
@@ -87,17 +89,13 @@ const ReportsPage = () => {
       return;
     }
 
-    setIsDownloadingPdf(true);
-
     try {
-      await downloadMonthlyPdf({ month: pdfMonth });
+      await downloadMonthlyPdf({ month: pdfMonth, userId: user?._id || user?.id });
       toast.success("Monthly PDF report downloaded");
     } catch (error) {
-      toast.error(
-        getApiError(error, "Unable to generate the monthly PDF report."),
-      );
-    } finally {
-      setIsDownloadingPdf(false);
+      if (error?.code !== "ERR_CANCELED" && error?.name !== "CanceledError") {
+        toast.error(getApiError(error, "Unable to generate the monthly PDF report."));
+      }
     }
   };
 

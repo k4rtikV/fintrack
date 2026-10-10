@@ -6,9 +6,14 @@ const notFound = (req, res, next) => {
 };
 
 const errorHandler = (error, req, res, next) => {
-  let statusCode = error.statusCode || 500;
+  let statusCode = error.statusCode || error.status || 500;
   let message = error.message || "An unexpected server error occurred";
   let details = error.details || null;
+
+  if (error.type === "entity.too.large") {
+    statusCode = 413;
+    message = "Uploaded payload exceeds the allowed size";
+  }
 
   if (error.name === "ValidationError") {
     statusCode = 400;

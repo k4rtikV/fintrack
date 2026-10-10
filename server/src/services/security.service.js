@@ -27,6 +27,7 @@ const createAuthenticatedSession = async ({
   userId,
   securityContext,
   trustedDeviceId = null,
+  browserInstanceHash = null,
 }) => {
   const sessionId = crypto.randomUUID();
   const token = generateAccessToken(userId, {
@@ -41,10 +42,29 @@ const createAuthenticatedSession = async ({
     ...securityContext,
     expiresAt,
     trustedDevice: trustedDeviceId || null,
+    browserInstanceHash,
     appLocked: false,
     appLockedAt: null,
     strongAuthAt: now,
   });
+
+  const sameBrowserScopes = [];
+  if (browserInstanceHash) sameBrowserScopes.push({ browserInstanceHash });
+  // Legacy PIN-enabled sessions already carry a trustworthy per-profile
+  // trustedDevice ID, even before browser-instance cookies were introduced.
+  if (trustedDeviceId) sameBrowserScopes.push({ trustedDevice: trustedDeviceId });
+  if (sameBrowserScopes.length) {
+    // Do not merge based on IP, OS, browser name or User-Agent. Two unrelated
+    // users/profiles often share those values; this is an auth boundary.
+    await UserSession.updateMany({
+      user: userId,
+      sessionId: { $ne: sessionId },
+      revokedAt: null,
+      $or: sameBrowserScopes,
+    }, {
+      $set: { revokedAt: now, revokeReason: "SAME_BROWSER_SIGN_IN" },
+    });
+  }
 
   return {
     token,

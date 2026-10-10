@@ -54,57 +54,39 @@ const addBudgetProgress = async ({
     return [];
   }
 
-  const months = [...new Set(budgets.map((budget) => budget.month))];
-  const monthRanges = months.map((month) => ({
-    month,
-    ...getMonthDateRange(month),
-  }));
-
-  const spentByKey = new Map();
-
-  await Promise.all(
-    monthRanges.map(async ({ month, startDate, endDate }) => {
-      const categoryIds = budgets
-        .filter((budget) => budget.month === month)
-        .map((budget) => budget.category._id ?? budget.category);
-
-      const spending = await Transaction.aggregate([
-        {
-          $match: {
-            user: new mongoose.Types.ObjectId(userId),
-            type: "EXPENSE",
-            category: {
-              $in: categoryIds.map(
-                (id) => new mongoose.Types.ObjectId(id),
-              ),
-            },
-            transactionDate: {
-              $gte: startDate,
-              $lt: endDate,
-            },
-          },
-        },
-        {
-          $group: {
-            _id: "$category",
-            spent: {
-              $sum: "$amount",
-            },
-          },
-        },
-      ]);
-
-      for (const item of spending) {
-        spentByKey.set(`${month}:${item._id.toString()}`, item.spent);
-      }
-    }),
-  );
+  // Query all historical months in one aggregation rather than firing an
+  // unbounded number of separate monthly queries for the default all-time view.
+  const months = [...new Set(budgets.map((budget) => budget.month))].sort();
+  const earliestMonth = months[0];
+  const latestMonth = months[months.length - 1];
+  const { startDate } = getMonthDateRange(earliestMonth);
+  const { endDate } = getMonthDateRange(latestMonth);
+  const categoryIds = [...new Set(budgets
+    .map((budget) => budget.category?._id ?? budget.category)
+    .filter((id) => id && mongoose.isValidObjectId(id))
+    .map(String))];
+  const spending = await Transaction.aggregate([
+    { $match: {
+      user: new mongoose.Types.ObjectId(userId),
+      type: "EXPENSE",
+      category: { $in: categoryIds.map((id) => new mongoose.Types.ObjectId(id)) },
+      transactionDate: { $gte: startDate, $lt: endDate },
+    } },
+    { $group: {
+      _id: {
+        category: "$category",
+        month: { $dateToString: { format: "%Y-%m", date: "$transactionDate", timezone: "UTC" } },
+      },
+      spent: { $sum: "$amount" },
+    } },
+  ]);
+  const spentByKey = new Map(spending.map((item) => [
+    `${item._id.month}:${item._id.category.toString()}`, item.spent,
+  ]));
 
   return budgets.map((budget) => {
     const budgetObject = budget.toObject();
-    const categoryId = (
-      budget.category._id ?? budget.category
-    ).toString();
+    const categoryId = String(budget.category?._id ?? budget.category ?? "");
 
     const spent = spentByKey.get(`${budget.month}:${categoryId}`) ?? 0;
     const remaining = budget.amount - spent;
