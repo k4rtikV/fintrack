@@ -1,870 +1,350 @@
-# 💸 FinTrack
+# FinTrack V2
 
-### Smart personal finance tracking, analytics, AI insights and reporting in one place.
+### Personal finance, investments, reporting, and AI-assisted insights — in one secure workspace.
 
-**MERN Stack** · **React 19** · **Express 5** · **MongoDB** · **Gemini AI** · **Brevo** · **PDFKit**
+**MERN stack · React 19 · Vite 8 · Express 5 · MongoDB Atlas · Google Sign-In · Upstox · Gemini · Brevo**
 
-**Live App:** https://fintrack-api-impd.onrender.com  
-**GitHub:** https://github.com/k4rtikV/fintrack
+[**Live website**](https://fintrack-api-impd.onrender.com) · [**Google Sign-In**](https://fintrack-api-impd.onrender.com/login) · [**Source code**](https://github.com/k4rtikV/fintrack)
 
----
-
-## 📌 About FinTrack
-
-**FinTrack** is a full-stack personal finance management platform built with the MERN stack. It helps users track accounts, transactions, budgets, savings goals and recurring payments while turning financial data into useful analytics, forecasts and AI-assisted insights.
-
-The project goes beyond a basic CRUD finance tracker by combining financial management, reporting, security, notifications and a grounded AI Assistant in a single responsive dashboard.
-
-### What FinTrack focuses on
-
-- Accurate account and transaction management
-- Budget and savings-goal planning
-- Recurring transaction automation
-- Visual financial analytics and reports
-- AI-assisted financial insights powered by Google Gemini
-- Anomaly-aware forecasting and what-if simulations
-- Professional monthly PDF financial reports
-- OTP-based authentication and server-managed sessions
-- Security activity history and active-session controls
-- Responsive light and dark user interfaces
+> **Status (October 2026):** FinTrack V2 is deployed on Render with the existing production database. Deployment, Google Sign-In, account access, selected balances, investment views, and Upstox market data have been exercised in production. Full end-to-end and cross-account regression testing remains ongoing. The Google OAuth application's transition from *Testing* to *In production* is being configured separately; until then, Google limits sign-in to approved test users.
 
 ---
 
-## ✨ Key Features
+## Overview
 
-| Area | Features |
+**FinTrack** is a full-stack, personal finance management application for recording income and expenses, monitoring account balances, organizing investments, managing budgets and goals, automating recurring entries, and exploring financial data through reports and a grounded AI assistant.
+
+V2 replaces the original email/password and OTP sign-in flow with **Google Sign-In** and server-managed sessions, introduces optional six-digit PIN protection for trusted devices, expands investment research using **read-only Upstox market data**, and unifies transactions, categories, and recurring payments in a streamlined dark-only interface.
+
+**FinTrack is not a bank, broker, payment processor, or automated trading system.** Users maintain their own financial records; market information and AI-generated explanations are informational and may be delayed or unavailable.
+
+## Features at a glance
+
+| Workspace | Capabilities |
 | --- | --- |
-| 💳 Accounts | Bank, Cash, Card, Wallet and Investment accounts |
-| 💸 Transactions | Income/expense tracking, filters, search, pagination, tags and notes |
-| 🗂️ Categories | Default and custom categories with icons, colours and archive support |
-| 🎯 Budgets | Monthly category budgets, usage, remaining amount, projections and pace risk |
-| 🏆 Savings Goals | Target tracking, progress, deadlines and required saving pace |
-| 🔁 Recurring | Daily, weekly, monthly and yearly recurring transactions |
-| 📊 Analytics | Cash flow, category breakdowns, savings rate and top expenses |
-| 📈 Reports | Custom periods, historical comparisons and detailed summaries |
-| 🤖 AI Assistant | Grounded financial analysis, anomalies, forecasts and simulations |
-| 📄 PDF Reports | Downloadable professional monthly financial reports |
-| 🔔 Notifications | Budget, goal, recurring and system alerts |
-| 🔐 Security | OTP, HttpOnly cookies, sessions, audit history and revocation controls |
-| 🌓 UI | Responsive dashboard with light and dark themes |
+| **Dashboard** | Financial summary, monthly cash-flow charts, income/expense trends, spending breakdowns and account overview |
+| **Accounts** | Bank, cash, card, wallet and investment accounts; transaction-linked balances, account history and archival |
+| **Transactions** | Income, expenses, transfers, filtering, sorting, date ranges, CSV export, and financial activity history |
+| **Statement Import** | CSV/XLSX preview, column/date/debit-credit mapping, row selection, category assignment, duplicate handling and import history |
+| **Autopay & Categories** | Recurring schedules, catch-up processing, protected occurrence generation and customizable categories — inside the Transactions workspace |
+| **Budget** | Historical and monthly category budgets, spending progress, projections and pace-risk insights |
+| **Investments** | NSE/BSE search, holdings, buy/sell records, watchlists, portfolio P&L, stock charts, fundamentals and company research |
+| **Goals** | Savings targets, progress, deadlines and required savings pace |
+| **Reports** | Financial summaries, period comparisons and downloadable monthly PDF reports |
+| **AI Assistant** | Gemini-backed, tool-grounded answers, financial analysis, forecasts, what-if simulations and investment research context |
+| **Notifications** | In-app alerts, eligible email copies, recurring and goal events, and security activity |
+| **Settings & Security** | Google identity linking, optional trusted-device PIN, lock/unlock, session history, device revocation, profile and timezone preferences |
+
+### V2 interface
+
+- Dark-only **blue-steel/graphite** surfaces with copper actions, ivory text and muted gray-blue details.
+- Persistent eight-area top navigation, responsive layouts, accessible controls and consistent chart interactions.
+- A unified Transactions workspace with **Transactions / Autopay / Categories** tabs.
+- Client-side routing with support for direct links and refreshes on the production server.
 
 ---
 
-# 🧩 Feature Breakdown
+## Core workspaces
 
-## 📊 Dashboard
+### Accounts, transactions, and statement imports
 
-The dashboard provides an at-a-glance view of the user's current financial position.
+FinTrack supports multiple account types with balances derived from recorded activity. Users can inspect account-specific histories, record income and expenses, move funds between accounts, and review investment trades without treating investment purchases as ordinary household spending.
 
-### Summary cards
+The statement importer supports **CSV and XLSX** files with a preview-first workflow. Users can map the statement's fields, choose an account, classify/select entries, review potential duplicates, and commit accepted rows. The backend uses import fingerprints, duplicate checks, and transactional writes to keep account balances and imported transactions consistent.
 
-- Total balance
-- Total income
-- Total expenses
-- Overall savings rate
+> Importing and changing transactions can affect account balances. Review previews and duplicates before confirming a write.
 
-### Visual analytics
+### Autopay
 
-- Cash-flow trend
-- Income vs expenses
-- Expense-category breakdown
-- Category percentages
-- Account summary
-- Top expenses
+Recurring schedules support periodic financial activity, including daily, weekly, monthly and yearly cadences. FinTrack applies duplicate-occurrence safeguards and handles calendar edge cases such as month ends and leap years.
 
----
+The backend performs a **startup catch-up sweep** and schedules additional sweeps at a configurable interval (15 minutes by default). **Render Free can sleep while idle**, so a running interval should not be treated as an always-on background job. Due entries are reconciled when the service wakes or starts; timing can therefore be delayed.
 
-## 💳 Accounts
+### Investments and market research
 
-FinTrack supports multiple account types:
+FinTrack's investment workspace tracks user-entered trades, share quantities, cost basis, realized/unrealized P&L, investment account balances and watchlists. Investment purchases and sales are kept distinct from conventional expense and income reports.
 
-- Bank
-- Cash
-- Card
-- Wallet
-- Investment
+The backend uses an **Upstox Analytics Token** for read-only NSE/BSE data, including:
 
-Each account can store its name, type, currency, current balance, icon, colour and archive state.
+- Symbol search, quotes, market status and historical/intraday price charts.
+- Stock overview, financial fundamentals, statements, shareholding patterns and available news/corporate-action information.
+- Portfolio and watchlist market-value refreshes, plus external research links.
 
-Transaction creation, editing and deletion keep account balances synchronized with the user's financial records.
+The app **does not connect to an actual Upstox brokerage account, place orders, sync broker holdings, or initiate trades**. Prices can be delayed, unavailable, or last-session values when an exchange is closed.
 
-### Account safety
+### Budgets, goals, and reporting
 
-- Historical transactions remain valid after an account is archived.
-- Accounts used by active recurring transactions cannot be archived accidentally.
+Users can create monthly category budgets and savings goals; view historical progress; and inspect financial reports over predefined or custom ranges. Budget calculations include actual recorded spending, remaining amount and projection context. The PDF reporting system uses **PDFKit** and keeps financial totals in application-side deterministic calculations.
+
+### AI Assistant
+
+The AI Assistant uses **Google Gemini** to interpret results returned by authenticated, scoped backend tools. FinTrack performs numeric calculations on the server rather than delegating financial arithmetic to the language model. Capabilities include spending comparisons, budget analysis, goals, anomaly-aware projections, hypothetical scenarios, and read-only investment context.
+
+The assistant does not have unrestricted database access and does not execute bank transfers, brokerage orders, or user-record mutations. Model availability and request limits depend on the configured Google AI service.
 
 ---
 
-## 💸 Transactions
+## Authentication and security
 
-Users can record both **income** and **expenses** with detailed metadata.
+### Google Sign-In
 
-### Transaction fields
+FinTrack V2 uses **Google Identity Services** as its primary sign-in method. The frontend retrieves the OAuth client ID from the backend at `GET /api/auth/google/config`; it does **not** require a `VITE_GOOGLE_CLIENT_ID` variable.
 
-- Title
-- Amount
-- Type
-- Account
-- Category
-- Date
-- Payment method
-- Tags
-- Notes
+For an existing V1 account, a **one-time explicit migration** can link the Google identity after the user confirms the old FinTrack password. FinTrack does not automatically claim an existing account based on a matching email address alone. Legacy password/OTP sign-in is retired after migration.
 
-### Transaction tools
+### Trusted-device PIN and sessions
 
-- Search
-- Income/expense filter
-- Account filter
-- Category filter
-- Date-range filter
-- Sorting
-- Pagination
-- Quick date ranges
-- Saved transaction templates
-- CSV export
+Users can optionally enable a **six-digit PIN** for a trusted browser/device. A salted, memory-hard `scrypt` verifier is kept server-side; sensitive operations require recent strong Google authentication. Protection includes idle locking, failed-attempt cooldowns, unlock checks, session revocation and security activity history.
 
-CSV exports include all matching records and protect user-entered spreadsheet values from formula injection.
+Additional safeguards include secure/HttpOnly cookies in production, server-side session verification, CSRF Origin/Referer enforcement, CORS origin restrictions, Helmet headers, validation, rate limiting, and user-scoped data access. The PIN is an optional session-unlock convenience, **not** a replacement for Google identity verification.
+
+> Security is an ongoing engineering process. Public deployment does not itself constitute a third-party audit or guarantee of security.
 
 ---
 
-## 🗂️ Categories
+## Public pages and OAuth publication
 
-FinTrack provides built-in categories while also allowing users to create their own.
+FinTrack's public-facing pages are designed for visitors who have **not** signed in:
 
-Examples include:
+| Route | Purpose |
+| --- | --- |
+| `/` | Public FinTrack homepage and feature overview |
+| `/login` | Google Sign-In and one-time V1-account migration |
+| `/privacy` | Public privacy policy |
+| `/terms` | Public Terms of Service |
 
-- Salary
-- Freelance
-- Food
-- Transport
-- Shopping
-- Bills
-- Rent
-- Entertainment
-- Healthcare
-- Education
-- Investment
-- Other
+The public-page update includes footer links and links from the login page. **The `/`, `/privacy`, and `/terms` routes require the corresponding public-branding-page update to be included in a deployment**; the original V2 commit `7046366` does not yet contain those routes.
 
-Custom categories support names, icons, colours, transaction type, ordering and archive state.
-
----
-
-## 🎯 Budgets
-
-Users can set category-specific monthly spending limits and compare them against real transactions.
-
-FinTrack calculates:
-
-- Budget amount
-- Amount spent
-- Remaining amount
-- Usage percentage
-- Over-budget status
-- Unbudgeted spending
-- Projected month-end usage
-- Projected overage
-- Spending pace risk
-- Projection confidence
-
-### Anomaly-aware projections
-
-FinTrack avoids blindly extrapolating unusually large one-time expenses through the remainder of the month. Already-recorded unusual spending is counted, but it does not automatically become the assumed daily spending pace.
-
-This forecasting logic is shared across budgets, reports, financial health analysis, the AI Assistant and monthly PDF reports.
-
----
-
-## 🏆 Savings Goals
-
-Users can create savings goals with:
-
-- Goal name
-- Target amount
-- Current amount
-- Target date
-- Notes
-- Icon
-- Colour
-
-FinTrack calculates completion percentage, remaining amount, remaining time, overdue state and the saving pace required to reach the target.
-
----
-
-## 🔁 Recurring Transactions
-
-FinTrack can manage scheduled income and expenses using:
-
-- Daily
-- Weekly
-- Monthly
-- Yearly
-
-Recurring schedules support account, category, amount, transaction type, payment method, tags, start date, optional end date, next run date and active/paused state.
-
-### Recurring safeguards
-
-- Process all currently due entries
-- Process a single due schedule
-- Duplicate-occurrence protection
-- Month-end date clamping
-- Leap-year handling
-- Timezone-aware due dates
-
----
-
-## 🔔 Notifications
-
-The in-app notification system supports:
-
-- Budget alerts
-- Goal milestones
-- Recurring transaction alerts
-- System notifications
-- Read/unread state
-- Action URLs
-- Notification metadata
-- Deduplication
-
-Important events can refresh the notification centre immediately while polling provides a fallback.
-
----
-
-## 📈 Reports
-
-The Reports workspace allows analysis across predefined and custom periods.
-
-### Available periods
-
-- This month
-- Last month
-- Last 3 months
-- Year to date
-- Custom date range
-
-### Report metrics
-
-- Income
-- Expenses
-- Net savings
-- Savings rate
-- Spending by category
-- Budget performance
-- Account summaries
-- Historical comparisons
-
----
-
-# 🤖 AI Assistant
-
-FinTrack includes a **grounded AI Assistant powered by Google Gemini**.
-
-The AI model does not receive unrestricted database access. Instead, the backend exposes controlled read-only financial tools that retrieve authenticated user data and perform deterministic calculations before Gemini explains the result.
-
-### Example questions
-
-- How am I doing financially this month?
-- Where am I spending the most?
-- Am I on track with my budgets?
-- What spending looks unusual this month?
-- How am I projected to finish this month?
-- What if I spend ₹25,000 more this month?
-- How are my savings goals progressing?
-
-### Assistant capabilities
-
-- Financial overview
-- Account balances
-- Recent transactions
-- Spending by category
-- Monthly trends
-- Month-to-date comparisons
-- Budget status
-- Goal progress
-- Recurring transaction analysis
-- Financial health summary
-- Spending-pattern analysis
-- Financial forecasting
-- Read-only what-if simulations
-
-### Grounded response flow
+For Google Auth Platform → **Branding**, use the publicly accessible pages after deployment:
 
 ```text
-User question
-      ↓
-FinTrack Assistant API
-      ↓
-Authenticated financial tools
-      ↓
-Deterministic calculations
-      ↓
-Gemini explanation
-      ↓
-Readable answer + metric cards
+Application home page:         https://fintrack-api-impd.onrender.com/
+Application privacy policy:    https://fintrack-api-impd.onrender.com/privacy
+Application Terms of Service:  https://fintrack-api-impd.onrender.com/terms
 ```
 
-The financial figures shown by the Assistant come from FinTrack's own backend calculations. Gemini is used to explain and contextualize those results.
+The OAuth application is configured as **External**. Publishing to **In production** is a separate Google Cloud step and may involve consent-screen or domain-related validation; having public pages does not itself remove Google's test-user restriction.
 
 ---
 
-## 🧠 Financial Intelligence
+## Tech stack
 
-### Spending anomaly detection
-
-FinTrack can identify signals such as:
-
-- Unusually large expenses
-- Category concentration
-- New category activity
-- Major changes in spending behaviour
-- Sparse historical baselines
-- Possible recurring patterns
-
-An anomaly only means that activity is unusual relative to the user's recorded FinTrack history. It does **not** automatically imply fraud or an incorrect transaction.
-
-### Anomaly-aware forecasting
-
-Forecasting considers:
-
-- Spending already incurred
-- High-severity unusual transactions
-- Non-anomalous routine spending pace
-- Historical expense baselines
-- Recurring items still due
-
-Large one-time expenses can therefore be included once without being repeatedly extrapolated across the remaining days of the month.
-
-### What-if simulations
-
-Users can ask hypothetical questions without modifying any saved financial records.
-
-For example:
-
-> What if I spend ₹25,000 more this month?
-
-FinTrack can estimate the effect on expenses, net savings, savings rate, budget pressure and the month-end projection.
-
----
-
-# 📄 Monthly PDF Financial Report
-
-FinTrack can generate downloadable monthly financial reports using **PDFKit**.
-
-Reports can include:
-
-- Executive summary
-- Income and expense totals
-- Net savings
-- Savings rate
-- Category breakdown
-- Budget performance
-- Unbudgeted spending
-- Transaction highlights
-- Account snapshot
-- Goal progress
-- Recurring activity
-- Spending anomalies
-- Current-month forecast
-- Financial insights
-
-The current-month PDF forecast uses the same hardened financial intelligence logic as the AI Assistant.
-
----
-
-# 🔐 Authentication & Security
-
-FinTrack uses a security-focused authentication architecture rather than storing a long-lived token directly in browser JavaScript.
-
-### Authentication flow
-
-```text
-Email + Password
-       ↓
-Password Verification
-       ↓
-Email OTP
-       ↓
-OTP Verification
-       ↓
-Server-managed Session
-       ↓
-Secure HttpOnly JWT Cookie
-```
-
-### Security features
-
-- bcrypt password hashing
-- Email OTP verification
-- Hashed OTP storage
-- OTP expiration
-- OTP resend cooldown
-- OTP attempt limits
-- HttpOnly authentication cookies
-- Secure production cookie configuration
-- Server-side authenticated sessions
-- Session revocation
-- Active-device management
-- Security activity history
-- New-login email alerts through Brevo
-- CSRF Origin/Referer validation
-- CORS allowlisting
-- Helmet security headers
-- Zod request validation
-- Request-body limits
-- Authentication rate limiting
-- AI Assistant rate limiting
-- PDF report rate limiting
-- Production environment validation
-
-### Active sessions
-
-Users can:
-
-- View active devices
-- Identify the current session
-- Revoke another session
-- Log out all other devices
-
-Every protected request validates both the signed token and its matching active server session.
-
-### Security activity
-
-FinTrack records non-sensitive security events such as:
-
-- Successful login
-- Failed password attempt
-- Failed login OTP
-- Password change
-- Session revocation
-- Logout
-
-Passwords, OTP values, JWT strings and private financial notes are not written to the security activity log.
-
----
-
-# 🧰 Tech Stack
-
-## Frontend
-
-| Technology | Purpose |
+| Layer | Technology |
 | --- | --- |
-| React 19 | User interface |
-| Vite | Development and production builds |
-| React Router | Client-side routing |
-| TanStack React Query | Server-state fetching and caching |
-| Axios | API requests |
-| React Hook Form | Form management |
-| Zod | Form validation |
-| Recharts | Analytics charts |
-| Tailwind CSS | Styling and responsive UI |
-| Lucide React | Icons |
-| React Hot Toast | User feedback |
-| date-fns | Date utilities |
+| Frontend | React 19, Vite 8, React Router 7, Tailwind CSS 4, Recharts, TanStack Query, Axios, React Hook Form, Zod, Lucide |
+| Backend | Node.js 22, Express 5, MongoDB/Mongoose 9, JWT, cookie-parser, Zod, Helmet, express-rate-limit |
+| Reporting | PDFKit; CSV exports and CSV/XLSX statement import |
+| Authentication | Google Identity Services, server sessions, optional `scrypt`-protected PIN |
+| Market data | Upstox APIs — read-only market/analytics token |
+| AI | Google Gemini with configurable primary/fallback models |
+| Email | Brevo transactional email API |
+| Deployment | Render web service (API and React build served together), MongoDB Atlas |
 
-## Backend
-
-| Technology | Purpose |
-| --- | --- |
-| Node.js | JavaScript runtime |
-| Express 5 | REST API |
-| MongoDB Atlas | Cloud database |
-| Mongoose | MongoDB ODM |
-| bcryptjs | Password hashing |
-| JSON Web Token | Authentication token signing |
-| Zod | API validation |
-| Helmet | Security headers |
-| express-rate-limit | Request rate limiting |
-| PDFKit | Monthly PDF generation |
-| Morgan | Development request logging |
-
-## External Services
-
-| Service | Purpose |
-| --- | --- |
-| Google Gemini | AI-generated financial explanations |
-| Brevo | OTP, notification and security emails |
-| MongoDB Atlas | Managed MongoDB database |
-| Render | Frontend/backend deployment |
-
----
-
-# 📁 Project Structure
+## Repository structure
 
 ```text
 fintrack/
-│
 ├── client/
 │   ├── public/
 │   ├── src/
 │   │   ├── api/
 │   │   ├── components/
-│   │   │   ├── accounts/
-│   │   │   ├── assistant/
-│   │   │   ├── budgets/
-│   │   │   ├── categories/
-│   │   │   ├── dashboard/
-│   │   │   ├── forms/
-│   │   │   ├── goals/
-│   │   │   ├── layout/
-│   │   │   ├── notifications/
-│   │   │   ├── recurring/
-│   │   │   ├── reports/
-│   │   │   ├── transactions/
-│   │   │   └── ui/
 │   │   ├── context/
-│   │   ├── hooks/
 │   │   ├── layouts/
 │   │   ├── pages/
 │   │   ├── routes/
 │   │   ├── services/
 │   │   └── utils/
-│   ├── .env.example
 │   └── package.json
-│
 ├── server/
 │   ├── src/
 │   │   ├── config/
-│   │   ├── constants/
 │   │   ├── controllers/
-│   │   ├── emails/
 │   │   ├── middleware/
 │   │   ├── models/
 │   │   ├── routes/
 │   │   ├── scripts/
 │   │   ├── services/
-│   │   ├── utils/
 │   │   └── validators/
 │   ├── .env.example
 │   └── package.json
-│
 ├── package.json
 └── README.md
 ```
 
 ---
 
-# 🚀 Getting Started
+## Local development
 
-## Prerequisites
+### Prerequisites
 
-Make sure you have:
+- **Node.js 22.12+** and npm (production was configured with Node 22.16.0).
+- Access to a MongoDB database, a Google Cloud OAuth **Web application** client, and the relevant external API keys.
+- A Google OAuth **Authorized JavaScript origin** of `http://localhost:5173` for local Google Sign-In testing.
 
-- Node.js
-- npm
-- Git
-- MongoDB Atlas database
-- Brevo account/API key
-- Google Gemini API key
-
-## 1. Clone the repository
+### Install
 
 ```bash
-git clone <your-fintrack-repository-url>
+git clone https://github.com/k4rtikV/fintrack.git
 cd fintrack
+npm ci
+npm ci --prefix server
+npm ci --prefix client
 ```
 
-## 2. Install dependencies
+### Backend environment
 
-From the project root:
+Create `server/.env` from `server/.env.example` and set the values for your own development environment:
 
-```bash
-npm run install-all
-```
-
-Or install each application separately:
-
-```bash
-npm install --prefix client
-npm install --prefix server
-```
-
-## 3. Configure the frontend
-
-Create:
-
-```text
-client/.env
-```
-
-Example:
-
-```env
-VITE_API_URL=http://localhost:5000/api
-```
-
-## 4. Configure the backend
-
-Create:
-
-```text
-server/.env
-```
-
-Example:
-
-```env
+```dotenv
 NODE_ENV=development
 PORT=5000
 CLIENT_URL=http://localhost:5173
-
 TRUST_PROXY_HOPS=1
 
-MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=replace_with_a_long_random_secret
+MONGO_URI=mongodb+srv://USER:PASSWORD@HOST/fintrack-dev
+JWT_SECRET=replace_with_a_long_random_secret_of_at_least_32_characters
 JWT_EXPIRES_IN=30d
+GOOGLE_CLIENT_ID=your_google_web_client_id.apps.googleusercontent.com
 
 BREVO_API_KEY=your_brevo_api_key
 BREVO_SENDER_EMAIL=your_verified_sender_email
 BREVO_SENDER_NAME=FinTrack
 
-OTP_EXPIRES_MINUTES=10
-OTP_RESEND_COOLDOWN_SECONDS=60
-OTP_MAX_ATTEMPTS=5
+GEMINI_API_KEY=your_google_gemini_api_key
+GEMINI_MODEL=your_available_primary_model
+GEMINI_FALLBACK_MODEL=your_available_fallback_model
+GEMINI_ENABLE_FALLBACK=true
+
+UPSTOX_ANALYTICS_TOKEN=your_valid_upstox_analytics_token
+
+PIN_IDLE_LOCK_MINUTES=15
+PIN_STRONG_AUTH_MINUTES=10
+AUTOPAY_SCHEDULER_INTERVAL_MINUTES=15
 
 AUTH_RATE_LIMIT_MAX=60
 AUTH_RATE_LIMIT_WINDOW_MINUTES=15
-
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=your_primary_model
-GEMINI_FALLBACK_MODEL=your_fallback_model
-GEMINI_ENABLE_FALLBACK=true
-
 ASSISTANT_RATE_LIMIT_MAX=120
 ASSISTANT_RATE_LIMIT_WINDOW_MINUTES=15
 ```
 
-> Never commit real API keys, database credentials or JWT secrets.
+`UPSTOX_ANALYTICS_TOKEN` is optional for server startup, but market-data features require a valid token. Existing `OTP_*` environment options may remain for compatibility with the repository example, although V2's primary sign-in is Google-only.
 
-## 5. Run FinTrack
+**Never commit `.env` files, database URIs containing credentials, PINs, tokens, or OAuth client secrets.** Google Identity Services sign-in uses a client ID, not a backend Google client secret.
+
+### Frontend API URL
+
+The frontend automatically uses `http://localhost:5000/api` during development and `/api` in a production build. `client/.env` is optional; set `VITE_API_URL` only when a custom API origin is required. Do **not** point a production build at `localhost`.
+
+### Run
 
 ```bash
 npm run dev
 ```
-
-Local services:
 
 ```text
 Frontend: http://localhost:5173
 Backend:  http://localhost:5000
+Health:   http://localhost:5000/api/health
 ```
 
 ---
 
-# 🧪 Available Scripts
-
-## Root
+## Testing and regression checks
 
 ```bash
-npm run install-all
-npm run dev
-npm run client
-npm run server
-npm run build
-npm start
-```
-
-## Client
-
-```bash
-npm run dev --prefix client
-npm run build --prefix client
 npm run lint --prefix client
-npm run preview --prefix client
-```
+npm run build --prefix client
 
-## Server
-
-```bash
-npm run dev --prefix server
-npm start --prefix server
-npm run backfill:categories --prefix server
 npm run test:assistant --prefix server
 npm run test:report-pdf --prefix server
 npm run test:security --prefix server
+npm run test:v2-auth --prefix server
+npm run test:v2-pin --prefix server
+npm run test:v2-transactions --prefix server
+npm run test:v2-autopay --prefix server
+npm run test:v2-investments --prefix server
+npm run test:v2-research --prefix server
+npm run test:v2-deployment --prefix server
+npm run test:v2-stale-navigation --prefix server
+npm run test:v2-navigation-chains --prefix server
 ```
+
+Additional focused V2 regression scripts are listed in `server/package.json`. A passing automated suite is a prerequisite, not a substitute for production and multi-account verification.
+
+### Production smoke-test focus
+
+- Google sign-in, new-account onboarding, one-time V1 account linking and session renewal.
+- Optional PIN enrollment, lock/unlock, reset and session revocation.
+- Existing accounts, transaction balances, investment lots/trades and historical reports.
+- Statement preview, duplicate detection and safe import commit.
+- Autopay catch-up, occurrence uniqueness and notifications.
+- Budgets, goals, monthly PDF download and grounded AI Assistant behavior.
+- Upstox quotes, chart history, closed-market messaging and unavailable-provider behavior.
+- Cross-user isolation, authorized browser origins, direct-route refresh and logout.
 
 ---
 
-# ✅ Testing
+## API overview
 
-Useful checks before deployment:
+All endpoints share the `/api` prefix. Most finance, security, and market-data routes require an authenticated and unlocked session.
 
-```bash
-npm ci --prefix client
-npm ci --prefix server
-
-npm run build --prefix client
-npm run lint --prefix client
-
-npm run test:assistant --prefix server
-npm run test:report-pdf --prefix server
-npm run test:security --prefix server
-```
-
-| Test | Coverage |
+| Area | Routes (examples) |
 | --- | --- |
-| `test:assistant` | AI, forecasts, anomaly detection and budget-risk regressions |
-| `test:report-pdf` | Monthly PDF layout and generation |
-| `test:security` | Sessions and security behaviour |
+| Auth | `GET /api/auth/google/config`, `POST /api/auth/google`, `POST /api/auth/google/link-legacy`, `POST /api/auth/google/reauth`, `GET /api/auth/me`, `POST /api/auth/logout` |
+| Finance | `/api/accounts`, `/api/transactions`, `/api/categories`, `/api/budgets`, `/api/goals`, `/api/recurring`, `/api/analytics` |
+| Statement imports | `/api/statement-imports/preview`, `/prepare`, `/commit`, `/history` |
+| Investments | `/api/investments/portfolio`, `/trades`, `/watchlist`, `/market/search`, `/market/quote/:instrumentId` and instrument research routes |
+| AI | `POST /api/assistant/chat` |
+| Reports | `GET /api/reports/monthly-pdf` |
+| Security | `/api/security/pin/*`, `/api/security/sessions`, `/api/security/activity` |
+| Health | `GET /api/health` |
+
+`/api/health` reports whether the server has a live MongoDB connection.
 
 ---
 
-# 🔌 API Overview
+## Render deployment
 
-All backend routes are served below:
+The production configuration uses **one Render Node web service** for both Express and the compiled React frontend. The deployment keeps the existing app URL and MongoDB database; it does not require a separate static site.
 
-```text
-/api
-```
+| Setting | Production value |
+| --- | --- |
+| Repo / branch | `k4rtikV/fintrack` / `main` |
+| Root directory | Repository root (blank) |
+| Node.js | `22.16.0` in the deployed configuration |
+| Build command | `npm ci --prefix server && npm ci --include=dev --prefix client && npm run build --prefix client` |
+| Start command | `npm run start --prefix server` |
+| Health check | `/api/health` |
+| Auto-deploy | Off for controlled manual rollouts |
+| Public base URL | `https://fintrack-api-impd.onrender.com` |
 
-### Authentication
+**Why `--include=dev`?** The React build needs Vite and related plugins even when Render runs with `NODE_ENV=production`. Omitting frontend dev dependencies causes a missing `@vitejs/plugin-react` build error.
 
-```text
-POST /api/auth/register
-POST /api/auth/verify-registration-otp
-POST /api/auth/resend-registration-otp
+Keep the existing `MONGO_URI` and `JWT_SECRET` stable through V1 → V2 migration. Store `GOOGLE_CLIENT_ID`, `UPSTOX_ANALYTICS_TOKEN`, `BREVO_*`, `GEMINI_*`, and other secrets **only** in Render's environment settings, never in the repository.
 
-POST /api/auth/login
-POST /api/auth/verify-login-otp
-POST /api/auth/resend-login-otp
+### Backup and rollback
 
-POST /api/auth/logout
-GET  /api/auth/me
-```
+Before deployments that may affect financial records, create a **database-specific MongoDB archive** and test it with `mongorestore --dryRun` (preferably also a separate test restore). Confirm collection counts and key balances. For production incidents, use the previously healthy code revision and the verified data backup as separate recovery controls: **rolling back code does not undo transactions written to MongoDB by newer code**.
 
-### Finance
-
-```text
-/api/accounts
-/api/categories
-/api/transactions
-/api/budgets
-/api/goals
-/api/recurring
-/api/analytics
-/api/notifications
-```
-
-### AI & Reports
-
-```text
-POST /api/assistant/chat
-GET  /api/reports/monthly-pdf
-```
-
-### Settings & Security
-
-```text
-/api/settings
-/api/security/sessions
-/api/security/activity
-```
-
-### Health check
-
-```text
-GET /api/health
-```
-
-The health endpoint returns an unavailable status when the database connection is not healthy.
+On Render Free, cold starts and service sleeping can delay API responses and periodic Autopay sweeps.
 
 ---
 
-# ☁️ Deployment
+## Limits and disclaimers
 
-FinTrack can be deployed with separate frontend and backend services on **Render**, with **MongoDB Atlas** providing the production database.
-
-Recommended deployment order:
-
-1. Create/configure the MongoDB Atlas database.
-2. Deploy the backend service.
-3. Add all backend environment variables.
-4. Verify `/api/health`.
-5. Configure the frontend API URL.
-6. Build and deploy the frontend.
-7. Configure SPA rewrites for React Router.
-8. Run a complete production smoke test.
-
-Production services should use HTTPS and valid production environment values.
-
-### Production smoke-test checklist
-
-- Registration
-- Registration OTP verification
-- Login
-- Login OTP verification
-- Security login email
-- Accounts
-- Transactions
-- Categories
-- Budgets
-- Goals
-- Recurring processing
-- Notifications
-- Reports
-- AI Assistant
-- Monthly PDF download
-- Active sessions
-- Session revocation
-- Mobile responsiveness
-- Direct-route refresh
-- API health check
+- **No bank integration:** account information and transactions are maintained by FinTrack users or imported from supported files.
+- **No brokerage execution:** Upstox is used for read-only market information, not portfolio synchronization or trading.
+- **No financial guarantees:** AI explanations, projections and market information are informational, not professional investment, tax or financial advice.
+- **External-service dependencies:** Google Sign-In, Brevo, Gemini, Upstox, Render and MongoDB Atlas can be unavailable or subject to quotas/rate limits.
+- **Privacy and data protection:** public-facing policy pages should accurately reflect the application's data-processing practices before opening Google OAuth to unrestricted users.
 
 ---
 
-# 🌓 Responsive UI & Themes
+## Author
 
-FinTrack supports light and dark modes and is designed to adapt across desktop and mobile layouts.
+**Kartik Varma** · [GitHub](https://github.com/k4rtikV)
 
-Theme-specific handling includes native date/month controls, chart contrast, borders, surface colours and text contrast.
+FinTrack is a portfolio-grade full-stack project emphasizing **financial data integrity, secure sessions, deterministic analytics, read-only AI and market-data integration, production deployment, and user-focused design**.
 
----
-
-# ⚠️ Current Scope
-
-FinTrack v1 intentionally does not include:
-
-- Direct bank synchronization
-- Live investment market data
-- Receipt OCR
-- Historical daily account-balance snapshots
-- Shared household accounts
-- Native mobile applications
-- Automatic foreign-exchange conversion between account currencies
-
-These are potential areas for future expansion rather than missing requirements for the current project.
-
----
-
-# 🔮 Possible Future Improvements
-
-- Bank/Open Banking integration
-- Receipt OCR
-- Live investment-price synchronization
-- Multi-currency FX conversion
-- Passkeys / WebAuthn
-- Authenticator-app MFA
-- Docker support
-- CI/CD pipeline
-- Automated security scanning
-- Shared household finance spaces
-- Native mobile application
-
----
-
-# 👨‍💻 Author
-
-**Kartik Varma**
-
-GitHub: `github.com/k4rtikV`
-
-FinTrack was built as a portfolio-grade full-stack project with an emphasis on **architecture, data integrity, security, analytics, AI grounding, forecasting, reporting and production readiness**.
-
----
-
-### 💸 FinTrack
-
-**Track smarter. Understand your finances. Make better decisions.**
-
-*AI-generated explanations, forecasts and simulations are informational and are not professional financial advice.*
+**FinTrack — understand where your money goes.**

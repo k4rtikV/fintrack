@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import AuthLayout from "./layouts/AuthLayout";
+import PublicSiteLayout from "./layouts/PublicSiteLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AccountsPage from "./pages/AccountsPage";
 import AssistantPage from "./pages/AssistantPage";
@@ -9,6 +10,8 @@ import CategoriesPage from "./pages/CategoriesPage";
 import DashboardPage from "./pages/DashboardPage";
 import GoalsPage from "./pages/GoalsPage";
 import LoginPage from "./pages/LoginPage";
+import PublicHomePage from "./pages/PublicHomePage";
+import { PrivacyPage, TermsPage } from "./pages/LegalPages";
 import InvestmentsPage from "./pages/InvestmentsPage";
 import StockDetailPage from "./pages/StockDetailPage";
 import RecurringPage from "./pages/RecurringPage";
@@ -21,6 +24,13 @@ import PublicOnlyRoute from "./routes/PublicOnlyRoute";
 const App = () => {
   return (
     <Routes>
+      {/* These routes must remain reachable without a Google account for OAuth branding. */}
+      <Route element={<PublicSiteLayout />}>
+        <Route path="/" element={<PublicHomePage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+      </Route>
+
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
@@ -55,7 +65,6 @@ const App = () => {
         </Route>
       </Route>
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

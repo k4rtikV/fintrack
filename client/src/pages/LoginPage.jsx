@@ -1,6 +1,6 @@
 import { LockKeyhole, ShieldCheck } from "lucide-react";
 import { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
@@ -190,6 +190,14 @@ const LoginPage = () => {
           silently claimed by email alone.
         </p>
       </div>
+
+      <p className="mt-5 text-center text-xs leading-6 text-slate-500">
+        By continuing, you can review FinTrack's{" "}
+        <Link to="/privacy" className="font-semibold text-copper-700 underline underline-offset-2 hover:text-copper-600">Privacy Policy</Link>
+        {" "}and{" "}
+        <Link to="/terms" className="font-semibold text-copper-700 underline underline-offset-2 hover:text-copper-600">Terms of Service</Link>.
+        {" "}<Link to="/" className="font-semibold text-copper-700 underline underline-offset-2 hover:text-copper-600">About FinTrack</Link>
+      </p>
     </section>
   );
 };
