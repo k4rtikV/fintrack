@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import Button from "../ui/Button";
 
@@ -13,11 +13,10 @@ const createInitialForm = (budget, month) => ({
   month,
 });
 
-const BudgetModal = ({
+const BudgetModalForm = ({
   budget,
   categories,
   existingBudgets,
-  isOpen,
   isSaving,
   month,
   onClose,
@@ -26,12 +25,6 @@ const BudgetModal = ({
   const [form, setForm] = useState(() => createInitialForm(budget, month));
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(createInitialForm(budget, month));
-      setError("");
-    }
-  }, [budget, isOpen, month]);
 
   const availableCategories = useMemo(() => {
     if (budget) {
@@ -47,10 +40,6 @@ const BudgetModal = ({
         !category.isArchived && !usedCategoryIds.has(category._id),
     );
   }, [budget, categories, existingBudgets]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   const updateField = (field, value) => {
     setForm((current) => ({
@@ -202,5 +191,8 @@ const BudgetModal = ({
     </div>
   );
 };
+
+const BudgetModal = ({ isOpen, ...props }) =>
+  isOpen ? <BudgetModalForm key={`${props.budget?._id || "new"}:${props.month}`} {...props} /> : null;
 
 export default BudgetModal;

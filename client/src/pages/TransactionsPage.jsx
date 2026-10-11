@@ -74,12 +74,20 @@ const TransactionsPage = () => {
   }, [filters.search]);
 
   useEffect(() => {
-    setTemplates(readTemplates(user));
+    let active = true;
+    queueMicrotask(() => { if (active) setTemplates(readTemplates(user)); });
+    return () => { active = false; };
   }, [user]);
 
   useEffect(() => {
     const nextAccountId = /^[a-f0-9]{24}$/i.test(accountFromUrl) ? accountFromUrl : "";
-    setFilters((current) => current.accountId === nextAccountId ? current : { ...current, accountId: nextAccountId, page: 1 });
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setFilters((current) => current.accountId === nextAccountId
+        ? current : { ...current, accountId: nextAccountId, page: 1 });
+    });
+    return () => { active = false; };
   }, [accountFromUrl]);
 
   const serverFilters = useMemo(() => {
@@ -209,12 +217,17 @@ const TransactionsPage = () => {
       return;
     }
 
-    setSelectedIds([]);
-    setFilters((current) =>
-      current.page === resolvedPage
-        ? current
-        : { ...current, page: resolvedPage },
-    );
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setSelectedIds([]);
+      setFilters((current) =>
+        current.page === resolvedPage
+          ? current
+          : { ...current, page: resolvedPage },
+      );
+    });
+    return () => { active = false; };
   }, [filters.page, pagination?.page, transactionsQuery.isPlaceholderData]);
 
   useEffect(() => {

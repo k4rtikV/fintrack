@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import CategoryIcon from "../ui/CategoryIcon";
 
@@ -41,31 +41,22 @@ const initialForm = {
   color: "blue",
 };
 
-const CategoryModal = ({ open, category, onClose, onSubmit, saving }) => {
-  const [form, setForm] = useState(initialForm);
+const createInitialForm = (category) => category ? {
+  name: category.name,
+  type: category.type,
+  icon: category.icon || "circle",
+  color: category.color || "gray",
+} : initialForm;
+
+const CategoryModalForm = ({ category, onClose, onSubmit, saving }) => {
+  const [form, setForm] = useState(() => createInitialForm(category));
   const editing = Boolean(category);
 
-  useEffect(() => {
-    if (!open) return;
-
-    if (category) {
-      setForm({
-        name: category.name,
-        type: category.type,
-        icon: category.icon || "circle",
-        color: category.color || "gray",
-      });
-    } else {
-      setForm(initialForm);
-    }
-  }, [category, open]);
 
   const canSubmit = useMemo(
     () => form.name.trim().length >= 2 && !saving,
     [form.name, saving],
   );
-
-  if (!open) return null;
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -233,5 +224,8 @@ const CategoryModal = ({ open, category, onClose, onSubmit, saving }) => {
     </div>
   );
 };
+
+const CategoryModal = ({ open, ...props }) =>
+  open ? <CategoryModalForm key={props.category?._id || "new"} {...props} /> : null;
 
 export default CategoryModal;

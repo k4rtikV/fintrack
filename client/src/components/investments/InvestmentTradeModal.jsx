@@ -52,7 +52,7 @@ const InvestmentTradeModal = ({
       }),
     );
     setError("");
-  }, [accounts, defaultType, holding?._id, isOpen, instrument?._id, suggestedPrice]);
+  }, [accounts, defaultType, holding?._id, holding?.account?._id, isOpen, instrument?._id, suggestedPrice]);
 
   useEffect(() => {
     if (isOpen && suggestedPrice && !priceEdited.current) {

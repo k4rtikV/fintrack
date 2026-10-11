@@ -70,8 +70,8 @@ const AssistantPage = () => {
     const cooldownUntil = conversation.cooldownUntil;
 
     if (!cooldownUntil || cooldownUntil <= Date.now()) {
-      setCooldownSeconds(0);
-      return undefined;
+      const timeoutId = window.setTimeout(() => setCooldownSeconds(0), 0);
+      return () => window.clearTimeout(timeoutId);
     }
 
     const updateCountdown = () => {
@@ -80,9 +80,12 @@ const AssistantPage = () => {
       );
     };
 
-    updateCountdown();
+    const initialTimeoutId = window.setTimeout(updateCountdown, 0);
     const intervalId = window.setInterval(updateCountdown, 1000);
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearTimeout(initialTimeoutId);
+      window.clearInterval(intervalId);
+    };
   }, [conversation.cooldownUntil]);
 
   useEffect(() => {

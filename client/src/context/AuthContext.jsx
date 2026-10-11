@@ -98,7 +98,9 @@ const AuthProvider = ({ children }) => {
   }, [applySessionSecurity]);
 
   useEffect(() => {
-    refreshUser();
+    let active = true;
+    queueMicrotask(() => { if (active) refreshUser(); });
+    return () => { active = false; };
   }, [refreshUser]);
 
   useEffect(() => {

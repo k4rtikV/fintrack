@@ -1,19 +1,26 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
 import { getNavigationDirection } from "../../navigation/primaryNavigation";
 
 const AnimatedOutlet = () => {
   const location = useLocation();
-  const previousPathRef = useRef(location.pathname);
+  // Update the path pair during render only when the router pathname changes.
+  // React retries this component before committing the new route, preserving
+  // directional animation without reading a mutable ref in render.
+  const [routePair, setRoutePair] = useState(() => ({
+    previous: location.pathname,
+    current: location.pathname,
+  }));
+  if (routePair.current !== location.pathname) {
+    setRoutePair({ previous: routePair.current, current: location.pathname });
+  }
   const direction = getNavigationDirection(
-    previousPathRef.current,
+    routePair.current === location.pathname ? routePair.previous : routePair.current,
     location.pathname,
   );
 
   useLayoutEffect(() => {
-    previousPathRef.current = location.pathname;
-
     // Run before paint to prevent an old page's bottom scroll position from
     // becoming visible on the next route. Never move the nav rail vertically.
     window.scrollTo(0, 0);

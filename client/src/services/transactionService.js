@@ -18,7 +18,7 @@ const getTransactionsForExport = async (params = {}, { signal } = {}) => {
   const pageSize = 100;
   const transactions = [];
   let page = 1;
-  let totalPages = 1;
+  let totalPages;
 
   do {
     if (signal?.aborted) throw Object.assign(new Error("Transaction export canceled"), { code: "ERR_CANCELED" });

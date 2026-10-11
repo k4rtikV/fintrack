@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import Button from "../ui/Button";
 import { getDateKey, getDateKeyInTimeZone } from "../../utils/dateUtils";
@@ -32,10 +32,9 @@ const typeLabels = {
   TRANSFER: "Transfer",
 };
 
-const TransactionModal = ({
+const TransactionModalForm = ({
   accounts,
   categories,
-  isOpen,
   isSaving,
   onClose,
   onSubmit,
@@ -46,12 +45,6 @@ const TransactionModal = ({
   const [form, setForm] = useState(() => createInitialForm(transaction, template, timezone));
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(createInitialForm(transaction, template, timezone));
-      setError("");
-    }
-  }, [isOpen, transaction, template, timezone]);
 
   const matchingCategories = useMemo(
     () => categories.filter((category) => category.type === form.type),
@@ -73,16 +66,8 @@ const TransactionModal = ({
     [accounts, form.accountId, sourceAccount],
   );
 
-  useEffect(() => {
-    if (
-      form.destinationAccountId &&
-      !destinationAccounts.some((account) => account._id === form.destinationAccountId)
-    ) {
-      setForm((current) => ({ ...current, destinationAccountId: "" }));
-    }
-  }, [destinationAccounts, form.destinationAccountId]);
-
-  if (!isOpen) return null;
+  const validDestinationAccountId = destinationAccounts.some((account) => account._id === form.destinationAccountId)
+    ? form.destinationAccountId : "";
 
   const updateField = (key, value) => {
     setForm((current) => ({
@@ -109,7 +94,7 @@ const TransactionModal = ({
     if (!form.accountId) return setError(form.type === "TRANSFER" ? "Select a source account." : "Select an account.");
 
     if (form.type === "TRANSFER") {
-      if (!form.destinationAccountId) return setError("Select a destination account.");
+      if (!validDestinationAccountId) return setError("Select a destination account.");
       if (form.destinationAccountId === form.accountId) return setError("Destination account must be different from source account.");
     } else if (!form.categoryId) {
       return setError("Select a category.");
@@ -119,7 +104,7 @@ const TransactionModal = ({
     await onSubmit({
       accountId: form.accountId,
       ...(form.type === "TRANSFER"
-        ? { destinationAccountId: form.destinationAccountId }
+        ? { destinationAccountId: validDestinationAccountId }
         : { categoryId: form.categoryId }),
       type: form.type,
       amount,
@@ -181,7 +166,7 @@ const TransactionModal = ({
             {form.type === "TRANSFER" ? (
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                 To account
-                <select value={form.destinationAccountId} onChange={(event) => updateField("destinationAccountId", event.target.value)} className={fieldClassName} disabled={!form.accountId}>
+                <select value={validDestinationAccountId} onChange={(event) => updateField("destinationAccountId", event.target.value)} className={fieldClassName} disabled={!form.accountId}>
                   <option value="">Select destination</option>
                   {destinationAccounts.map((account) => <option key={account._id} value={account._id}>{account.name} · {account.currency}</option>)}
                 </select>
@@ -236,5 +221,11 @@ const TransactionModal = ({
     </div>
   );
 };
+
+const TransactionModal = ({ isOpen, ...props }) =>
+  isOpen ? <TransactionModalForm
+    key={`${props.transaction?._id || "new"}:${props.template?.id || ""}`}
+    {...props}
+  /> : null;
 
 export default TransactionModal;

@@ -1,4 +1,5 @@
 import { RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import DashboardCard from "../layout/DashboardCard";
 import getApiError from "../../utils/getApiError";
 
@@ -8,6 +9,16 @@ const asDate = (value) => {
   return Number.isFinite(date.getTime()) ? date : null;
 };
 const InvestmentCalendar = ({ calendar, loading, error, onRetry, refreshing = false }) => {
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    const refreshTime = () => setNowMs(Date.now());
+    const firstTimer = window.setTimeout(refreshTime, 0);
+    const timer = window.setInterval(refreshTime, 60000);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(timer);
+    };
+  }, []);
   if (loading) return <DashboardCard><p className="py-20 text-center text-slate-400">Loading market calendar…</p></DashboardCard>;
   if (error || !calendar) return <DashboardCard>
     <div className="py-12 text-center">
@@ -18,7 +29,7 @@ const InvestmentCalendar = ({ calendar, loading, error, onRetry, refreshing = fa
   </DashboardCard>;
   const events = (calendar.corporateActions || []).filter((item) => {
     const date = asDate(item.dateLabel);
-    return date && date.getTime() >= Date.now() - 86400000;
+    return date && (!nowMs || date.getTime() >= nowMs - 86400000);
   }).sort((a, b) => asDate(a.dateLabel) - asDate(b.dateLabel));
   return <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-2">
     <DashboardCard><h2 className="text-lg font-bold text-white">NSE/BSE market holidays</h2><p className="mt-1 text-xs text-slate-400">Upcoming exchange closures reported by Upstox. Special sessions can differ by exchange.</p>

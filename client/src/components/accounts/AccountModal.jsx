@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Button from "../ui/Button";
 
@@ -23,7 +23,7 @@ const colorOptions = [
   ["slate", "Slate"],
 ];
 
-const createInitialForm = (account, defaultCurrency = "INR", defaultType = "BANK") => ({
+const createInitialForm = (account, defaultType = "BANK") => ({
   name: account?.name || "",
   type: account?.type || defaultType,
   balance: account ? String(account.balance ?? 0) : "0",
@@ -32,30 +32,17 @@ const createInitialForm = (account, defaultCurrency = "INR", defaultType = "BANK
   icon: account?.icon || "wallet",
 });
 
-const AccountModal = ({
+const AccountModalForm = ({
   account,
-  isOpen,
   isSaving,
   onClose,
   onSubmit,
-  defaultCurrency = "INR",
   defaultType = "BANK",
   fixedType = false,
-  fixedCurrency = false,
 }) => {
-  const [form, setForm] = useState(() => createInitialForm(account, defaultCurrency, defaultType));
+  const [form, setForm] = useState(() => createInitialForm(account, defaultType));
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(createInitialForm(account, defaultCurrency, defaultType));
-      setError("");
-    }
-  }, [account, defaultCurrency, defaultType, isOpen]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   const updateField = (field, value) => {
     setForm((current) => ({
@@ -227,5 +214,8 @@ const AccountModal = ({
     </div>
   );
 };
+
+const AccountModal = ({ isOpen, ...props }) =>
+  isOpen ? <AccountModalForm key={props.account?._id || "new"} {...props} /> : null;
 
 export default AccountModal;

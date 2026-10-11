@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import Button from "../ui/Button";
 import { getDateKey, getDateKeyInTimeZone } from "../../utils/dateUtils";
@@ -23,34 +23,19 @@ const createInitialForm = (recurring, timezone) => ({
   tags: Array.isArray(recurring?.tags) ? recurring.tags.join(", ") : "",
 });
 
-const RecurringModal = ({ recurring, accounts, categories, isOpen, isSaving, onClose, onSubmit, timezone }) => {
+const RecurringModalForm = ({ recurring, accounts, categories, isSaving, onClose, onSubmit, timezone }) => {
   const [form, setForm] = useState(() => createInitialForm(recurring, timezone));
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(createInitialForm(recurring, timezone));
-      setError("");
-    }
-  }, [isOpen, recurring, timezone]);
 
   const filteredCategories = useMemo(() => categories.filter((category) => category.type === form.type), [categories, form.type]);
   const sourceAccount = useMemo(() => accounts.find((account) => account._id === form.accountId), [accounts, form.accountId]);
   const destinationAccounts = useMemo(() => accounts.filter((account) => account._id !== form.accountId && (!sourceAccount || account.currency === sourceAccount.currency)), [accounts, form.accountId, sourceAccount]);
 
-  useEffect(() => {
-    if (form.type !== "TRANSFER" && form.categoryId && !filteredCategories.some((category) => category._id === form.categoryId)) {
-      setForm((current) => ({ ...current, categoryId: "" }));
-    }
-  }, [filteredCategories, form.categoryId, form.type]);
-
-  useEffect(() => {
-    if (form.destinationAccountId && !destinationAccounts.some((account) => account._id === form.destinationAccountId)) {
-      setForm((current) => ({ ...current, destinationAccountId: "" }));
-    }
-  }, [destinationAccounts, form.destinationAccountId]);
-
-  if (!isOpen) return null;
+  const validCategoryId = filteredCategories.some((category) => category._id === form.categoryId)
+    ? form.categoryId : "";
+  const validDestinationAccountId = destinationAccounts.some((account) => account._id === form.destinationAccountId)
+    ? form.destinationAccountId : "";
 
   const updateField = (field, value) => {
     setForm((current) => ({
@@ -72,9 +57,9 @@ const RecurringModal = ({ recurring, accounts, categories, isOpen, isSaving, onC
     if (!Number.isFinite(amount) || amount <= 0) return setError("Enter an amount greater than zero.");
     if (!form.accountId) return setError(form.type === "TRANSFER" ? "Select a source account." : "Select an account.");
     if (form.type === "TRANSFER") {
-      if (!form.destinationAccountId) return setError("Select a destination account.");
+      if (!validDestinationAccountId) return setError("Select a destination account.");
       if (form.destinationAccountId === form.accountId) return setError("Destination account must be different from source account.");
-    } else if (!form.categoryId) return setError("Select a category.");
+    } else if (!validCategoryId) return setError("Select a category.");
     if (!Number.isInteger(interval) || interval < 1 || interval > 365) return setError("Interval must be a whole number between 1 and 365.");
     if (!form.startDate) return setError("Choose a start date.");
     if (form.endDate && form.endDate < form.startDate) return setError("End date cannot be before the start date.");
@@ -85,7 +70,7 @@ const RecurringModal = ({ recurring, accounts, categories, isOpen, isSaving, onC
       type: form.type,
       amount,
       accountId: form.accountId,
-      ...(form.type === "TRANSFER" ? { destinationAccountId: form.destinationAccountId } : { categoryId: form.categoryId }),
+      ...(form.type === "TRANSFER" ? { destinationAccountId: validDestinationAccountId } : { categoryId: validCategoryId }),
       paymentMethod: form.type === "TRANSFER" ? "BANK_TRANSFER" : form.paymentMethod,
       frequency: form.frequency,
       interval,
@@ -124,9 +109,9 @@ const RecurringModal = ({ recurring, accounts, categories, isOpen, isSaving, onC
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">{form.type === "TRANSFER" ? "From account" : "Account"}<select value={form.accountId} onChange={(event) => updateField("accountId", event.target.value)} className={fieldClassName}><option value="">Select account</option>{accounts.filter((account) => !account.isArchived).map((account) => <option key={account._id} value={account._id}>{account.name} · {account.currency}</option>)}</select></label>
             {form.type === "TRANSFER" ? (
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">To account<select value={form.destinationAccountId} onChange={(event) => updateField("destinationAccountId", event.target.value)} className={fieldClassName} disabled={!form.accountId}><option value="">Select destination</option>{destinationAccounts.map((account) => <option key={account._id} value={account._id}>{account.name} · {account.currency}</option>)}</select></label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">To account<select value={validDestinationAccountId} onChange={(event) => updateField("destinationAccountId", event.target.value)} className={fieldClassName} disabled={!form.accountId}><option value="">Select destination</option>{destinationAccounts.map((account) => <option key={account._id} value={account._id}>{account.name} · {account.currency}</option>)}</select></label>
             ) : (
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Category<select value={form.categoryId} onChange={(event) => updateField("categoryId", event.target.value)} className={fieldClassName}><option value="">Select category</option>{filteredCategories.filter((category) => !category.isArchived).map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}</select></label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Category<select value={validCategoryId} onChange={(event) => updateField("categoryId", event.target.value)} className={fieldClassName}><option value="">Select category</option>{filteredCategories.filter((category) => !category.isArchived).map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}</select></label>
             )}
           </div>
 
@@ -153,5 +138,8 @@ const RecurringModal = ({ recurring, accounts, categories, isOpen, isSaving, onC
     </div>
   );
 };
+
+const RecurringModal = ({ isOpen, ...props }) =>
+  isOpen ? <RecurringModalForm key={props.recurring?._id || "new"} {...props} /> : null;
 
 export default RecurringModal;

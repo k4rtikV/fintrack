@@ -38,7 +38,9 @@ const CategoriesPage = () => {
   };
 
   useEffect(() => {
-    loadCategories();
+    let active = true;
+    queueMicrotask(() => { if (active) loadCategories(); });
+    return () => { active = false; };
   }, []);
 
   const filteredCategories = useMemo(() => {

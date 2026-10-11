@@ -60,6 +60,8 @@ const tabs = [
 
 const pct = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toFixed(2)}%`;
 
+const EMPTY_ITEMS = [];
+
 const InvestmentsPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -123,7 +125,7 @@ const InvestmentsPage = () => {
 
   const accounts = accountsQuery.data || [];
   const portfolio = portfolioQuery.data;
-  const watchlist = watchlistQuery.data?.items || [];
+  const watchlist = watchlistQuery.data?.items || EMPTY_ITEMS;
   const watchlistedInstrumentIds = useMemo(
     () => new Set(watchlist.map((item) => String(item.instrument?._id))),
     [watchlist],

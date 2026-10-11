@@ -200,8 +200,12 @@ const SettingsPage = () => {
       }
     };
 
-    load();
-    loadSecurityData();
+    // Network loaders update React state asynchronously, outside the
+    // synchronous effect phase, and are canceled on unmount.
+    let active = true;
+    queueMicrotask(() => { if (active) load(); });
+    queueMicrotask(() => { if (active) loadSecurityData(); });
+    return () => { active = false; };
   }, [loadSecurityData]);
 
   const handleProfileSave = async (event) => {
@@ -410,12 +414,7 @@ const SettingsPage = () => {
                   Preferred currency
                   <select
                     value="INR"
-                    onChange={(event) =>
-                      setProfile((current) => ({
-                        ...current,
-                        preferredCurrency: "INR",
-                      }))
-                    }
+                    disabled
                     className={inputClass}
                   >
                     <option value="INR">INR — Indian Rupee</option>

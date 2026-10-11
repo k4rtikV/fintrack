@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Button from "../ui/Button";
 import {
@@ -47,9 +47,8 @@ const colorOptions = [
   { value: "cyan", label: "Cyan" },
 ];
 
-const GoalModal = ({
+const GoalModalForm = ({
   goal,
-  isOpen,
   isSaving,
   onClose,
   onSubmit,
@@ -58,16 +57,6 @@ const GoalModal = ({
   const [form, setForm] = useState(() => createInitialForm(goal, timezone));
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(createInitialForm(goal, timezone));
-      setError("");
-    }
-  }, [goal, isOpen, timezone]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   const updateField = (field, value) => {
     setForm((current) => ({
@@ -279,5 +268,8 @@ const GoalModal = ({
     </div>
   );
 };
+
+const GoalModal = ({ isOpen, ...props }) =>
+  isOpen ? <GoalModalForm key={props.goal?._id || "new"} {...props} /> : null;
 
 export default GoalModal;

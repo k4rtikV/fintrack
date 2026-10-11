@@ -41,6 +41,8 @@ const formatMonthLabel = (month) => {
   }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 };
 
+const EMPTY_ITEMS = [];
+
 const BudgetsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -98,7 +100,7 @@ const BudgetsPage = () => {
     },
   });
 
-  const budgets = budgetsQuery.data || [];
+  const budgets = budgetsQuery.data || EMPTY_ITEMS;
   const categories = categoriesQuery.data || [];
   const currency = user?.preferredCurrency || "INR";
 

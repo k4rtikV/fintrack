@@ -32,6 +32,8 @@ import { addDaysToDateKey, getDateKey, getDateKeyInTimeZone } from "../utils/dat
 import getApiError from "../utils/getApiError";
 import { announceNotificationsChanged } from "../utils/notificationEvents";
 
+const EMPTY_ITEMS = [];
+
 const RecurringPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -126,7 +128,7 @@ const RecurringPage = () => {
     },
   });
 
-  const recurring = recurringQuery.data || [];
+  const recurring = recurringQuery.data || EMPTY_ITEMS;
   const accounts = accountsQuery.data || [];
   const categories = categoriesQuery.data || [];
   const currency = user?.preferredCurrency || "INR";

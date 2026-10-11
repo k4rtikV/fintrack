@@ -38,7 +38,9 @@ const Topbar = () => {
   }, []);
 
   useEffect(() => {
-    loadNotifications();
+    let active = true;
+    queueMicrotask(() => { if (active) loadNotifications(); });
+    
     const intervalId = window.setInterval(
       () => loadNotifications({ silent: true }),
       60000,
@@ -52,6 +54,7 @@ const Topbar = () => {
     );
 
     return () => {
+      active = false;
       window.clearInterval(intervalId);
       window.removeEventListener(
         NOTIFICATIONS_CHANGED_EVENT,

@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CheckCircle2,
   IndianRupee,
   Clock3,
   Plus,
@@ -28,6 +27,8 @@ import {
 import { formatCurrency } from "../utils/formatters";
 import getApiError from "../utils/getApiError";
 import { announceNotificationsChanged } from "../utils/notificationEvents";
+
+const EMPTY_ITEMS = [];
 
 const GoalsPage = () => {
   const { user } = useAuth();
@@ -79,7 +80,7 @@ const GoalsPage = () => {
     },
   });
 
-  const goals = goalsQuery.data || [];
+  const goals = goalsQuery.data || EMPTY_ITEMS;
   const currency = user?.preferredCurrency || "INR";
 
   const summary = useMemo(() => {
