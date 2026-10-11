@@ -66,10 +66,15 @@ const ensureTransferPair = async ({
     throw new AppError("Transfer destination must be different from the source account", 400);
   }
 
-  const [sourceAccount, destinationAccount] = await Promise.all([
-    ensureAccountBelongsToUser({ accountId: sourceAccountId, userId, session, includeArchived: sourceIncludeArchived }),
-    ensureAccountBelongsToUser({ accountId: destinationAccountId, userId, session, includeArchived: destinationIncludeArchived }),
-  ]);
+  // A MongoDB session cannot be used for concurrent operations within a
+  // transaction. Transfer creation and edits invoke this helper with the same
+  // session, so resolve both owned accounts sequentially.
+  const sourceAccount = await ensureAccountBelongsToUser({
+    accountId: sourceAccountId, userId, session, includeArchived: sourceIncludeArchived,
+  });
+  const destinationAccount = await ensureAccountBelongsToUser({
+    accountId: destinationAccountId, userId, session, includeArchived: destinationIncludeArchived,
+  });
 
   if (sourceAccount.currency !== destinationAccount.currency) {
     throw new AppError(

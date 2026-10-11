@@ -82,12 +82,22 @@ const planFifoSale = ({ lots, quantity, holdingCostBasis = null }) => {
 };
 
 const assertSafeInvestmentTradeAmounts = ({ quantity, price, fees = 0, type }) => {
-  const gross = roundMoney(roundQuantity(quantity) * roundMoney(price));
-  const cashImpact = gross + (type === "SELL" ? -roundMoney(fees) : roundMoney(fees));
-  if (![gross, cashImpact].every((value) => Number.isFinite(value) &&
-    Math.abs(value) <= MAX_TRADE_CASH_RUPEES &&
-    Number.isSafeInteger(Math.round(value * MONEY_SCALE))) || gross < 0) {
-    throw new RangeError("Investment trade cash amount including fees must not exceed INR 1,000,000,000 in exact paise");
+  const normalizedQuantity = roundQuantity(quantity);
+  const normalizedPrice = roundMoney(price);
+  const normalizedFees = roundMoney(fees);
+  const gross = roundMoney(normalizedQuantity * normalizedPrice);
+  const cashImpact = gross + (type === "SELL" ? -normalizedFees : normalizedFees);
+  // Positive inputs can collapse to zero when rounded to the ledger's
+  // six-decimal quantity and two-decimal INR precision. Reject these before
+  // creating a lot or changing an account balance: neither a zero-quantity
+  // trade nor an unrepresentable (sub-paisa) trade is a valid ledger entry.
+  if (!Number.isFinite(normalizedQuantity) || normalizedQuantity < 1 / QUANTITY_SCALE ||
+      !Number.isFinite(normalizedPrice) || normalizedPrice < 1 / MONEY_SCALE ||
+      !Number.isFinite(normalizedFees) || normalizedFees < 0 ||
+      ![gross, cashImpact].every((value) => Number.isFinite(value) &&
+        Math.abs(value) <= MAX_TRADE_CASH_RUPEES &&
+        Number.isSafeInteger(Math.round(value * MONEY_SCALE))) || gross < 1 / MONEY_SCALE) {
+    throw new RangeError("Investment trade cash amount including fees must be representable in exact paise, positive after rounding, and no more than INR 1,000,000,000");
   }
   return gross;
 };

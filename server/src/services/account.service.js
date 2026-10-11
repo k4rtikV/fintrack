@@ -118,7 +118,12 @@ const updateAccountForUser = async ({ accountId, userId, updates }) => {
 
     const changingType = updates.type && updates.type !== account.type;
     const changingCurrency = updates.currency && updates.currency !== account.currency;
-    if (changingType && updates.type === "INVESTMENT" && account.currency !== "INR") {
+    // Check the FINAL pair, not just the previous currency. This also covers
+    // an investment account's currency edit and simultaneous type/currency
+    // changes from service callers or future validators.
+    const nextType = updates.type ?? account.type;
+    const nextCurrency = updates.currency ?? account.currency;
+    if ((changingType || changingCurrency) && nextType === "INVESTMENT" && nextCurrency !== "INR") {
       throw new AppError("Investment accounts require INR. Preserve this legacy-currency account and create a new INR investment account.", 409, {
         code: "INVESTMENT_ACCOUNT_CURRENCY_UNSUPPORTED",
       });
