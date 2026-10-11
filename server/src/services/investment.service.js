@@ -8,7 +8,8 @@ import InvestmentTrade from "../models/InvestmentTrade.js";
 import InvestmentWatchlistItem from "../models/InvestmentWatchlistItem.js";
 import AppError from "../utils/AppError.js";
 import { toUtcDateOnly } from "../utils/dateOnly.js";
-import { planFifoSale, roundMoney, roundQuantity } from "../utils/investmentMath.js";
+import { assertSafeInvestmentTradeAmounts, planFifoSale, roundMoney, roundQuantity } from "../utils/investmentMath.js";
+import { assertTradeDateNotBeforeLatest } from "../utils/investmentChronology.js";
 import { researchLinksForInstrument } from "../utils/investmentResearchLinks.js";
 import {
   getQuotesForInstruments,
@@ -84,6 +85,9 @@ const createInvestmentTradeForUser = async ({
   const numericQuantity = roundQuantity(quantity);
   const numericPrice = roundMoney(price);
   const numericFees = roundMoney(fees);
+  const normalizedTradeDate = toUtcDateOnly(tradeDate);
+  // Combined cash values must be within an exact, auditable paise range.
+  const grossAmount = assertSafeInvestmentTradeAmounts({ quantity: numericQuantity, price: numericPrice, fees: numericFees, type });
   let tradeId;
 
   await mongoose.connection.transaction(async (session) => {
@@ -112,7 +116,13 @@ const createInvestmentTradeForUser = async ({
       holding = created[0];
     }
 
-    const grossAmount = roundMoney(numericQuantity * numericPrice);
+    // Holdings represent arrival-order FIFO. Do not insert a backdated trade
+    // after later trades without replaying all downstream lot allocations.
+    const latestTrade = await InvestmentTrade.findOne({
+      user: userId, account: account._id, instrument: instrument._id,
+    }).sort({ tradeDate: -1, createdAt: -1, _id: -1 }).session(session).select("tradeDate");
+    assertTradeDateNotBeforeLatest({ tradeDate: normalizedTradeDate, latestTradeDate: latestTrade?.tradeDate });
+
     let netCashAmount;
     let realizedPnl = 0;
     let consumedCostBasis = 0;
@@ -139,7 +149,7 @@ const createInvestmentTradeForUser = async ({
           unitCost: lotUnitCost,
           costBasisOriginalPaise: Math.round(totalCashOut * 100),
           costBasisRemainingPaise: Math.round(totalCashOut * 100),
-          acquiredAt: toUtcDateOnly(tradeDate),
+          acquiredAt: normalizedTradeDate,
         }],
         { session },
       );
@@ -218,7 +228,7 @@ const createInvestmentTradeForUser = async ({
         netCashAmount,
         costBasis: consumedCostBasis,
         realizedPnl,
-        tradeDate: toUtcDateOnly(tradeDate),
+        tradeDate: normalizedTradeDate,
         note,
       }],
       { session },

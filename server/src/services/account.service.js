@@ -167,48 +167,46 @@ const archiveAccountForUser = async ({
   accountId,
   userId,
 }) => {
-  const account = await getAccountByIdForUser({
-    accountId,
-    userId,
+  ensureValidObjectId(accountId);
+  return mongoose.connection.transaction(async (session) => {
+    const account = await Account.findOne({ _id: accountId, user: userId, isArchived: false }).session(session);
+    if (!account) throw new AppError("Account not found", 404);
+
+    const activeRecurringCount = await RecurringTransaction.countDocuments({
+        user: userId,
+        isActive: true,
+        $or: [
+          { account: account._id },
+          { destinationAccount: account._id },
+        ],
+      }).session(session);
+    const openHoldingCount = await InvestmentHolding.countDocuments({
+        user: userId,
+        account: account._id,
+        quantity: { $gt: 0 },
+      }).session(session);
+
+    if (activeRecurringCount > 0) {
+      throw new AppError(
+        `Pause, update, or delete ${activeRecurringCount} active Autopay rule${
+          activeRecurringCount === 1 ? "" : "s"
+        } using this account before archiving it`,
+        409,
+      );
+    }
+
+    if (openHoldingCount > 0) {
+      throw new AppError(
+        `Sell or move the ${openHoldingCount} open investment holding${openHoldingCount === 1 ? "" : "s"} in this account before archiving it`,
+        409,
+        { code: "INVESTMENT_ACCOUNT_HAS_OPEN_HOLDINGS" },
+      );
+    }
+
+    account.isArchived = true;
+    await account.save({ session });
+    return account;
   });
-
-  const [activeRecurringCount, openHoldingCount] = await Promise.all([
-    RecurringTransaction.countDocuments({
-      user: userId,
-      isActive: true,
-      $or: [
-        { account: account._id },
-        { destinationAccount: account._id },
-      ],
-    }),
-    InvestmentHolding.countDocuments({
-      user: userId,
-      account: account._id,
-      quantity: { $gt: 0 },
-    }),
-  ]);
-
-  if (activeRecurringCount > 0) {
-    throw new AppError(
-      `Pause, update, or delete ${activeRecurringCount} active Autopay rule${
-        activeRecurringCount === 1 ? "" : "s"
-      } using this account before archiving it`,
-      409,
-    );
-  }
-
-  if (openHoldingCount > 0) {
-    throw new AppError(
-      `Sell or move the ${openHoldingCount} open investment holding${openHoldingCount === 1 ? "" : "s"} in this account before archiving it`,
-      409,
-      { code: "INVESTMENT_ACCOUNT_HAS_OPEN_HOLDINGS" },
-    );
-  }
-
-  account.isArchived = true;
-  await account.save();
-
-  return account;
 };
 
 export {

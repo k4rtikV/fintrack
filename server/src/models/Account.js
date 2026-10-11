@@ -46,6 +46,10 @@ const accountSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // A common document-write boundary for account edits/archiving and
+    // the creation of financial rules referring to the account.
+    referenceRevision: { type: Number, default: 0, select: false },
+
     isArchived: {
       type: Boolean,
       default: false,

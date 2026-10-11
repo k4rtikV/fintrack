@@ -94,6 +94,22 @@ const ensureRecurringDependencies = async ({
   return { account, destinationAccount: null, category };
 };
 
+// Serialize creation/reassignment of Autopay references with account edits
+// and archival through a real write to the referenced account documents.
+// Existence reads alone are not a cross-collection transactional race guard.
+const claimRecurringAccounts = async ({ userId, accountId, destinationAccountId, type, session }) => {
+  const ids = [...new Set([accountId?.toString(),
+    type === "TRANSFER" ? destinationAccountId?.toString() : null].filter(Boolean))].sort();
+  for (const id of ids) {
+    const result = await Account.updateOne(
+      { _id: id, user: userId, isArchived: false },
+      { $inc: { referenceRevision: 1 } },
+      { session },
+    );
+    if (!result.matchedCount) throw new AppError("Autopay account not found or archived", 409);
+  }
+};
+
 const populateRecurring = (query) =>
   query
     .populate("account", "name type currency balance isArchived")
@@ -131,13 +147,15 @@ const createRecurringForUser = async ({
   startDate,
   endDate,
 }) => {
-  await ensureRecurringDependencies({
-    userId,
-    accountId,
-    destinationAccountId,
-    categoryId,
-    type,
+  const recurringId = await mongoose.connection.transaction(async (session) => {
+    await ensureRecurringDependencies({
+      userId,
+      accountId,
+      destinationAccountId,
+      categoryId,
+      type, session,
   });
+  await claimRecurringAccounts({ userId, accountId, destinationAccountId, type, session });
 
   const firstRun = atStartOfDay(startDate);
   const normalizedEndDate = endDate ? atStartOfDay(endDate) : null;
@@ -149,7 +167,7 @@ const createRecurringForUser = async ({
     throw new AppError("End date cannot be before start date", 400);
   }
 
-  const recurring = await RecurringTransaction.create({
+  const [recurring] = await RecurringTransaction.create([{
     user: userId,
     account: accountId,
     destinationAccount: type === "TRANSFER" ? destinationAccountId : null,
@@ -165,11 +183,11 @@ const createRecurringForUser = async ({
     startDate: firstRun,
     endDate: normalizedEndDate,
     nextRunDate: firstRun,
-  });
+  }], { session });
 
-  return populateRecurring(
-    RecurringTransaction.findById(recurring._id),
-  );
+  return recurring._id;
+  });
+  return populateRecurring(RecurringTransaction.findById(recurringId));
 };
 
 const getRecurringByIdForUser = async ({
@@ -279,38 +297,40 @@ const updateRecurringForUser = async ({
   timezone = "Asia/Kolkata",
 }) => {
   ensureValidObjectId(recurringId);
+  const updatedId = await mongoose.connection.transaction(async (session) => {
 
-  const recurring = await RecurringTransaction.findOne({
-    _id: recurringId,
-    user: userId,
+    const recurring = await RecurringTransaction.findOne({
+      _id: recurringId,
+      user: userId,
+    }).session(session);
+
+    if (!recurring) {
+      throw new AppError("Autopay not found", 404);
+    }
+
+    normalizeRecurringCalendarDates(recurring, timezone);
+
+    const nextType = updates.type ?? recurring.type;
+    const nextAccountId = updates.accountId ?? recurring.account.toString();
+    const nextDestinationAccountId = nextType === "TRANSFER"
+      ? (updates.destinationAccountId !== undefined
+          ? updates.destinationAccountId
+          : recurring.destinationAccount?.toString() || null)
+      : null;
+    const nextCategoryId = nextType === "TRANSFER"
+      ? null
+      : (updates.categoryId !== undefined
+          ? updates.categoryId
+          : recurring.category?.toString() || null);
+
+    await ensureRecurringDependencies({
+      userId,
+      accountId: nextAccountId,
+      destinationAccountId: nextDestinationAccountId,
+      categoryId: nextCategoryId,
+      type: nextType, session,
   });
-
-  if (!recurring) {
-    throw new AppError("Autopay not found", 404);
-  }
-
-  normalizeRecurringCalendarDates(recurring, timezone);
-
-  const nextType = updates.type ?? recurring.type;
-  const nextAccountId = updates.accountId ?? recurring.account.toString();
-  const nextDestinationAccountId = nextType === "TRANSFER"
-    ? (updates.destinationAccountId !== undefined
-        ? updates.destinationAccountId
-        : recurring.destinationAccount?.toString() || null)
-    : null;
-  const nextCategoryId = nextType === "TRANSFER"
-    ? null
-    : (updates.categoryId !== undefined
-        ? updates.categoryId
-        : recurring.category?.toString() || null);
-
-  await ensureRecurringDependencies({
-    userId,
-    accountId: nextAccountId,
-    destinationAccountId: nextDestinationAccountId,
-    categoryId: nextCategoryId,
-    type: nextType,
-  });
+  await claimRecurringAccounts({ userId, accountId: nextAccountId, destinationAccountId: nextDestinationAccountId, type: nextType, session });
 
   const nextStartDate = updates.startDate
     ? atStartOfDay(updates.startDate)
@@ -383,11 +403,10 @@ const updateRecurringForUser = async ({
     recurring.isActive = false;
   }
 
-  await recurring.save();
-
-  return populateRecurring(
-    RecurringTransaction.findById(recurring._id),
-  );
+  await recurring.save({ session });
+  return recurring._id;
+  });
+  return populateRecurring(RecurringTransaction.findById(updatedId));
 };
 
 const deleteRecurringForUser = async ({

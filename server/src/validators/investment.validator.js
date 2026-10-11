@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isValidDateKey } from "../utils/dateOnly.js";
+import { assertSafeInvestmentTradeAmounts } from "../utils/investmentMath.js";
 
 const objectIdString = z.string().trim().min(1).max(40);
 
@@ -18,8 +20,14 @@ const tradeSchema = z.object({
     quantity: z.number().finite().positive().max(1_000_000_000),
     price: z.number().finite().positive().max(1_000_000_000),
     fees: z.number().finite().min(0).max(100_000_000).default(0),
-    tradeDate: z.string().trim().min(1).max(30),
+    tradeDate: z.string().trim().refine(isValidDateKey, "Trade date must be a real YYYY-MM-DD calendar date"),
     note: z.string().trim().max(300).default(""),
+  }).superRefine((trade, ctx) => {
+    try {
+      assertSafeInvestmentTradeAmounts(trade);
+    } catch (error) {
+      ctx.addIssue({ code: "custom", path: ["quantity"], message: error.message });
+    }
   }),
 });
 

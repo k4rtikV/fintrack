@@ -1,5 +1,8 @@
 const QUANTITY_SCALE = 1e6;
 const MONEY_SCALE = 100;
+// Upper bound matches the app's other INR amount limits; combined trade
+// notional (and cash impact including fees) are bounded, not only unit price.
+const MAX_TRADE_CASH_RUPEES = 1_000_000_000;
 
 const roundQuantity = (value) =>
   Math.round((Number(value) + Number.EPSILON) * QUANTITY_SCALE) / QUANTITY_SCALE;
@@ -78,4 +81,15 @@ const planFifoSale = ({ lots, quantity, holdingCostBasis = null }) => {
   };
 };
 
-export { planFifoSale, roundMoney, roundQuantity };
+const assertSafeInvestmentTradeAmounts = ({ quantity, price, fees = 0, type }) => {
+  const gross = roundMoney(roundQuantity(quantity) * roundMoney(price));
+  const cashImpact = gross + (type === "SELL" ? -roundMoney(fees) : roundMoney(fees));
+  if (![gross, cashImpact].every((value) => Number.isFinite(value) &&
+    Math.abs(value) <= MAX_TRADE_CASH_RUPEES &&
+    Number.isSafeInteger(Math.round(value * MONEY_SCALE))) || gross < 0) {
+    throw new RangeError("Investment trade cash amount including fees must not exceed INR 1,000,000,000 in exact paise");
+  }
+  return gross;
+};
+
+export { assertSafeInvestmentTradeAmounts, planFifoSale, roundMoney, roundQuantity };

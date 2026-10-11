@@ -25,6 +25,8 @@ const userSessionSchema = new mongoose.Schema(
     },
 
     // Random opaque browser-profile token hash; never derive identity from IP/UA.
+    browserSignInSequence: { type: Number, default: 0 },
+
     browserInstanceHash: {
       type: String,
       default: null,

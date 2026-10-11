@@ -15,7 +15,7 @@ import {
   getOverviewForUser,
   getTopExpensesForUser,
 } from "./analytics.service.js";
-import { getCurrencySafety } from "./assistantGuardrails.service.js";
+import { getReportCurrencySafety } from "../utils/reportCurrencyPolicy.js";
 import { executeAssistantTool } from "./assistantTools.service.js";
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
@@ -143,10 +143,14 @@ const unwrapTool = (result) => {
   return result.data || null;
 };
 
-const getRecordedRecurringActivity = async ({ userId, startDate, endDate }) => {
+const getRecordedRecurringActivity = async ({ userId, startDate, endDate, currency = "INR" }) => {
+  // Archived accounts may still own historical INR transactions. Select by
+  // denomination, not archive state; other currencies cannot be summed as INR.
+  const currencyAccountIds = await Account.distinct("_id", { user: userId, currency });
   const match = {
     user: userId,
     recurringTransaction: { $ne: null },
+    account: { $in: currencyAccountIds },
     transactionDate: {
       $gte: startDate,
       $lte: endDate,
@@ -389,20 +393,21 @@ const getMonthlyReportData = async ({ user, month: requestedMonth }) => {
       userId: user._id,
       startDate: monthDates.start,
       endDate: analysisEnd,
+      currency: user.preferredCurrency || "INR",
     }),
   ]);
 
   const allUserAccounts = await Account.find({
     user: user._id,
   }).select("currency isArchived");
-  const currencySafety = getCurrencySafety({
+  const currencySafety = getReportCurrencySafety({
     accounts: allUserAccounts,
     preferredCurrency: user.preferredCurrency || "INR",
   });
 
   if (!currencySafety.supported) {
     throw new AppError(
-      "Monthly PDF reports currently require a single active account currency because FinTrack does not have an authoritative FX conversion layer",
+      "Monthly PDF reports require active accounts to use the report currency. Archived foreign accounts are excluded from current balances and foreign transactions are excluded from INR totals.",
       400,
       {
         code: "MIXED_CURRENCY_REPORT_UNSUPPORTED",

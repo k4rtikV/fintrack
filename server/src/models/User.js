@@ -142,6 +142,9 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
+    // Atomic, cross-worker ordering for same-browser session replacement.
+    browserSignInSequence: { type: Number, default: 0, select: false },
+
     lastLoginAt: {
       type: Date,
       default: null,

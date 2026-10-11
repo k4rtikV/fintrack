@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import SecurityEvent from "../models/SecurityEvent.js";
+import User from "../models/User.js";
 import TrustedDevice from "../models/TrustedDevice.js";
 import UserSession from "../models/UserSession.js";
 import AppError from "../utils/AppError.js";
@@ -36,7 +37,27 @@ const createAuthenticatedSession = async ({
   const expiresAt = getAccessTokenExpiry(token);
   const now = new Date();
 
+  const sameBrowserScopes = [];
+  if (browserInstanceHash) sameBrowserScopes.push({ browserInstanceHash });
+  if (trustedDeviceId) sameBrowserScopes.push({ trustedDevice: trustedDeviceId });
+  // Use a MongoDB atomic sequence, not ObjectId byte ordering (which is not
+  // ordered by creation time across different application workers).
+  let browserSignInSequence = 0;
+  if (sameBrowserScopes.length) {
+    const issued = await User.findByIdAndUpdate(userId,
+      { $inc: { browserSignInSequence: 1 } },
+      { new: true })
+      .select("+browserSignInSequence")
+      .lean();
+    if (!issued || !Number.isSafeInteger(issued.browserSignInSequence) ||
+        issued.browserSignInSequence < 1) {
+      throw new AppError("Unable to allocate browser sign-in order", 503);
+    }
+    browserSignInSequence = issued.browserSignInSequence;
+  }
+
   const session = await UserSession.create({
+    browserSignInSequence,
     sessionId,
     user: userId,
     ...securityContext,
@@ -48,19 +69,17 @@ const createAuthenticatedSession = async ({
     strongAuthAt: now,
   });
 
-  const sameBrowserScopes = [];
-  if (browserInstanceHash) sameBrowserScopes.push({ browserInstanceHash });
-  // Legacy PIN-enabled sessions already carry a trustworthy per-profile
-  // trustedDevice ID, even before browser-instance cookies were introduced.
-  if (trustedDeviceId) sameBrowserScopes.push({ trustedDevice: trustedDeviceId });
   if (sameBrowserScopes.length) {
-    // Do not merge based on IP, OS, browser name or User-Agent. Two unrelated
-    // users/profiles often share those values; this is an auth boundary.
+    // Never dedupe by IP/UA: distinct users and browser profiles can share them.
+    const scopeFilter = { $or: sameBrowserScopes };
     await UserSession.updateMany({
       user: userId,
-      _id: { $lt: session._id },
+      _id: { $ne: session._id },
       revokedAt: null,
-      $or: sameBrowserScopes,
+      $and: [scopeFilter, { $or: [
+        { browserSignInSequence: { $lt: browserSignInSequence } },
+        { browserSignInSequence: { $exists: false } },
+      ] }],
     }, {
       $set: { revokedAt: now, revokeReason: "SAME_BROWSER_SIGN_IN" },
     });
@@ -68,8 +87,8 @@ const createAuthenticatedSession = async ({
     // guard both requests could revoke each other and return dead tokens.
     const newer = await UserSession.exists({
       user: userId,
-      _id: { $gt: session._id },
       revokedAt: null,
+      browserSignInSequence: { $gt: browserSignInSequence },
       $or: sameBrowserScopes,
     });
     if (newer) {

@@ -149,6 +149,7 @@ export {
   differenceInCalendarDays,
   endOfUtcDateOnly,
   getDateKey,
+  isValidDateKey,
   getDateKeyInTimeZone,
   getDateOnlyAsOfInTimeZone,
   getMonthKeyInTimeZone,
